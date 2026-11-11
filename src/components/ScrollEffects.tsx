@@ -40,7 +40,7 @@ export default function ScrollEffects() {
     <div
       ref={progressRef}
       style={{ transform: "scaleX(0)" }}
-      className="fixed inset-x-0 top-0 z-[60] h-[3px] origin-left bg-[#35CE00] shadow-[0_0_12px_rgba(53,206,0,0.8)]"
+      className="fixed inset-x-0 top-0 z-[60] h-[3px] origin-left bg-[#5865F2] shadow-[0_0_12px_rgba(88,101,242,0.8)]"
       aria-hidden="true"
     />
   );

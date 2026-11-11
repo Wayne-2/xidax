@@ -2,6 +2,15 @@
 
 import { useEffect, useRef } from "react";
 
+const gridMask = [
+  "radial-gradient(circle at 12% 18%, black 0 150px, transparent 210px)",
+  "radial-gradient(circle at 86% 12%, black 0 110px, transparent 170px)",
+  "radial-gradient(circle at 76% 66%, black 0 180px, transparent 250px)",
+  "radial-gradient(circle at 22% 82%, black 0 130px, transparent 190px)",
+  "radial-gradient(circle at 52% 38%, black 0 90px, transparent 150px)",
+  "radial-gradient(circle at 40% 60%, black 0 70px, transparent 120px)",
+].join(", ");
+
 export default function SiteBackground() {
   const rootRef = useRef<HTMLDivElement>(null);
   const spotlightRef = useRef<HTMLDivElement>(null);
@@ -11,11 +20,11 @@ export default function SiteBackground() {
     const spotlight = spotlightRef.current;
     if (!root || !spotlight) return;
 
-    let pointerFrame = 0;
+    let frame = 0;
     const handleMove = (event: PointerEvent) => {
-      if (pointerFrame) return;
-      pointerFrame = requestAnimationFrame(() => {
-        pointerFrame = 0;
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
         const rect = root.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
@@ -27,31 +36,11 @@ export default function SiteBackground() {
       });
     };
 
-    let scrollFrame = 0;
-    const updateFade = () => {
-      scrollFrame = 0;
-      const max =
-        document.documentElement.scrollHeight - window.innerHeight;
-      const progress =
-        max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
-      root.style.opacity = `${1 - progress}`;
-    };
-    const handleScroll = () => {
-      if (scrollFrame) return;
-      scrollFrame = requestAnimationFrame(updateFade);
-    };
-
-    updateFade();
     window.addEventListener("pointermove", handleMove);
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("resize", handleScroll);
 
     return () => {
       window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("resize", handleScroll);
-      if (pointerFrame) cancelAnimationFrame(pointerFrame);
-      if (scrollFrame) cancelAnimationFrame(scrollFrame);
+      if (frame) cancelAnimationFrame(frame);
     };
   }, []);
 
@@ -62,15 +51,13 @@ export default function SiteBackground() {
       aria-hidden="true"
     >
       <div
-        className="absolute inset-0 opacity-60"
+        className="absolute inset-0 opacity-70"
         style={{
           backgroundImage:
-            "linear-gradient(to right, rgba(255,255,255,0.045) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.045) 1px, transparent 1px)",
+            "linear-gradient(to right, rgba(0,0,0,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.06) 1px, transparent 1px)",
           backgroundSize: "64px 64px",
-          maskImage:
-            "radial-gradient(ellipse at center, black 20%, transparent 75%)",
-          WebkitMaskImage:
-            "radial-gradient(ellipse at center, black 20%, transparent 75%)",
+          maskImage: gridMask,
+          WebkitMaskImage: gridMask,
         }}
       />
 
@@ -79,7 +66,7 @@ export default function SiteBackground() {
         className="absolute inset-0 opacity-0 transition-opacity duration-300"
         style={{
           backgroundImage:
-            "radial-gradient(circle 220px at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%), linear-gradient(to right, rgba(255,255,255,0.55) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.55) 1px, transparent 1px)",
+            "radial-gradient(circle 220px at var(--mx, 50%) var(--my, 50%), rgba(0,0,0,0.06) 0%, rgba(0,0,0,0) 70%), linear-gradient(to right, rgba(0,0,0,0.35) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.35) 1px, transparent 1px)",
           backgroundSize: "100% 100%, 64px 64px, 64px 64px",
           maskImage:
             "radial-gradient(circle 240px at var(--mx, 50%) var(--my, 50%), black 0%, transparent 100%)",

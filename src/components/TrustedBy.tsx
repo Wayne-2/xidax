@@ -34,7 +34,7 @@ function LogoRow({ hidden = false }: { hidden?: boolean }) {
             icon={partner.icon}
             height={32}
             ssr
-            className="h-8 w-auto brightness-0 invert"
+            className="h-8 w-auto brightness-0"
           />
         </span>
       ))}
@@ -44,7 +44,7 @@ function LogoRow({ hidden = false }: { hidden?: boolean }) {
 
 export default function TrustedBy() {
   return (
-    <section className="border-b-2 border-[#35CE00] bg-[#030603] text-white">
+    <section className="border-b-2 border-[#5865F2] bg-[#eaf0f8] text-[#2e3338]">
       <div className="mx-auto max-w-7xl px-4 py-20 text-center sm:px-6 lg:px-8 lg:py-24">
         <h2
           data-reveal="up"
@@ -55,7 +55,7 @@ export default function TrustedBy() {
         <p
           data-reveal="up"
           style={{ animationDelay: "100ms" }}
-          className="mx-auto mt-3 max-w-xl text-base leading-relaxed text-white/60"
+          className="mx-auto mt-3 max-w-xl text-base leading-relaxed text-[#5c5e66]"
         >
           Trusted by the companies and creators the world watches.
         </p>
@@ -65,8 +65,8 @@ export default function TrustedBy() {
           style={{ animationDelay: "200ms" }}
           className="relative mt-12 overflow-hidden"
         >
-          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-[#030603] to-transparent" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-[#030603] to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-[#eaf0f8] to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-[#eaf0f8] to-transparent" />
 
           <div className="flex w-max animate-marquee">
             <LogoRow />

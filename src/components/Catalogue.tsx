@@ -8,7 +8,7 @@ import CountUp from "@/components/CountUp";
 const builds = [
   {
     title: "X-6 GeForce RTX 5070 + i7 14700F TENRAI",
-    image: "/catalogue_image.png",
+    image: "/display_section.png",
     rating: 4.8,
     reviews: 128,
     description:
@@ -17,8 +17,8 @@ const builds = [
     salePrice: "$1,649.99",
   },
   {
-    title: "Xidax Legendary AMD",
-    image: "/catalogue_image2.png",
+    title: "Geforce Legendary AMD",
+    image: "/display_section2.png",
     rating: 4.9,
     reviews: 96,
     description:
@@ -85,7 +85,7 @@ function StarIcon({ filled }: { filled: boolean }) {
     <svg
       viewBox="0 0 24 24"
       fill="currentColor"
-      className={`h-4 w-4 ${filled ? "text-[#35CE00]" : "text-white/20"}`}
+      className={`h-4 w-4 ${filled ? "text-[#5865F2]" : "text-[#d2dbe8]"}`}
       aria-hidden="true"
     >
       <path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27Z" />
@@ -101,7 +101,7 @@ function StarRating({ rating, reviews }: { rating: number; reviews: number }) {
           <StarIcon key={star} filled={star <= Math.round(rating)} />
         ))}
       </div>
-      <span className="text-xs text-white/50">
+      <span className="text-xs text-[#5c5e66]">
         {rating.toFixed(1)} ({reviews})
       </span>
     </div>
@@ -120,14 +120,14 @@ export default function Catalogue() {
   };
 
   return (
-    <section className="text-white">
+    <section className="text-[#2e3338]">
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
         <div data-reveal="left" className="flex items-center gap-3">
           <span
-            className="h-px w-[50px] bg-gradient-to-r from-[#35CE00] to-transparent"
+            className="h-px w-[50px] bg-gradient-to-r from-[#5865F2] to-transparent"
             aria-hidden="true"
           />
-          <span className="text-base font-medium uppercase tracking-[0.2em] text-white/70">
+          <span className="text-base font-medium uppercase tracking-[0.2em] text-[#5c5e66]">
             Featured Build
           </span>
         </div>
@@ -145,7 +145,7 @@ export default function Catalogue() {
           style={{ animationDelay: "160ms" }}
           className="mt-4 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between"
         >
-          <p className="max-w-2xl text-base leading-relaxed text-white/60">
+          <p className="max-w-2xl text-base leading-relaxed text-[#5c5e66]">
             Every build runs through 24 Hour Quality Control Testing before it
             ships. Every build wears the same lifetime service &amp; labor.
           </p>
@@ -153,7 +153,7 @@ export default function Catalogue() {
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-white/20 px-5 text-sm font-medium text-white/80 transition-colors hover:border-white/40 hover:text-white"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-[#d2dbe8] px-5 text-sm font-medium text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
             >
               View all prebuilds
               <ArrowIcon />
@@ -162,7 +162,7 @@ export default function Catalogue() {
               type="button"
               onClick={() => scrollCarousel(-1)}
               aria-label="Previous"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white/70 transition-colors hover:border-white/40 hover:text-white"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#d2dbe8] text-[#5c5e66] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
             >
               <ChevronLeftIcon />
             </button>
@@ -170,7 +170,7 @@ export default function Catalogue() {
               type="button"
               onClick={() => scrollCarousel(1)}
               aria-label="Next"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white/70 transition-colors hover:border-white/40 hover:text-white"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#d2dbe8] text-[#5c5e66] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
             >
               <ChevronRightIcon />
             </button>
@@ -187,9 +187,9 @@ export default function Catalogue() {
               data-card
               data-reveal="blur"
               style={{ animationDelay: `${index * 120}ms` }}
-              className="group flex w-[85%] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-white/10 bg-neutral-900 transition-colors hover:border-[#35CE00]/60 sm:w-[47%] lg:w-[31.5%]"
+              className="group flex w-[85%] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] transition-colors hover:border-[#5865F2]/60 sm:w-[47%] lg:w-[31.5%]"
             >
-              <div className="relative aspect-[4/3] overflow-hidden bg-neutral-800">
+              <div className="relative aspect-[4/3] overflow-hidden bg-[#dce3ee]">
                 <Image
                   src={build.image}
                   alt={build.title}
@@ -198,7 +198,7 @@ export default function Catalogue() {
                   quality={90}
                   className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
                 />
-                <span className="absolute left-3 top-3 rounded-md bg-[#35CE00] px-2 py-1 text-xs font-bold uppercase tracking-wide text-neutral-950">
+                <span className="absolute left-3 top-3 rounded-md bg-[#5865F2] px-2 py-1 text-xs font-bold uppercase tracking-wide text-white">
                   Sale
                 </span>
               </div>
@@ -206,19 +206,19 @@ export default function Catalogue() {
               <div className="flex flex-1 flex-col gap-3 p-5">
                 <StarRating rating={build.rating} reviews={build.reviews} />
 
-                <h3 className="text-base font-semibold leading-snug text-white">
+                <h3 className="text-base font-semibold leading-snug text-[#2e3338]">
                   {build.title}
                 </h3>
 
-                <p className="text-sm leading-relaxed text-white/50">
+                <p className="text-sm leading-relaxed text-[#5c5e66]">
                   {build.description}
                 </p>
 
                 <div className="mt-auto flex items-end gap-2 pt-1">
-                  <span className="text-lg font-bold text-[#35CE00]">
+                  <span className="text-lg font-bold text-[#5865F2]">
                     {build.salePrice}
                   </span>
-                  <span className="pb-0.5 text-sm text-white/40 line-through">
+                  <span className="pb-0.5 text-sm text-[#80848e] line-through">
                     {build.price}
                   </span>
                 </div>
@@ -226,13 +226,13 @@ export default function Catalogue() {
                 <div className="mt-1 flex gap-2">
                   <button
                     type="button"
-                    className="inline-flex h-11 flex-1 items-center justify-center rounded-lg bg-[#35CE00] px-4 text-sm font-semibold text-neutral-950 transition-colors hover:bg-[#43e00d]"
+                    className="inline-flex h-11 flex-1 items-center justify-center rounded-lg bg-[#5865F2] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
                   >
                     Add to cart
                   </button>
                   <button
                     type="button"
-                    className="inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-white/20 px-4 text-sm font-medium text-white/80 transition-colors hover:border-white/40 hover:text-white"
+                    className="inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-[#d2dbe8] px-4 text-sm font-medium text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
                   >
                     Customize
                   </button>
@@ -246,14 +246,14 @@ export default function Catalogue() {
             data-card
             data-reveal="blur"
             style={{ animationDelay: "240ms" }}
-            className="group relative flex w-[85%] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-white/10 bg-neutral-900 p-6 transition-colors hover:border-[#35CE00]/60 sm:w-[47%] lg:w-[31.5%]"
+            className="group relative flex w-[85%] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-6 transition-colors hover:border-[#5865F2]/60 sm:w-[47%] lg:w-[31.5%]"
           >
             <div
               className="absolute inset-0"
               aria-hidden="true"
               style={{
                 backgroundImage:
-                  "linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px)",
+                  "linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px)",
                 backgroundSize: "32px 32px",
               }}
             />
@@ -261,44 +261,44 @@ export default function Catalogue() {
             <div className="relative flex flex-1 flex-col">
               <div className="flex justify-center py-6">
                 <span
-                  className="flex h-24 w-24 items-center justify-center rounded-full border border-[#35CE00]/50 text-[#35CE00] transition-transform duration-300 ease-out group-hover:-rotate-12"
+                  className="flex h-24 w-24 items-center justify-center rounded-full border border-[#5865F2]/50 text-[#5865F2] transition-transform duration-300 ease-out group-hover:-rotate-12"
                   style={{
                     background:
-                      "radial-gradient(circle, rgba(53,206,0,0) 40%, rgba(53,206,0,0.1) 100%)",
+                      "radial-gradient(circle, rgba(88,101,242,0) 40%, rgba(88,101,242,0.1) 100%)",
                   }}
                 >
                   <ArrowIcon className="h-10 w-10" />
                 </span>
               </div>
 
-              <span className="text-xs font-semibold uppercase tracking-wide text-[#35CE00]">
+              <span className="text-xs font-semibold uppercase tracking-wide text-[#5865F2]">
                 Full Catalogue
               </span>
 
-              <h3 className="mt-4 text-2xl font-bold uppercase tracking-tight text-white sm:text-3xl">
+              <h3 className="mt-4 text-2xl font-bold uppercase tracking-tight text-[#2e3338] sm:text-3xl">
                 See all builds
               </h3>
 
-              <p className="mt-2 text-sm leading-relaxed text-white/60">
+              <p className="mt-2 text-sm leading-relaxed text-[#5c5e66]">
                 Every configuration. Every tier. Lifetime Service &amp; Labor on
                 all of them.
               </p>
 
               <div className="mt-auto flex items-center gap-6 pt-8">
                 <div>
-                  <p className="text-2xl font-bold text-white">
+                  <p className="text-2xl font-bold text-[#2e3338]">
                     <CountUp value={120} suffix="+" />
                   </p>
-                  <p className="text-xs uppercase tracking-wide text-white/50">
+                  <p className="text-xs uppercase tracking-wide text-[#5c5e66]">
                     Configs
                   </p>
                 </div>
-                <div className="h-8 w-px bg-white/10" />
+                <div className="h-8 w-px bg-[#dce3ee]" />
                 <div>
-                  <p className="text-2xl font-bold text-white">
+                  <p className="text-2xl font-bold text-[#2e3338]">
                     <CountUp value={50} suffix="K+" />
                   </p>
-                  <p className="text-xs uppercase tracking-wide text-white/50">
+                  <p className="text-xs uppercase tracking-wide text-[#5c5e66]">
                     Labors
                   </p>
                 </div>

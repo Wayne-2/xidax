@@ -30,7 +30,7 @@ function ArrowIcon() {
 export default function Home() {
   return (
     <>
-      <main className="relative flex-1 overflow-hidden text-white">
+      <main className="relative flex-1 overflow-hidden text-[#2e3338]">
         <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-16 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:gap-12 lg:px-8 lg:py-28">
           <div>
             <h1
@@ -38,13 +38,13 @@ export default function Home() {
               className="text-4xl font-extrabold tracking-tight text-balance sm:text-5xl lg:text-6xl"
             >
               Gaming PCs built to{" "}
-              <span className="text-[#35CE00]">dominate.</span>
+              <span className="text-[#5865F2]">dominate.</span>
             </h1>
 
             <p
               data-reveal="up"
               style={{ animationDelay: "120ms" }}
-              className="mt-5 max-w-xl text-base leading-relaxed text-white/60 sm:text-lg"
+              className="mt-5 max-w-xl text-base leading-relaxed text-[#5c5e66] sm:text-lg"
             >
               Hand-built, stress-tested, and tuned for maximum FPS. Pick a
               ready-to-ship prebuild or configure your dream machine — no
@@ -58,14 +58,14 @@ export default function Home() {
             >
               <Link
                 href="/prebuilds"
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#35CE00] px-7 text-sm font-semibold text-neutral-950 shadow-lg shadow-[#35CE00]/25 transition-colors hover:bg-[#43e00d]"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#5865F2] px-7 text-sm font-semibold text-white shadow-lg shadow-[#5865F2]/25 transition-colors hover:bg-[#4752C4]"
               >
                 Shop prebuilds
                 <ArrowIcon />
               </Link>
               <Link
                 href="/custom-builds"
-                className="inline-flex h-12 items-center justify-center rounded-lg border border-white/20 px-7 text-sm font-semibold text-white transition-colors hover:border-white/40 hover:bg-white/5"
+                className="inline-flex h-12 items-center justify-center rounded-lg border border-[#d2dbe8] px-7 text-sm font-semibold text-[#2e3338] transition-colors hover:border-[#b8c4d6] hover:bg-black/5"
               >
                 Build your own
               </Link>
@@ -75,17 +75,17 @@ export default function Home() {
           <div
             data-reveal="scale"
             style={{ animationDelay: "180ms" }}
-            className="relative mx-auto w-full max-w-[20rem] sm:max-w-[24rem] lg:max-w-[26rem]"
+            className="relative mx-auto w-full max-w-[22rem] sm:max-w-[27rem] lg:max-w-[30rem]"
           >
             <Parallax speed={0.06}>
               <Image
                 src="/hero_image.png"
-                alt="XIDAX custom gaming PC"
+                alt="Pcmart custom gaming PC"
                 width={900}
                 height={900}
                 priority
                 quality={90}
-                sizes="(min-width: 1024px) 416px, (min-width: 640px) 384px, 100vw"
+                sizes="(min-width: 1024px) 480px, (min-width: 640px) 432px, 100vw"
                 className="h-auto w-full rounded-3xl object-contain"
               />
             </Parallax>

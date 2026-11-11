@@ -1,25 +1,24 @@
-import Image from "next/image";
 import Link from "next/link";
 
 const cards = [
   {
-    title: "CONFIGURED. TESTED. SHIPPED",
+    title: "BUILT FOR POWER. READY FOR ANYTHING.",
     subtitle:
       "Preconfigured battle-stations. 24hrs burn-in tested, packed and shipped, in 1-3 business days",
     cta: "Shop prebuilds",
     href: "/prebuilds",
-    image: "/display_section.png",
-    badge: "In stock",
+    video: "/display_vid1.mp4",
+    badge: "Available stocks",
     withArrow: true,
   },
   {
-    title: "YOUR SPEC. YOUR BUILD",
+    title: "MADE PERSONAL. BUILT POWERFUL.",
     subtitle:
       "Configure every part. Designed and supported world wide, and backed by lifetime service and labor",
     cta: "Start building",
     href: "/custom-builds",
-    image: "/display_section2.png",
-    badge: "Lifetime service & labor",
+    video: "/display_vid2.mp4",
+    badge: "Customer lifetime service",
     withArrow: true,
   },
 ];
@@ -50,22 +49,25 @@ export default function DisplayCards() {
           key={card.href}
           data-reveal="scale"
           style={{ animationDelay: `${index * 140}ms` }}
-          className="group relative flex aspect-[900/590] min-h-[15rem] overflow-hidden border border-transparent transition-[border-color,box-shadow] duration-300 hover:border-[#35CE00] hover:shadow-[0_0_40px_rgba(53,206,0,0.35)] focus-within:border-[#35CE00] focus-within:shadow-[0_0_40px_rgba(53,206,0,0.35)]"
+          className="group relative flex aspect-[900/590] min-h-[26rem] w-full min-w-0 overflow-hidden border border-transparent transition-[border-color,box-shadow] duration-300 hover:border-[#5865F2] hover:shadow-[0_0_40px_rgba(88,101,242,0.35)] focus-within:border-[#5865F2] focus-within:shadow-[0_0_40px_rgba(88,101,242,0.35)] md:min-h-[15rem]"
         >
-          <Image
-            src={card.image}
-            alt=""
-            fill
-            sizes="(min-width: 768px) 50vw, 100vw"
-            quality={90}
-            className="object-cover transition-transform duration-500 ease-out group-hover:scale-110 group-focus-within:scale-110"
-          />
+          <video
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-110 group-focus-within:scale-110"
+          >
+            <source src={card.video} type="video/mp4" />
+          </video>
           <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black" />
-          <span className="absolute left-8 top-6 z-10 inline-flex items-center gap-2 rounded-full bg-black/30 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#35CE00]/90 backdrop-blur sm:left-10">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-[#35CE00] shadow-[0_0_8px_rgba(53,206,0,0.7)]" />
+          <span className="absolute left-8 top-6 z-10 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)] sm:left-10">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.7)]" />
             {card.badge}
           </span>
-          <div className="relative z-10 mt-auto flex w-full flex-col items-start gap-3 p-8 sm:p-10">
+          <div className="relative z-10 mt-auto flex w-full flex-col items-start gap-4 p-8 sm:gap-3 sm:p-10">
             <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
               {card.title}
             </h2>
@@ -74,7 +76,7 @@ export default function DisplayCards() {
             </p>
             <Link
               href={card.href}
-              className="mt-2 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#35CE00] px-6 text-sm font-semibold text-neutral-950 transition-colors hover:bg-[#43e00d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              className="mt-3 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#5865F2] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:mt-2"
             >
               {card.cta}
               {card.withArrow && <ArrowIcon />}

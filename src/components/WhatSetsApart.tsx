@@ -3,7 +3,7 @@ const reasons = [
     number: "01",
     title: "Lifetime Service & Labor",
     description:
-      "Every Xidax desktop ships with a lifetime service and labor warranty. Not 1 year, not 3 — for as long as you own the machine",
+      "Every Pcmart desktop ships with a lifetime service and labor warranty. Not 1 year, not 3 — for as long as you own the machine",
   },
   {
     number: "02",
@@ -27,14 +27,14 @@ const reasons = [
 
 export default function WhatSetsApart() {
   return (
-    <section className="text-white">
+    <section className="text-[#2e3338]">
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
         <div data-reveal="left" className="flex items-center gap-3">
           <span
-            className="h-px w-[50px] bg-gradient-to-r from-[#35CE00] to-transparent"
+            className="h-px w-[50px] bg-gradient-to-r from-[#5865F2] to-transparent"
             aria-hidden="true"
           />
-          <span className="text-base font-medium uppercase tracking-[0.2em] text-white/70">
+          <span className="text-base font-medium uppercase tracking-[0.2em] text-[#5c5e66]">
             What Sets Apart
           </span>
         </div>
@@ -50,26 +50,26 @@ export default function WhatSetsApart() {
         <p
           data-reveal="up"
           style={{ animationDelay: "160ms" }}
-          className="mt-4 max-w-2xl text-base leading-relaxed text-white/60"
+          className="mt-4 max-w-2xl text-base leading-relaxed text-[#5c5e66]"
         >
-          Four reasons every Xidax desktop punches above its price tag.
+          Four reasons every Pcmart desktop punches above its price tag.
         </p>
 
-        <div className="mt-12 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#dce3ee] sm:grid-cols-2 lg:grid-cols-4">
           {reasons.map((reason, index) => (
             <div
               key={reason.number}
               data-reveal="scale"
               style={{ animationDelay: `${index * 100}ms` }}
-              className="group bg-neutral-950 p-8 transition-colors duration-300 hover:bg-[#35CE00]/5"
+              className="group bg-[#f8fafe] p-8 transition-colors duration-300 hover:bg-[#5865F2]/5"
             >
-              <span className="text-4xl font-bold tracking-tight text-[#35CE00]">
+              <span className="text-4xl font-bold tracking-tight text-[#5865F2]">
                 {reason.number}
               </span>
-              <h3 className="mt-6 text-lg font-semibold text-white">
+              <h3 className="mt-6 text-lg font-semibold text-[#2e3338]">
                 {reason.title}
               </h3>
-              <p className="mt-3 text-sm leading-relaxed text-white/50">
+              <p className="mt-3 text-sm leading-relaxed text-[#5c5e66]">
                 {reason.description}
               </p>
             </div>

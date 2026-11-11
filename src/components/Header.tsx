@@ -1,32 +1,11 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
-
-const navLinks = [
-  { label: "Prebuilds", href: "/prebuilds" },
-  { label: "Custom Builds", href: "/custom-builds" },
-  { label: "Sales", href: "/sales" },
-  { label: "Accessories", href: "/accessories" },
-  { label: "Blog", href: "/blog" },
-  { label: "Support", href: "/support" },
-];
-
-function SearchIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-5 w-5"
-      aria-hidden="true"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-3.5-3.5" />
-    </svg>
-  );
-}
+import { useState } from "react";
+import HeaderSearch from "@/components/HeaderSearch";
+import MobileNav from "@/components/MobileNav";
+import NavLinks from "@/components/NavLinks";
 
 function UserIcon() {
   return (
@@ -65,54 +44,68 @@ function BagIcon() {
 }
 
 export default function Header() {
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-neutral-950/85 text-white backdrop-blur">
+    <header className="sticky top-0 z-50 w-full border-b border-[#dce3ee] bg-[#f0f4fa]/85 text-[#2e3338] backdrop-blur">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex shrink-0 items-center">
           <Image
-            src="/header_logo.png"
-            alt="XIDAX"
-            width={160}
-            height={40}
+            src="/pcmart.png"
+            alt="Pcmart"
+            width={497}
+            height={141}
             priority
             className="h-8 w-auto"
           />
         </Link>
 
-        <nav className="hidden items-center gap-6 md:flex">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="text-sm font-medium text-white/70 transition-colors hover:text-white"
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
+        <div
+          className={`transition-opacity duration-300 ${
+            searchOpen
+              ? "pointer-events-none opacity-0"
+              : "opacity-100"
+          }`}
+        >
+          <NavLinks />
+        </div>
 
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-          <button
-            type="button"
-            aria-label="Search"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-          >
-            <SearchIcon />
-          </button>
+          <HeaderSearch
+            open={searchOpen}
+            onOpenChange={(next) => {
+              setSearchOpen(next);
+
+              if (next) {
+                setMenuOpen(false);
+              }
+            }}
+          />
           <Link
             href="/account"
             aria-label="Account"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+            className="hidden h-9 w-9 items-center justify-center rounded-full text-[#5c5e66] transition-colors hover:bg-black/5 hover:text-[#2e3338] md:flex"
           >
             <UserIcon />
           </Link>
           <Link
             href="/cart"
             aria-label="Cart"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+            className="hidden h-9 w-9 items-center justify-center rounded-full text-[#5c5e66] transition-colors hover:bg-black/5 hover:text-[#2e3338] md:flex"
           >
             <BagIcon />
           </Link>
+          <MobileNav
+            open={menuOpen}
+            onOpenChange={(next) => {
+              setMenuOpen(next);
+
+              if (next) {
+                setSearchOpen(false);
+              }
+            }}
+          />
         </div>
       </div>
     </header>

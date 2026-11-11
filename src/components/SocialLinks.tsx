@@ -23,7 +23,7 @@ export default function SocialLinks() {
           key={social.name}
           href={social.href}
           aria-label={social.name}
-          className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/15 text-white/70 transition-colors hover:border-[#35CE00] hover:text-[#35CE00]"
+          className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#d2dbe8] text-[#5c5e66] transition-colors hover:border-[#5865F2] hover:text-[#5865F2]"
         >
           <Icon icon={social.icon} height={18} ssr />
         </a>
