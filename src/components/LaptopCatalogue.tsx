@@ -319,7 +319,7 @@ export default function LaptopCatalogue({
                 </p>
               </div>
 
-              <div className="mt-8 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2 [scrollbar-width:none] lg:grid lg:grid-cols-2 lg:gap-6 lg:overflow-visible lg:pb-0 [&::-webkit-scrollbar]:hidden">
+              <div className="mt-8 flex snap-x snap-mandatory items-start gap-5 overflow-x-auto pb-2 [scrollbar-width:none] lg:grid lg:grid-cols-2 lg:items-stretch lg:gap-6 lg:overflow-visible lg:pb-0 [&::-webkit-scrollbar]:hidden">
                 {categoryLaptops.map((laptop) => (
                   <div
                     key={laptop.id}

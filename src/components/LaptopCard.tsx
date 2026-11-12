@@ -1,3 +1,6 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import LaptopArtwork from "@/components/LaptopArtwork";
 import { CartIcon } from "@/components/AccessoryIcons";
 import { CheckIcon } from "@/components/BuildIcons";
@@ -22,13 +25,42 @@ export default function LaptopCard({
 }: LaptopCardProps) {
   const accent = category.accent;
   const inStock = laptop.stock === "in-stock";
+  const [expanded, setExpanded] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const updateOverflow = useCallback(() => {
+    const element = contentRef.current;
+
+    if (!element) return;
+
+    setOverflowing(element.scrollHeight > element.clientHeight + 1);
+  }, []);
+
+  useEffect(() => {
+    const element = contentRef.current;
+
+    if (!element) return;
+
+    const frame = requestAnimationFrame(updateOverflow);
+    const observer = new ResizeObserver(updateOverflow);
+
+    observer.observe(element);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [updateOverflow]);
 
   return (
     <article
       data-laptop-card
-      className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] transition-colors hover:border-[#5865F2]/60"
+      className={`group flex flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] transition-colors hover:border-[#5865F2]/60 ${
+        expanded ? "aspect-auto sm:aspect-auto" : "aspect-[1/2] sm:aspect-auto"
+      }`}
     >
-      <div className="relative aspect-[16/10] overflow-hidden bg-[#dce3ee]">
+      <div className="relative aspect-[16/10] shrink-0 overflow-hidden bg-[#dce3ee]">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 opacity-70"
@@ -81,7 +113,10 @@ export default function LaptopCard({
         </span>
       </div>
 
-      <div className="flex flex-1 flex-col p-6">
+      <div
+        ref={contentRef}
+        className="flex flex-1 flex-col overflow-hidden p-6"
+      >
         <h3 className="text-xl font-bold tracking-tight text-[#2e3338]">
           {laptop.name}
         </h3>
@@ -121,10 +156,15 @@ export default function LaptopCard({
             </div>
           ))}
         </dl>
+      </div>
 
-        <div className="mt-auto flex flex-wrap items-end justify-between gap-4 pt-6">
+      <div className="shrink-0 p-6 pt-0">
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <span className="text-2xl font-bold tracking-tight" style={{ color: accent }}>
+            <span
+              className="text-2xl font-bold tracking-tight"
+              style={{ color: accent }}
+            >
               {formatLaptopPrice(laptop.price)}
             </span>
             <span className="ml-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#80848e]">
@@ -155,6 +195,17 @@ export default function LaptopCard({
             {added ? "In cart" : "Add to cart"}
           </button>
         </div>
+
+        {overflowing && (
+          <button
+            type="button"
+            onClick={() => setExpanded((open) => !open)}
+            aria-expanded={expanded}
+            className="mt-3 w-full rounded-lg border border-[#d2dbe8] bg-[#f8fafe] py-2 text-xs font-semibold text-[#5865F2] transition-colors hover:border-[#5865F2]/50 sm:hidden"
+          >
+            {expanded ? "less" : "more..."}
+          </button>
+        )}
       </div>
     </article>
   );
