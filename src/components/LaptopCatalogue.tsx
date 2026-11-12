@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import LaptopArtwork from "@/components/LaptopArtwork";
 import LaptopCard from "@/components/LaptopCard";
-import { CartIcon } from "@/components/AccessoryIcons";
+import { CartIcon, ChevronLeftIcon, ChevronRightIcon } from "@/components/AccessoryIcons";
 import { CheckIcon } from "@/components/BuildIcons";
 import {
   BriefcaseIcon,
@@ -21,6 +21,13 @@ type LaptopCatalogueProps = {
   categories: LaptopCategory[];
   laptops: Laptop[];
   featured: Laptop;
+};
+
+type LaptopRowProps = {
+  category: LaptopCategory;
+  laptops: Laptop[];
+  addedIds: string[];
+  onToggle: (laptop: Laptop) => void;
 };
 
 function CategoryIcon({
@@ -42,6 +49,169 @@ function CategoryIcon({
   }
 }
 
+function LaptopRow({
+  category,
+  laptops,
+  addedIds,
+  onToggle,
+}: LaptopRowProps) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollState = useCallback(() => {
+    const track = trackRef.current;
+
+    if (!track) return;
+
+    setCanScrollLeft(track.scrollLeft > 4);
+    setCanScrollRight(
+      track.scrollLeft + track.clientWidth < track.scrollWidth - 4
+    );
+  }, []);
+
+  useEffect(() => {
+    const track = trackRef.current;
+
+    if (!track) return;
+
+    const handle = () => updateScrollState();
+    const frame = requestAnimationFrame(handle);
+    const observer = new ResizeObserver(handle);
+
+    observer.observe(track);
+    track
+      .querySelectorAll<HTMLElement>("[data-laptop-track-item]")
+      .forEach((item) => observer.observe(item));
+
+    track.addEventListener("scroll", handle, { passive: true });
+    window.addEventListener("resize", handle);
+    window.addEventListener("load", handle);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      track.removeEventListener("scroll", handle);
+      window.removeEventListener("resize", handle);
+      window.removeEventListener("load", handle);
+    };
+  }, [updateScrollState, laptops.length]);
+
+  function scrollRow(direction: -1 | 1) {
+    const track = trackRef.current;
+
+    if (!track) return;
+
+    const card = track.querySelector<HTMLElement>("[data-laptop-track-item]");
+    const amount = card ? card.offsetWidth + 20 : track.clientWidth * 0.8;
+
+    track.scrollBy({ left: direction * amount, behavior: "smooth" });
+  }
+
+  return (
+    <section
+      id={category.id}
+      aria-labelledby={`${category.id}-heading`}
+      className="scroll-mt-32 border-b border-[#dce3ee] py-10 sm:py-14"
+    >
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div
+          data-reveal="up"
+          className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"
+        >
+          <div className="flex items-start gap-4">
+            <span
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#d2dbe8]"
+              style={{
+                backgroundColor: `${category.accent}14`,
+                color: category.accent,
+              }}
+            >
+              <CategoryIcon category={category.id} className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#80848e]">
+                {laptops.length} models
+              </p>
+              <h2
+                id={`${category.id}-heading`}
+                className="mt-1 text-2xl font-bold tracking-tight text-[#2e3338] sm:text-3xl"
+              >
+                {category.label}
+              </h2>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-[#5c5e66]">
+                {category.description}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 lg:justify-end">
+            <div className="flex items-center gap-2 lg:hidden">
+              <button
+                type="button"
+                aria-label={`Scroll ${category.label} left`}
+                disabled={!canScrollLeft}
+                onClick={() => scrollRow(-1)}
+                className="flex h-11 w-11 touch-manipulation items-center justify-center rounded-full border border-[#d2dbe8] bg-[#f8fafe] text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeftIcon className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                aria-label={`Scroll ${category.label} right`}
+                disabled={!canScrollRight}
+                onClick={() => scrollRow(1)}
+                className="flex h-11 w-11 touch-manipulation items-center justify-center rounded-full border border-[#d2dbe8] bg-[#f8fafe] text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronRightIcon className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="hidden max-w-sm text-sm font-medium lg:block lg:text-right">
+              <span style={{ color: category.accent }}>{category.tagline}</span>
+            </p>
+          </div>
+        </div>
+
+        <div className="relative mt-6">
+          <div
+            ref={trackRef}
+            className="flex snap-x snap-mandatory items-start gap-5 overflow-x-auto pb-2 [scrollbar-width:none] lg:grid lg:grid-cols-2 lg:items-stretch lg:gap-6 lg:overflow-visible lg:pb-0 [&::-webkit-scrollbar]:hidden"
+          >
+            {laptops.map((laptop) => (
+              <div
+                key={laptop.id}
+                data-laptop-track-item
+                className="flex w-[88%] shrink-0 snap-start lg:w-auto"
+              >
+                <LaptopCard
+                  laptop={laptop}
+                  category={category}
+                  added={addedIds.includes(laptop.id)}
+                  onToggle={onToggle}
+                />
+              </div>
+            ))}
+          </div>
+
+          {canScrollLeft && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#f0f4fa] to-transparent lg:hidden"
+            />
+          )}
+          {canScrollRight && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-[#f0f4fa] to-transparent lg:hidden"
+            />
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function LaptopCatalogue({
   categories,
   laptops,
@@ -49,8 +219,9 @@ export default function LaptopCatalogue({
 }: LaptopCatalogueProps) {
   const [addedIds, setAddedIds] = useState<string[]>([]);
   const [toast, setToast] = useState<{ id: number; message: string } | null>(
-    null,
+    null
   );
+  const [featuredSpecsOpen, setFeaturedSpecsOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -74,7 +245,7 @@ export default function LaptopCatalogue({
     setAddedIds((current) =>
       isAdded
         ? current.filter((id) => id !== laptop.id)
-        : [...current, laptop.id],
+        : [...current, laptop.id]
     );
 
     setToast((current) => ({
@@ -97,25 +268,28 @@ export default function LaptopCatalogue({
         aria-label="Laptop categories"
         className="sticky top-16 z-40 border-y border-[#dce3ee] bg-[#f0f4fa]/90 backdrop-blur"
       >
-        <div className="mx-auto flex max-w-7xl items-center gap-2 overflow-x-auto px-4 py-3 [scrollbar-width:none] sm:px-6 lg:px-8 [&::-webkit-scrollbar]:hidden">
-          <span className="shrink-0 pr-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#80848e]">
-            Shop by use
-          </span>
-          {categories.map((category) => (
-            <a
-              key={category.id}
-              href={`#${category.id}`}
-              className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3.5 py-1.5 text-xs font-semibold text-[#4e5058] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338]"
-            >
-              <span style={{ color: category.accent }}>
-                <CategoryIcon category={category.id} className="h-3.5 w-3.5" />
-              </span>
-              {category.navLabel}
-            </a>
-          ))}
+        <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-1 items-center gap-2 overflow-x-auto py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <span className="hidden shrink-0 pr-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#80848e] sm:block">
+              Shop by use
+            </span>
+            {categories.map((category) => (
+              <a
+                key={category.id}
+                href={`#${category.id}`}
+                className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3.5 py-1.5 text-xs font-semibold text-[#4e5058] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338]"
+              >
+                <span style={{ color: category.accent }}>
+                  <CategoryIcon category={category.id} className="h-3.5 w-3.5" />
+                </span>
+                {category.navLabel}
+              </a>
+            ))}
+          </div>
+
           <span
             aria-live="polite"
-            className={`ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
               addedIds.length > 0
                 ? "border-[#5865F2] bg-[#5865F2] text-white"
                 : "border-[#d2dbe8] bg-[#f8fafe] text-[#80848e]"
@@ -136,7 +310,7 @@ export default function LaptopCatalogue({
       <section
         id="flagship"
         aria-labelledby="flagship-heading"
-        className="border-b border-[#dce3ee] py-12 sm:py-16"
+        className="border-b border-[#dce3ee] py-10 sm:py-14"
       >
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div
@@ -193,15 +367,17 @@ export default function LaptopCatalogue({
                 >
                   {featured.tagline}
                 </p>
-                <p className="mt-4 text-sm leading-relaxed text-[#5c5e66]">
+                <p className="mt-3 text-sm leading-relaxed text-[#5c5e66]">
                   {featured.description}
                 </p>
 
-                <ul className="mt-5 grid gap-2 sm:grid-cols-2">
-                  {featured.highlights.map((highlight) => (
+                <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {featured.highlights.map((highlight, index) => (
                     <li
                       key={highlight}
-                      className="flex items-start gap-2 text-xs leading-relaxed text-[#5c5e66]"
+                      className={`flex items-start gap-2 text-xs leading-relaxed text-[#5c5e66] ${
+                        index > 1 ? "hidden sm:flex" : ""
+                      }`}
                     >
                       <span
                         className="mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center"
@@ -214,7 +390,11 @@ export default function LaptopCatalogue({
                   ))}
                 </ul>
 
-                <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] p-4">
+                <dl
+                  className={`mt-4 grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] p-4 ${
+                    featuredSpecsOpen ? "grid" : "hidden lg:grid"
+                  }`}
+                >
                   {featured.specs.map((spec) => (
                     <div key={spec.label} className="min-w-0">
                       <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
@@ -226,6 +406,20 @@ export default function LaptopCatalogue({
                     </div>
                   ))}
                 </dl>
+
+                <button
+                  type="button"
+                  onClick={() => setFeaturedSpecsOpen((open) => !open)}
+                  aria-expanded={featuredSpecsOpen}
+                  className="mt-3 inline-flex h-11 touch-manipulation items-center justify-center gap-1.5 rounded-lg border border-[#d2dbe8] bg-[#f8fafe] text-xs font-semibold text-[#5865F2] transition-colors hover:border-[#5865F2]/50 lg:hidden"
+                >
+                  {featuredSpecsOpen ? "Hide full specs" : "Show full specs"}
+                  <ChevronRightIcon
+                    className={`h-3.5 w-3.5 transition-transform duration-300 ${
+                      featuredSpecsOpen ? "rotate-90" : ""
+                    }`}
+                  />
+                </button>
 
                 <div className="mt-auto flex flex-wrap items-end justify-between gap-4 pt-6">
                   <div>
@@ -249,7 +443,7 @@ export default function LaptopCatalogue({
                         : `Add ${featured.name} to cart`
                     }
                     onClick={() => toggleLaptop(featured)}
-                    className={`inline-flex h-12 items-center justify-center gap-2 rounded-lg px-7 text-sm font-semibold transition-colors ${
+                    className={`inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-lg px-7 text-sm font-semibold transition-colors ${
                       addedIds.includes(featured.id)
                         ? "border border-[#5865F2]/30 bg-[#5865F2]/10 text-[#4752C4] hover:bg-[#5865F2]/15"
                         : "bg-[#5865F2] text-white hover:bg-[#4752C4]"
@@ -269,79 +463,18 @@ export default function LaptopCatalogue({
         </div>
       </section>
 
-      {categories.map((category) => {
-        const categoryLaptops = laptops.filter(
-          (laptop) => laptop.category === category.id,
-        );
-
-        return (
-          <section
-            key={category.id}
-            id={category.id}
-            aria-labelledby={`${category.id}-heading`}
-            className="scroll-mt-32 border-b border-[#dce3ee] py-14 sm:py-16"
-          >
-            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-              <div
-                data-reveal="up"
-                className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between"
-              >
-                <div className="flex items-start gap-4">
-                  <span
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#d2dbe8]"
-                    style={{
-                      backgroundColor: `${category.accent}14`,
-                      color: category.accent,
-                    }}
-                  >
-                    <CategoryIcon category={category.id} className="h-6 w-6" />
-                  </span>
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#80848e]">
-                      {categoryLaptops.length} models
-                    </p>
-                    <h2
-                      id={`${category.id}-heading`}
-                      className="mt-1 text-2xl font-bold tracking-tight text-[#2e3338] sm:text-3xl lg:text-4xl"
-                    >
-                      {category.label}
-                    </h2>
-                    <p className="mt-2 max-w-xl text-sm leading-relaxed text-[#5c5e66]">
-                      {category.description}
-                    </p>
-                  </div>
-                </div>
-
-                <p className="max-w-sm text-sm font-medium lg:text-right">
-                  <span style={{ color: category.accent }}>
-                    {category.tagline}
-                  </span>
-                </p>
-              </div>
-
-              <div className="mt-8 flex snap-x snap-mandatory items-start gap-5 overflow-x-auto pb-2 [scrollbar-width:none] lg:grid lg:grid-cols-2 lg:items-stretch lg:gap-6 lg:overflow-visible lg:pb-0 [&::-webkit-scrollbar]:hidden">
-                {categoryLaptops.map((laptop) => (
-                  <div
-                    key={laptop.id}
-                    data-laptop-track-item
-                    className="flex w-[88%] shrink-0 snap-start lg:w-auto"
-                  >
-                    <LaptopCard
-                      laptop={laptop}
-                      category={category}
-                      added={addedIds.includes(laptop.id)}
-                      onToggle={toggleLaptop}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-        );
-      })}
+      {categories.map((category) => (
+        <LaptopRow
+          key={category.id}
+          category={category}
+          laptops={laptops.filter((laptop) => laptop.category === category.id)}
+          addedIds={addedIds}
+          onToggle={toggleLaptop}
+        />
+      ))}
 
       {toast && (
-        <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2">
+        <div className="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] left-1/2 z-50 -translate-x-1/2">
           <div
             key={toast.id}
             role="status"

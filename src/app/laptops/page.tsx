@@ -102,10 +102,10 @@ export default function LaptopsPage() {
               <p className="mt-2 text-lg font-bold leading-snug text-[#2e3338]">
                 Burned in for 24 hours before it leaves us.
               </p>
-              <p className="mt-2 text-sm leading-relaxed text-[#5c5e66]">
+              <p className="mt-2 hidden text-sm leading-relaxed text-[#5c5e66] sm:block">
                 Same standards as our desktops, tuned for a chassis that moves.
               </p>
-              <ul className="mt-4 space-y-2 border-t border-[#d2dbe8] pt-4">
+              <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-[#d2dbe8] pt-4">
                 {[
                   "24-hour burn-in test",
                   "3-year warranty",

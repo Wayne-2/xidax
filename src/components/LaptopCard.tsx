@@ -42,14 +42,20 @@ export default function LaptopCard({
 
     if (!element) return;
 
-    const frame = requestAnimationFrame(updateOverflow);
-    const observer = new ResizeObserver(updateOverflow);
+    const handle = () => updateOverflow();
+    const frame = requestAnimationFrame(handle);
+    const observer = new ResizeObserver(handle);
 
     observer.observe(element);
+    Array.from(element.children).forEach((child) =>
+      observer.observe(child as Element)
+    );
+    window.addEventListener("load", handle);
 
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
+      window.removeEventListener("load", handle);
     };
   }, [updateOverflow]);
 
@@ -115,7 +121,7 @@ export default function LaptopCard({
 
       <div
         ref={contentRef}
-        className="flex flex-1 flex-col overflow-hidden p-6"
+        className="relative flex flex-1 flex-col overflow-hidden p-6"
       >
         <h3 className="text-xl font-bold tracking-tight text-[#2e3338]">
           {laptop.name}
@@ -156,6 +162,13 @@ export default function LaptopCard({
             </div>
           ))}
         </dl>
+
+        {overflowing && !expanded && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#eaf0f8] via-[#eaf0f8]/70 to-transparent"
+          />
+        )}
       </div>
 
       <div className="shrink-0 p-6 pt-0">
@@ -181,7 +194,7 @@ export default function LaptopCard({
                 : `Add ${laptop.name} to cart`
             }
             onClick={() => onToggle(laptop)}
-            className={`inline-flex h-11 items-center justify-center gap-2 rounded-lg px-6 text-sm font-semibold transition-colors ${
+            className={`inline-flex h-11 touch-manipulation items-center justify-center gap-2 rounded-lg px-6 text-sm font-semibold transition-colors ${
               added
                 ? "border border-[#5865F2]/30 bg-[#5865F2]/10 text-[#4752C4] hover:bg-[#5865F2]/15"
                 : "bg-[#5865F2] text-white hover:bg-[#4752C4]"
@@ -201,7 +214,7 @@ export default function LaptopCard({
             type="button"
             onClick={() => setExpanded((open) => !open)}
             aria-expanded={expanded}
-            className="mt-3 w-full rounded-lg border border-[#d2dbe8] bg-[#f8fafe] py-2 text-xs font-semibold text-[#5865F2] transition-colors hover:border-[#5865F2]/50 sm:hidden"
+            className="mt-3 inline-flex h-11 w-full touch-manipulation items-center justify-center rounded-lg border border-[#d2dbe8] bg-[#f8fafe] text-xs font-semibold text-[#5865F2] transition-colors hover:border-[#5865F2]/50 sm:hidden"
           >
             {expanded ? "less" : "more..."}
           </button>
