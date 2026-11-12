@@ -26,6 +26,12 @@ type PrebuildFiltersProps = {
   onRefinementChange: (refinement: RefinementFilter) => void;
 };
 
+const labelClass =
+  "text-[10px] font-semibold uppercase tracking-[0.2em] text-[#80848e]";
+
+const trackClass =
+  "flex gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden";
+
 export default function PrebuildFilters({
   platform,
   refinement,
@@ -35,64 +41,66 @@ export default function PrebuildFilters({
 }: PrebuildFiltersProps) {
   return (
     <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#80848e]">
-          Platform
-        </span>
-        {platforms.map((option) => {
-          const active = platform === option.value;
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+        <span className={labelClass}>Platform</span>
 
-          return (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={active}
-              aria-label={`${option.label} (${counts[option.value]} items)`}
-              onClick={() => onPlatformChange(option.value)}
-              className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
-                active
-                  ? "border-[#5865F2] bg-[#5865F2] text-white"
-                  : "border-[#d2dbe8] bg-[#f8fafe] text-[#2e3338] hover:border-[#b8c4d6] hover:bg-white"
-              }`}
-            >
-              {option.label}
-              <span
-                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+        <div className={trackClass}>
+          {platforms.map((option) => {
+            const active = platform === option.value;
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={active}
+                aria-label={`${option.label} (${counts[option.value]} items)`}
+                onClick={() => onPlatformChange(option.value)}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
                   active
-                    ? "bg-white/20 text-white"
-                    : "bg-[#eaf0f8] text-[#5c5e66]"
+                    ? "border-[#5865F2] bg-[#5865F2] text-white"
+                    : "border-[#d2dbe8] bg-[#f8fafe] text-[#2e3338] hover:border-[#b8c4d6] hover:bg-white"
                 }`}
               >
-                {counts[option.value]}
-              </span>
-            </button>
-          );
-        })}
+                {option.label}
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                    active
+                      ? "bg-white/20 text-white"
+                      : "bg-[#eaf0f8] text-[#5c5e66]"
+                  }`}
+                >
+                  {counts[option.value]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#80848e]">
-          Refine
-        </span>
-        {refinements.map((option) => {
-          const active = refinement === option.value;
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+        <span className={labelClass}>Refine</span>
 
-          return (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={active}
-              onClick={() => onRefinementChange(option.value)}
-              className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
-                active
-                  ? "border-[#5865F2] bg-[#5865F2] text-white"
-                  : "border-[#d2dbe8] bg-transparent text-[#5c5e66] hover:border-[#b8c4d6] hover:text-[#2e3338]"
-              }`}
-            >
-              {option.label}
-            </button>
-          );
-        })}
+        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden">
+          {refinements.map((option) => {
+            const active = refinement === option.value;
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={active}
+                onClick={() => onRefinementChange(option.value)}
+                className={`shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                  active
+                    ? "border-[#5865F2] bg-[#5865F2] text-white"
+                    : "border-[#d2dbe8] bg-transparent text-[#5c5e66] hover:border-[#b8c4d6] hover:text-[#2e3338]"
+                }`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
