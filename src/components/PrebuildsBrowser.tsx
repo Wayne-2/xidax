@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import PrebuildCard from "@/components/PrebuildCard";
 import PrebuildFilters, {
   type PlatformFilter,
   type RefinementFilter,
 } from "@/components/PrebuildFilters";
+import { ChevronLeftIcon, ChevronRightIcon } from "@/components/AccessoryIcons";
 import type { Prebuild } from "@/data/prebuilds";
 
 const priceRanges = [
@@ -96,6 +97,10 @@ export default function PrebuildsBrowser({
   const [priceFilters, setPriceFilters] = useState<string[]>([]);
   const [stockFilters, setStockFilters] = useState<string[]>([]);
   const [brandFilters, setBrandFilters] = useState<string[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const trackRef = useRef<HTMLDivElement>(null);
 
   const platform: PlatformFilter =
     brandFilters.length === 1 ? (brandFilters[0] as PlatformFilter) : "all";
@@ -133,6 +138,9 @@ export default function PrebuildsBrowser({
     stockFilters.length > 0 ||
     brandFilters.length > 0;
 
+  const activeFilterCount =
+    priceFilters.length + stockFilters.length + brandFilters.length;
+
   const clearSidebarFilters = () => {
     setPriceFilters([]);
     setStockFilters([]);
@@ -152,6 +160,46 @@ export default function PrebuildsBrowser({
     }
   };
 
+  const updateScrollState = useCallback(() => {
+    const track = trackRef.current;
+
+    if (!track) return;
+
+    setCanScrollLeft(track.scrollLeft > 4);
+    setCanScrollRight(
+      track.scrollLeft + track.clientWidth < track.scrollWidth - 4
+    );
+  }, []);
+
+  useEffect(() => {
+    const track = trackRef.current;
+
+    if (!track) return;
+
+    const handle = () => updateScrollState();
+    const frame = requestAnimationFrame(handle);
+
+    track.addEventListener("scroll", handle, { passive: true });
+    window.addEventListener("resize", handle);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      track.removeEventListener("scroll", handle);
+      window.removeEventListener("resize", handle);
+    };
+  }, [updateScrollState, filtered.length]);
+
+  function scrollTrack(direction: -1 | 1) {
+    const track = trackRef.current;
+
+    if (!track) return;
+
+    const card = track.querySelector<HTMLElement>("[data-prebuild-item]");
+    const amount = card ? card.offsetWidth + 20 : track.clientWidth * 0.8;
+
+    track.scrollBy({ left: direction * amount, behavior: "smooth" });
+  }
+
   return (
     <>
       <section className="bg-[#f0f4fa]">
@@ -170,94 +218,156 @@ export default function PrebuildsBrowser({
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
           <div className="grid gap-8 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-8 xl:gap-10">
             <aside className="lg:sticky lg:top-24 lg:self-start">
-              <div
-                data-reveal="up"
-                className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5 sm:p-6"
+              <button
+                type="button"
+                onClick={() => setFiltersOpen((open) => !open)}
+                aria-expanded={filtersOpen}
+                aria-controls="prebuild-filters"
+                className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] px-5 py-4 text-left transition-colors hover:border-[#b8c4d6] lg:hidden"
               >
-                <div className="flex items-center justify-between gap-4">
-                  <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
-                    Filters
-                  </h2>
-                  {hasSidebarFilters && (
-                    <button
-                      type="button"
-                      onClick={clearSidebarFilters}
-                      className="text-xs font-medium text-[#5865F2] transition-colors hover:text-[#4752C4]"
-                    >
-                      Clear
-                    </button>
+                <span className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
+                  Filters
+                </span>
+                <span className="flex items-center gap-2">
+                  {activeFilterCount > 0 && (
+                    <span className="rounded-full bg-[#5865F2] px-2 py-0.5 text-[11px] font-semibold text-white">
+                      {activeFilterCount}
+                    </span>
                   )}
-                </div>
+                  <ChevronRightIcon
+                    className={`h-4 w-4 text-[#5c5e66] transition-transform duration-300 ${
+                      filtersOpen ? "rotate-90" : ""
+                    }`}
+                  />
+                </span>
+              </button>
 
-                <div className="mt-6 space-y-7">
-                  <FilterGroup title="Price">
-                    {priceRanges.map((range) => (
-                      <FilterCheckbox
-                        key={range.value}
-                        label={range.label}
-                        checked={priceFilters.includes(range.value)}
-                        onChange={() =>
-                          toggleValue(
-                            range.value,
-                            priceFilters,
-                            setPriceFilters
-                          )
-                        }
-                      />
-                    ))}
-                  </FilterGroup>
+              <div
+                id="prebuild-filters"
+                className={`${filtersOpen ? "mt-3 block" : "hidden"} lg:mt-0 lg:block`}
+              >
+                <div
+                  data-reveal="up"
+                  className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5 sm:p-6"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
+                      Filters
+                    </h2>
+                    {hasSidebarFilters && (
+                      <button
+                        type="button"
+                        onClick={clearSidebarFilters}
+                        className="text-xs font-medium text-[#5865F2] transition-colors hover:text-[#4752C4]"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
 
-                  <FilterGroup title="Stock">
-                    {stockOptions.map((option) => (
-                      <FilterCheckbox
-                        key={option.value}
-                        label={option.label}
-                        checked={stockFilters.includes(option.value)}
-                        onChange={() =>
-                          toggleValue(
-                            option.value,
-                            stockFilters,
-                            setStockFilters
-                          )
-                        }
-                      />
-                    ))}
-                  </FilterGroup>
+                  <div className="mt-6 space-y-7">
+                    <FilterGroup title="Price">
+                      {priceRanges.map((range) => (
+                        <FilterCheckbox
+                          key={range.value}
+                          label={range.label}
+                          checked={priceFilters.includes(range.value)}
+                          onChange={() =>
+                            toggleValue(
+                              range.value,
+                              priceFilters,
+                              setPriceFilters
+                            )
+                          }
+                        />
+                      ))}
+                    </FilterGroup>
 
-                  <FilterGroup title="Brand">
-                    {brandOptions.map((option) => (
-                      <FilterCheckbox
-                        key={option.value}
-                        label={option.label}
-                        checked={brandFilters.includes(option.value)}
-                        onChange={() =>
-                          toggleValue(
-                            option.value,
-                            brandFilters,
-                            setBrandFilters
-                          )
-                        }
-                      />
-                    ))}
-                  </FilterGroup>
+                    <FilterGroup title="Stock">
+                      {stockOptions.map((option) => (
+                        <FilterCheckbox
+                          key={option.value}
+                          label={option.label}
+                          checked={stockFilters.includes(option.value)}
+                          onChange={() =>
+                            toggleValue(
+                              option.value,
+                              stockFilters,
+                              setStockFilters
+                            )
+                          }
+                        />
+                      ))}
+                    </FilterGroup>
+
+                    <FilterGroup title="Brand">
+                      {brandOptions.map((option) => (
+                        <FilterCheckbox
+                          key={option.value}
+                          label={option.label}
+                          checked={brandFilters.includes(option.value)}
+                          onChange={() =>
+                            toggleValue(
+                              option.value,
+                              brandFilters,
+                              setBrandFilters
+                            )
+                          }
+                        />
+                      ))}
+                    </FilterGroup>
+                  </div>
                 </div>
               </div>
             </aside>
 
-            <div>
+            <div className="min-w-0">
               <h2 className="sr-only">Prebuild catalogue</h2>
-              <p
-                data-reveal="up"
-                className="text-sm font-medium text-[#5c5e66]"
-              >
-                {filtered.length}{" "}
-                {filtered.length === 1 ? "item" : "items"} available
-              </p>
+
+              <div className="flex items-center justify-between gap-4">
+                <p
+                  data-reveal="up"
+                  className="text-sm font-medium text-[#5c5e66]"
+                >
+                  {filtered.length}{" "}
+                  {filtered.length === 1 ? "item" : "items"} available
+                </p>
+
+                <div className="flex items-center gap-2 sm:hidden">
+                  <button
+                    type="button"
+                    aria-label="Previous prebuilds"
+                    disabled={!canScrollLeft}
+                    onClick={() => scrollTrack(-1)}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-[#d2dbe8] bg-[#f8fafe] text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <ChevronLeftIcon className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Next prebuilds"
+                    disabled={!canScrollRight}
+                    onClick={() => scrollTrack(1)}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-[#d2dbe8] bg-[#f8fafe] text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <ChevronRightIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
 
               {filtered.length > 0 ? (
-                <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <div
+                  ref={trackRef}
+                  className="mt-6 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2 [scrollbar-width:none] sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:pb-0 lg:grid-cols-3 [&::-webkit-scrollbar]:hidden"
+                >
                   {filtered.map((product) => (
-                    <PrebuildCard key={product.id} product={product} />
+                    <div
+                      key={product.id}
+                      data-prebuild-item
+                      className="flex w-[78%] shrink-0 snap-start sm:w-auto"
+                    >
+                      <PrebuildCard product={product} />
+                    </div>
                   ))}
                 </div>
               ) : (
