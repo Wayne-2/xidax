@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import BuildPreview from "@/components/BuildPreview";
 import BuildSidebar from "@/components/BuildSidebar";
 import BuildSummary from "@/components/BuildSummary";
@@ -21,6 +21,24 @@ export default function CustomBuilder() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [projectName, setProjectName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const builderRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (
+        builderRef.current &&
+        !builderRef.current.contains(event.target as Node)
+      ) {
+        setSidebarOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [sidebarOpen]);
 
   const parts = partsByModel[modelId];
   const selectedParts = parts.filter((part) =>
@@ -169,70 +187,63 @@ export default function CustomBuilder() {
 
       <section className="bg-[#f0f4fa]">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-          <div className="mb-4 flex items-center justify-between gap-3 lg:hidden">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen((open) => !open)}
-              aria-expanded={sidebarOpen}
-              aria-controls="build-components"
-              className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-4 text-sm font-semibold text-[#2e3338] transition-colors hover:border-[#5865F2]/50"
-            >
-              Add component
-              <ChevronDownIcon
-                className={`h-4 w-4 text-[#80848e] transition-transform duration-300 ${
-                  sidebarOpen ? "rotate-180" : ""
-                }`}
-              />
-            </button>
-
-            <span className="text-xs font-semibold text-[#5c5e66]">
-              {selectedCount}/{parts.length} selected
-            </span>
-          </div>
-
-          <div className="relative grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)_320px] xl:grid-cols-[280px_minmax(0,1fr)_360px] xl:gap-8">
-            {sidebarOpen && (
+          <div ref={builderRef} className="relative">
+            <div className="mb-4 flex items-center justify-between gap-3 lg:hidden">
               <button
                 type="button"
-                aria-label="Close component list"
-                onClick={() => setSidebarOpen(false)}
-                className="fixed inset-0 z-20 lg:hidden"
-              />
-            )}
+                onClick={() => setSidebarOpen((open) => !open)}
+                aria-expanded={sidebarOpen}
+                aria-controls="build-components"
+                className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-4 text-sm font-semibold text-[#2e3338] transition-colors hover:border-[#5865F2]/50"
+              >
+                Add component
+                <ChevronDownIcon
+                  className={`h-4 w-4 text-[#80848e] transition-transform duration-300 ${
+                    sidebarOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
 
-            <BuildSidebar
-              id="build-components"
-              className={`${
-                sidebarOpen
-                  ? "fixed inset-x-4 top-16 z-30 shadow-[0_24px_48px_-24px_rgba(46,51,56,0.55)]"
-                  : "hidden"
-              } lg:static lg:block lg:z-auto lg:shadow-none`}
-              modelId={modelId}
-              parts={parts}
-              selectedIds={selectedIds}
-              onModelChange={handleModelChange}
-              onTogglePart={togglePart}
-            />
-            <BuildPreview
-              projectName={projectName}
-              pathLabel={activePath.label}
-              modelLabel={activeModel.label}
-              selectedParts={selectedParts}
-              selectedCount={selectedCount}
-              partsCount={parts.length}
-            />
-            <BuildSummary
-              projectName={projectName}
-              pathLabel={activePath.label}
-              modelLabel={activeModel.label}
-              modelDescription={activeModel.description}
-              modelTags={activeModel.tags}
-              selectedParts={selectedParts}
-              total={total}
-              partsCount={parts.length}
-              onRemovePart={togglePart}
-              onReset={resetBuild}
-            />
+              <span className="text-xs font-semibold text-[#5c5e66]">
+                {selectedCount}/{parts.length} selected
+              </span>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)_320px] xl:grid-cols-[280px_minmax(0,1fr)_360px] xl:gap-8">
+              <BuildSidebar
+                id="build-components"
+                className={`${
+                  sidebarOpen
+                    ? "absolute inset-x-0 top-[3.75rem] z-30 shadow-[0_24px_48px_-24px_rgba(46,51,56,0.55)]"
+                    : "hidden"
+                } lg:static lg:block lg:z-auto lg:shadow-none`}
+                modelId={modelId}
+                parts={parts}
+                selectedIds={selectedIds}
+                onModelChange={handleModelChange}
+                onTogglePart={togglePart}
+              />
+              <BuildPreview
+                projectName={projectName}
+                pathLabel={activePath.label}
+                modelLabel={activeModel.label}
+                selectedParts={selectedParts}
+                selectedCount={selectedCount}
+                partsCount={parts.length}
+              />
+              <BuildSummary
+                projectName={projectName}
+                pathLabel={activePath.label}
+                modelLabel={activeModel.label}
+                modelDescription={activeModel.description}
+                modelTags={activeModel.tags}
+                selectedParts={selectedParts}
+                total={total}
+                partsCount={parts.length}
+                onRemovePart={togglePart}
+                onReset={resetBuild}
+              />
+            </div>
           </div>
         </div>
       </section>
