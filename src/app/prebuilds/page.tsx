@@ -35,7 +35,7 @@ export default function PrebuildsPage() {
           className="pointer-events-none absolute bottom-0 right-0 h-56 w-56 bg-[radial-gradient(circle_at_bottom_right,rgba(88,101,242,0.18),transparent_70%)]"
         />
 
-        <div className="relative mx-auto flex min-h-[46vh] max-w-7xl flex-col px-4 py-8 sm:min-h-[60vh] sm:px-6 lg:min-h-[72vh] lg:px-8 lg:py-10">
+        <div className="relative mx-auto flex min-h-[44vh] max-w-7xl flex-col px-4 py-6 sm:min-h-[60vh] sm:px-6 sm:py-8 lg:min-h-[72vh] lg:px-8 lg:py-10">
           <nav
             aria-label="Breadcrumb"
             className="flex items-center gap-2 text-sm font-medium text-[#5c5e66]"
@@ -55,7 +55,7 @@ export default function PrebuildsPage() {
             </Link>
           </nav>
 
-          <div data-reveal="up" className="mt-16 max-w-2xl">
+          <div data-reveal="up" className="mt-10 max-w-2xl sm:mt-16">
             <div className="flex items-center gap-3">
               <span className="h-px w-10 bg-gradient-to-r from-[#5865F2] to-transparent" />
               <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#5865F2]">

@@ -32,6 +32,13 @@ const brandOptions = [
   { value: "intel", label: "Intel - Core" },
 ];
 
+const refinementOptions: { value: RefinementFilter; label: string }[] = [
+  { value: "all", label: "Everything" },
+  { value: "in-stock", label: "In stock only" },
+  { value: "flagship", label: "Flagship only" },
+  { value: "under-2k", label: "Under $2,000" },
+];
+
 function matchesPrice(price: number, rangeValue: string) {
   const range = priceRanges.find((item) => item.value === rangeValue);
   return range ? price >= range.min && price <= range.max : false;
@@ -136,10 +143,14 @@ export default function PrebuildsBrowser({
   const hasSidebarFilters =
     priceFilters.length > 0 ||
     stockFilters.length > 0 ||
-    brandFilters.length > 0;
+    brandFilters.length > 0 ||
+    refinement !== "all";
 
   const activeFilterCount =
-    priceFilters.length + stockFilters.length + brandFilters.length;
+    priceFilters.length +
+    stockFilters.length +
+    brandFilters.length +
+    (refinement === "all" ? 0 : 1);
 
   const clearSidebarFilters = () => {
     setPriceFilters([]);
@@ -202,7 +213,7 @@ export default function PrebuildsBrowser({
 
   return (
     <>
-      <section className="bg-[#f0f4fa]">
+      <section className="hidden bg-[#f0f4fa] lg:block">
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
           <PrebuildFilters
             platform={platform}
@@ -215,8 +226,8 @@ export default function PrebuildsBrowser({
       </section>
 
       <section className="border-t border-[#dce3ee] bg-[#f0f4fa]">
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
-          <div className="grid gap-8 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-8 xl:gap-10">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8 lg:py-16">
+          <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-8 xl:gap-10">
             <aside className="lg:sticky lg:top-24 lg:self-start">
               <button
                 type="button"
@@ -251,13 +262,13 @@ export default function PrebuildsBrowser({
                   className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5 sm:p-6"
                 >
                   <div className="flex items-center justify-between gap-4">
-                    <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
+                    <h2 className="hidden text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338] lg:block">
                       Filters
                     </h2>
                     {hasSidebarFilters && (
                       <button
                         type="button"
-                        onClick={clearSidebarFilters}
+                        onClick={clearAllFilters}
                         className="text-xs font-medium text-[#5865F2] transition-colors hover:text-[#4752C4]"
                       >
                         Clear
@@ -266,6 +277,26 @@ export default function PrebuildsBrowser({
                   </div>
 
                   <div className="mt-6 space-y-7">
+                    <div className="lg:hidden">
+                      <FilterGroup title="Refine">
+                        {refinementOptions.map((option) => (
+                          <label
+                            key={option.value}
+                            className="flex cursor-pointer items-center gap-3 text-sm text-[#4e5058] transition-colors hover:text-[#2e3338]"
+                          >
+                            <input
+                              type="radio"
+                              name="prebuild-refinement"
+                              checked={refinement === option.value}
+                              onChange={() => setRefinement(option.value)}
+                              className="h-4 w-4 shrink-0 accent-[#5865F2]"
+                            />
+                            <span>{option.label}</span>
+                          </label>
+                        ))}
+                      </FilterGroup>
+                    </div>
+
                     <FilterGroup title="Price">
                       {priceRanges.map((range) => (
                         <FilterCheckbox
@@ -358,7 +389,7 @@ export default function PrebuildsBrowser({
               {filtered.length > 0 ? (
                 <div
                   ref={trackRef}
-                  className="mt-6 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2 [scrollbar-width:none] sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:pb-0 lg:grid-cols-3 [&::-webkit-scrollbar]:hidden"
+                  className="mt-4 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2 [scrollbar-width:none] sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:pb-0 lg:grid-cols-3 [&::-webkit-scrollbar]:hidden"
                 >
                   {filtered.map((product) => (
                     <div

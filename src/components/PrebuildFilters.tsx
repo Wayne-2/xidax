@@ -40,7 +40,7 @@ export default function PrebuildFilters({
   onRefinementChange,
 }: PrebuildFiltersProps) {
   return (
-    <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+    <div className="hidden lg:flex lg:flex-row lg:items-center lg:justify-between lg:gap-6">
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
         <span className={labelClass}>Platform</span>
 

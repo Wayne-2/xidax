@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { CartIcon, SlidersIcon } from "@/components/AccessoryIcons";
 import type { Prebuild } from "@/data/prebuilds";
 
 const priceFormatter = new Intl.NumberFormat("en-US", {
@@ -55,13 +56,30 @@ export default function PrebuildCard({ product }: { product: Prebuild }) {
           {product.specs}
         </p>
 
-        <div className="mt-auto pt-1">
+        <div className="mt-auto flex items-end justify-between gap-3 pt-4">
           <span className="text-lg font-bold text-[#5865F2]">
             {priceFormatter.format(product.price)}
           </span>
+
+          <div className="flex items-center gap-2 sm:hidden">
+            <button
+              type="button"
+              aria-label={`Add ${product.name} to cart`}
+              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#5865F2] text-white transition-colors hover:bg-[#4752C4]"
+            >
+              <CartIcon className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              aria-label={`Customize ${product.name}`}
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#d2dbe8] text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
+            >
+              <SlidersIcon className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
-        <div className="mt-1 flex flex-col gap-2">
+        <div className="mt-1 hidden flex-col gap-2 sm:flex">
           <button
             type="button"
             className="inline-flex h-11 w-full items-center justify-center whitespace-nowrap rounded-lg bg-[#5865F2] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
