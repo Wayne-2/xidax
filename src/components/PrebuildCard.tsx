@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { CartIcon, SlidersIcon } from "@/components/AccessoryIcons";
+import { SlidersIcon } from "@/components/AccessoryIcons";
 import type { Prebuild } from "@/data/prebuilds";
 
 const priceFormatter = new Intl.NumberFormat("en-US", {
@@ -10,6 +10,9 @@ const priceFormatter = new Intl.NumberFormat("en-US", {
 
 export default function PrebuildCard({ product }: { product: Prebuild }) {
   const inStock = product.stock === "in-stock";
+  const discount = Math.round(
+    (1 - product.price / product.originalPrice) * 100
+  );
 
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] transition-colors hover:border-[#5865F2]/60">
@@ -56,30 +59,38 @@ export default function PrebuildCard({ product }: { product: Prebuild }) {
           {product.specs}
         </p>
 
-        <div className="mt-auto flex items-end justify-between gap-3 pt-4">
-          <span className="text-lg font-bold text-[#5865F2]">
-            {priceFormatter.format(product.price)}
-          </span>
-
-          <div className="flex items-center gap-2 sm:hidden">
-            <button
-              type="button"
-              aria-label={`Add ${product.name} to cart`}
-              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#5865F2] text-white transition-colors hover:bg-[#4752C4]"
-            >
-              <CartIcon className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              aria-label={`Customize ${product.name}`}
-              className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#d2dbe8] text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
-            >
-              <SlidersIcon className="h-5 w-5" />
-            </button>
+        <div className="mt-auto pt-4">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="text-xl font-bold text-[#5865F2]">
+              {priceFormatter.format(product.price)}
+            </span>
+            <span className="text-sm text-[#80848e] line-through">
+              {priceFormatter.format(product.originalPrice)}
+            </span>
+            <span className="rounded-full bg-[#DC2626]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#B91C1C]">
+              Save {discount}%
+            </span>
           </div>
         </div>
 
-        <div className="mt-1 hidden flex-col gap-2 sm:flex">
+        <div className="mt-3 flex items-center gap-2 sm:hidden">
+          <button
+            type="button"
+            aria-label={`Add ${product.name} to cart`}
+            className="inline-flex h-11 flex-1 items-center justify-center whitespace-nowrap rounded-lg bg-[#5865F2] text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
+          >
+            Add to Cart
+          </button>
+          <button
+            type="button"
+            aria-label={`Customize ${product.name}`}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#d2dbe8] text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
+          >
+            <SlidersIcon className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-3 hidden flex-col gap-2 sm:flex">
           <button
             type="button"
             className="inline-flex h-11 w-full items-center justify-center whitespace-nowrap rounded-lg bg-[#5865F2] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"

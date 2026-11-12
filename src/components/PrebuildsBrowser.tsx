@@ -395,7 +395,7 @@ export default function PrebuildsBrowser({
                     <div
                       key={product.id}
                       data-prebuild-item
-                      className="flex w-[78%] shrink-0 snap-start sm:w-auto"
+                      className="flex w-[86%] shrink-0 snap-start sm:w-auto"
                     >
                       <PrebuildCard product={product} />
                     </div>

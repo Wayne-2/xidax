@@ -7,6 +7,7 @@ export type Prebuild = {
   image: string;
   brand: PrebuildBrand;
   price: number;
+  originalPrice: number;
   stock: PrebuildStock;
   flagship: boolean;
   specs: string;
@@ -19,6 +20,7 @@ export const prebuilds: Prebuild[] = [
     image: "/hero_image.png",
     brand: "intel",
     price: 1299,
+    originalPrice: 1499,
     stock: "in-stock",
     flagship: false,
     specs:
@@ -30,6 +32,7 @@ export const prebuilds: Prebuild[] = [
     image: "/display_section2.png",
     brand: "amd",
     price: 1449,
+    originalPrice: 1699,
     stock: "in-stock",
     flagship: false,
     specs:
@@ -41,6 +44,7 @@ export const prebuilds: Prebuild[] = [
     image: "/display_section.png",
     brand: "intel",
     price: 1899,
+    originalPrice: 2199,
     stock: "built-to-order",
     flagship: false,
     specs:
@@ -52,6 +56,7 @@ export const prebuilds: Prebuild[] = [
     image: "/terms_image.png",
     brand: "amd",
     price: 2199,
+    originalPrice: 2499,
     stock: "in-stock",
     flagship: false,
     specs:
@@ -63,6 +68,7 @@ export const prebuilds: Prebuild[] = [
     image: "/display_section.png",
     brand: "intel",
     price: 2499,
+    originalPrice: 2899,
     stock: "in-stock",
     flagship: false,
     specs:
@@ -74,6 +80,7 @@ export const prebuilds: Prebuild[] = [
     image: "/display_section2.png",
     brand: "amd",
     price: 2999,
+    originalPrice: 3499,
     stock: "built-to-order",
     flagship: true,
     specs:
@@ -85,6 +92,7 @@ export const prebuilds: Prebuild[] = [
     image: "/hero_image.png",
     brand: "intel",
     price: 3499,
+    originalPrice: 3999,
     stock: "in-stock",
     flagship: true,
     specs:
@@ -96,6 +104,7 @@ export const prebuilds: Prebuild[] = [
     image: "/terms_image.png",
     brand: "amd",
     price: 3999,
+    originalPrice: 4599,
     stock: "built-to-order",
     flagship: true,
     specs:
@@ -107,6 +116,7 @@ export const prebuilds: Prebuild[] = [
     image: "/display_section.png",
     brand: "intel",
     price: 4499,
+    originalPrice: 5199,
     stock: "built-to-order",
     flagship: true,
     specs:
