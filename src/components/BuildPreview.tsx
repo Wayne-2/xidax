@@ -29,6 +29,17 @@ const bubblePositions: Array<{
   { top: "86%", right: "10%" },
 ];
 
+const mobileBubblePositions: Array<{
+  top: string;
+  left?: string;
+  right?: string;
+}> = [
+  { top: "11%", left: "3%" },
+  { top: "27%", right: "3%" },
+  { top: "48%", left: "3%" },
+  { top: "64%", right: "3%" },
+];
+
 const gridStyle = {
   backgroundImage:
     "linear-gradient(to right, rgba(0,0,0,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.06) 1px, transparent 1px)",
@@ -87,14 +98,25 @@ export default function BuildPreview({
           height={900}
           priority
           sizes="(min-width: 1280px) 34vw, (min-width: 1024px) 40vw, 85vw"
-          className="relative z-10 h-auto w-full max-w-[19rem] object-contain drop-shadow-[0_24px_48px_rgba(46,51,56,0.24)] sm:max-w-[22rem] lg:max-w-[24rem]"
+          className="relative z-10 h-auto w-full max-w-[15rem] object-contain drop-shadow-[0_24px_48px_rgba(46,51,56,0.24)] sm:max-w-[22rem] lg:max-w-[24rem]"
         />
+
+        {selectedParts.slice(0, mobileBubblePositions.length).map((part, index) => (
+          <span
+            key={`mobile-${part.id}`}
+            style={mobileBubblePositions[index]}
+            className="pointer-events-none absolute z-20 flex max-w-[6.5rem] items-center gap-1 rounded-full border border-white/70 bg-white/90 px-2 py-1 text-[9px] font-semibold leading-snug text-[#2e3338] shadow-[0_8px_20px_-8px_rgba(46,51,56,0.35)] backdrop-blur xl:hidden"
+          >
+            <span className="h-1 w-1 shrink-0 rounded-full bg-[#5865F2]" />
+            <span className="line-clamp-2">{part.name}</span>
+          </span>
+        ))}
 
         {selectedParts.slice(0, bubblePositions.length).map((part, index) => (
           <span
-            key={part.id}
+            key={`desktop-${part.id}`}
             style={bubblePositions[index]}
-            className="pointer-events-none absolute z-20 hidden max-w-[9.5rem] items-center gap-1.5 rounded-full border border-white/70 bg-white/90 px-2.5 py-1.5 text-[10px] font-semibold leading-snug text-[#2e3338] shadow-[0_8px_20px_-8px_rgba(46,51,56,0.35)] backdrop-blur xl:inline-flex"
+            className="pointer-events-none absolute z-20 hidden max-w-[9.5rem] items-center gap-1.5 rounded-full border border-white/70 bg-white/90 px-2.5 py-1.5 text-[10px] font-semibold leading-snug text-[#2e3338] shadow-[0_8px_20px_-8px_rgba(46,51,56,0.35)] backdrop-blur xl:flex"
           >
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#5865F2]" />
             <span className="line-clamp-2">{part.name}</span>

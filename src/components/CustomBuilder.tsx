@@ -5,6 +5,7 @@ import { useState } from "react";
 import BuildPreview from "@/components/BuildPreview";
 import BuildSidebar from "@/components/BuildSidebar";
 import BuildSummary from "@/components/BuildSummary";
+import { ChevronDownIcon, ComponentIcon } from "@/components/BuildIcons";
 import {
   buildPaths,
   partsByModel,
@@ -19,6 +20,7 @@ export default function CustomBuilder() {
     useState<BuildModelId>("gaming-desktop");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [projectName, setProjectName] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const parts = partsByModel[modelId];
   const selectedParts = parts.filter((part) =>
@@ -167,8 +169,32 @@ export default function CustomBuilder() {
 
       <section className="bg-[#f0f4fa]">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+          <div className="mb-4 flex items-center justify-between gap-3 lg:hidden">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen((open) => !open)}
+              aria-expanded={sidebarOpen}
+              aria-controls="build-components"
+              className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-4 text-sm font-semibold text-[#2e3338] transition-colors hover:border-[#5865F2]/50"
+            >
+              <ComponentIcon className="h-4 w-4 text-[#5865F2]" />
+              Add component
+              <ChevronDownIcon
+                className={`h-4 w-4 text-[#80848e] transition-transform duration-300 ${
+                  sidebarOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            <span className="text-xs font-semibold text-[#5c5e66]">
+              {selectedCount}/{parts.length} selected
+            </span>
+          </div>
+
           <div className="grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)_320px] xl:grid-cols-[280px_minmax(0,1fr)_360px] xl:gap-8">
             <BuildSidebar
+              id="build-components"
+              className={sidebarOpen ? "block" : "hidden lg:block"}
               modelId={modelId}
               parts={parts}
               selectedIds={selectedIds}

@@ -16,6 +16,8 @@ type BuildSidebarProps = {
   selectedIds: string[];
   onModelChange: (modelId: BuildModelId) => void;
   onTogglePart: (partId: string) => void;
+  className?: string;
+  id?: string;
 };
 
 export default function BuildSidebar({
@@ -24,14 +26,17 @@ export default function BuildSidebar({
   selectedIds,
   onModelChange,
   onTogglePart,
+  className = "",
+  id,
 }: BuildSidebarProps) {
   const desktopPath =
     buildPaths.find((item) => item.id === "desktop") ?? buildPaths[0];
 
   return (
     <aside
+      id={id}
       data-reveal="up"
-      className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-4 sm:p-5"
+      className={`rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-4 sm:p-5 ${className}`}
     >
       <div className="flex items-center gap-3 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-3 py-2.5">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#5865F2]/10 text-[#5865F2]">
