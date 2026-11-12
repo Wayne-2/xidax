@@ -35,7 +35,7 @@ export default function PrebuildsPage() {
           className="pointer-events-none absolute bottom-0 right-0 h-56 w-56 bg-[radial-gradient(circle_at_bottom_right,rgba(88,101,242,0.18),transparent_70%)]"
         />
 
-        <div className="relative mx-auto flex min-h-[60vh] max-w-7xl flex-col px-4 py-8 sm:px-6 lg:min-h-[72vh] lg:px-8 lg:py-10">
+        <div className="relative mx-auto flex min-h-[46vh] max-w-7xl flex-col px-4 py-8 sm:min-h-[60vh] sm:px-6 lg:min-h-[72vh] lg:px-8 lg:py-10">
           <nav
             aria-label="Breadcrumb"
             className="flex items-center gap-2 text-sm font-medium text-[#5c5e66]"
@@ -74,7 +74,7 @@ export default function PrebuildsPage() {
           <p
             data-reveal="up"
             style={{ animationDelay: "120ms" }}
-            className="mt-auto max-w-md self-end pt-16 text-right text-sm leading-relaxed text-[#5c5e66] sm:text-base"
+            className="mt-auto hidden max-w-md self-end pt-16 text-right text-sm leading-relaxed text-[#5c5e66] sm:block sm:text-base"
           >
             Pre-configured battle-stations. Designed &amp; Supported in
             world-wide, 24-hour burn-in tested — and shipped in 1–3 business
