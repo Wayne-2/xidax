@@ -99,7 +99,7 @@ export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
                       href={item.href}
                       onClick={() => onOpenChange(false)}
                       aria-current={active ? "page" : undefined}
-                      className={`relative flex items-center py-3.5 text-[15px] font-semibold transition-colors ${
+                      className={`relative flex items-center py-3.5 pl-4 text-[15px] font-semibold transition-colors ${
                         active
                           ? "text-[#5865F2]"
                           : "text-[#2e3338] hover:text-[#5865F2]"
@@ -123,7 +123,7 @@ export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
                 <Link
                   href="/account"
                   onClick={() => onOpenChange(false)}
-                  className="flex items-center gap-3 py-3.5 text-[15px] font-semibold text-[#2e3338] transition-colors hover:text-[#5865F2]"
+                  className="flex items-center gap-3 py-3.5 pl-4 text-[15px] font-semibold text-[#2e3338] transition-colors hover:text-[#5865F2]"
                 >
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#eaf0f8] text-[#5c5e66]">
                     <UserIcon className="h-4 w-4" />
@@ -135,7 +135,7 @@ export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
                 <Link
                   href="/cart"
                   onClick={() => onOpenChange(false)}
-                  className="flex items-center gap-3 py-3.5 text-[15px] font-semibold text-[#2e3338] transition-colors hover:text-[#5865F2]"
+                  className="flex items-center gap-3 py-3.5 pl-4 text-[15px] font-semibold text-[#2e3338] transition-colors hover:text-[#5865F2]"
                 >
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#eaf0f8] text-[#5c5e66]">
                     <CartIcon className="h-4 w-4" />
@@ -145,7 +145,7 @@ export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
               </li>
             </ul>
 
-            <div className="flex items-center justify-between gap-3 border-t border-[#d2dbe8] py-4">
+            <div className="flex items-center justify-between gap-3 border-t border-[#d2dbe8] py-4 pl-4">
               <a
                 href="tel:+234907649842"
                 className="text-sm font-semibold text-[#5c5e66] transition-colors hover:text-[#5865F2]"
