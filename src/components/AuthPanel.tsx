@@ -2,6 +2,23 @@ import Image from "next/image";
 import Link from "next/link";
 import AuthForm, { type AuthMode } from "@/components/AuthForm";
 
+function BackIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="m15 18-6-6 6-6" />
+    </svg>
+  );
+}
+
 export default function AuthPanel({ mode }: { mode: AuthMode }) {
   const isSignIn = mode === "signin";
 
@@ -11,6 +28,14 @@ export default function AuthPanel({ mode }: { mode: AuthMode }) {
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(88,101,242,0.12),transparent_60%)]"
       />
+
+      <Link
+        href="/"
+        className="absolute left-4 top-6 inline-flex items-center gap-1.5 text-xs font-semibold text-[#5c5e66] transition-colors hover:text-[#5865F2] sm:left-8"
+      >
+        <BackIcon />
+        Back to store
+      </Link>
 
       <div className="relative mx-auto flex min-h-full w-full max-w-md flex-col justify-center px-4 py-12 sm:px-6">
         <Link
