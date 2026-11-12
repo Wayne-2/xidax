@@ -262,7 +262,7 @@ export default function BuildModelSelect({
 
       <p
         id={descriptionId}
-        className="mt-2 text-xs leading-relaxed text-[#5c5e66]"
+        className="mt-2 text-xs leading-relaxed text-[#5c5e66] sr-only lg:not-sr-only"
       >
         {activeModel.description}
       </p>

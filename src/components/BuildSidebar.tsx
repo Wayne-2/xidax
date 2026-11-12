@@ -35,10 +35,9 @@ export default function BuildSidebar({
   return (
     <aside
       id={id}
-      data-reveal="up"
       className={`rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-4 sm:p-5 ${className}`}
     >
-      <div className="flex items-center gap-3 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-3 py-2.5">
+      <div className="hidden items-center gap-3 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-3 py-2.5 lg:flex">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#5865F2]/10 text-[#5865F2]">
           <DesktopIcon className="h-4 w-4" />
         </span>
@@ -120,7 +119,7 @@ export default function BuildSidebar({
                       {formatPrice(part.price)}
                     </span>
                   </span>
-                  <span className="mt-1 block text-xs leading-relaxed text-[#5c5e66]">
+                  <span className="mt-1 hidden text-xs leading-relaxed text-[#5c5e66] lg:block">
                     {part.description}
                   </span>
                 </span>
@@ -132,7 +131,7 @@ export default function BuildSidebar({
 
       <Link
         href="/laptops"
-        className="mt-6 flex items-center justify-between gap-3 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-3.5 py-3 transition-colors hover:border-[#5865F2]/50"
+        className="mt-6 hidden items-center justify-between gap-3 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-3.5 py-3 transition-colors hover:border-[#5865F2]/50 lg:flex"
       >
         <span>
           <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-[#80848e]">

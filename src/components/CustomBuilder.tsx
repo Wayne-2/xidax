@@ -196,7 +196,7 @@ export default function CustomBuilder() {
                 type="button"
                 aria-label="Close component list"
                 onClick={() => setSidebarOpen(false)}
-                className="absolute inset-0 z-20 lg:hidden"
+                className="fixed inset-0 z-20 lg:hidden"
               />
             )}
 
@@ -204,9 +204,9 @@ export default function CustomBuilder() {
               id="build-components"
               className={`${
                 sidebarOpen
-                  ? "absolute inset-x-0 top-0 z-30 max-h-[70vh] overflow-y-auto shadow-[0_24px_48px_-24px_rgba(46,51,56,0.55)]"
+                  ? "fixed inset-x-4 top-16 z-30 shadow-[0_24px_48px_-24px_rgba(46,51,56,0.55)]"
                   : "hidden"
-              } lg:static lg:block lg:z-auto lg:max-h-none lg:overflow-visible lg:shadow-none`}
+              } lg:static lg:block lg:z-auto lg:shadow-none`}
               modelId={modelId}
               parts={parts}
               selectedIds={selectedIds}
