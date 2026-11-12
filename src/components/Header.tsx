@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { useAccount } from "@/components/AccountProvider";
 import HeaderSearch from "@/components/HeaderSearch";
 import MobileNav from "@/components/MobileNav";
 import NavLinks from "@/components/NavLinks";
@@ -46,6 +47,8 @@ function BagIcon() {
 export default function Header() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const { user } = useAccount();
+  const accountHref = user ? "/profile" : "/login";
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[#dce3ee] bg-[#f0f4fa]/85 text-[#2e3338] backdrop-blur">
@@ -83,9 +86,9 @@ export default function Header() {
             }}
           />
           <Link
-            href="/account"
-            aria-label="Account"
-            className="hidden h-9 w-9 items-center justify-center rounded-full text-[#5c5e66] transition-colors hover:bg-black/5 hover:text-[#2e3338] md:flex"
+            href={accountHref}
+            aria-label={user ? "Your profile" : "Sign in"}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-[#5c5e66] transition-colors hover:bg-black/5 hover:text-[#2e3338]"
           >
             <UserIcon />
           </Link>
@@ -98,6 +101,7 @@ export default function Header() {
           </Link>
           <MobileNav
             open={menuOpen}
+            accountHref={accountHref}
             onOpenChange={(next) => {
               setMenuOpen(next);
 

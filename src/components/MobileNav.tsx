@@ -10,6 +10,7 @@ import { navItems } from "@/data/navigation";
 type MobileNavProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  accountHref: string;
 };
 
 function MenuIcon({ className = "h-5 w-5" }: { className?: string }) {
@@ -29,7 +30,11 @@ function MenuIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
-export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
+export default function MobileNav({
+  open,
+  onOpenChange,
+  accountHref,
+}: MobileNavProps) {
   const pathname = usePathname() ?? "";
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -121,7 +126,7 @@ export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
             <ul className="divide-y divide-[#dce3ee] border-t border-[#d2dbe8]">
               <li>
                 <Link
-                  href="/account"
+                  href={accountHref}
                   onClick={() => onOpenChange(false)}
                   className="flex items-center gap-3 py-3.5 pl-4 text-[15px] font-semibold text-[#2e3338] transition-colors hover:text-[#5865F2]"
                 >
