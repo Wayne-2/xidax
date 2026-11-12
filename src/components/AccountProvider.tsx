@@ -16,7 +16,12 @@ type AccountContextValue = {
   user: AccountUser | null;
   ready: boolean;
   signIn: (email: string) => void;
-  signUp: (name: string, email: string) => void;
+  signUp: (
+    name: string,
+    email: string,
+    country: string,
+    postalCode: string
+  ) => void;
   signOut: () => void;
 };
 
@@ -64,11 +69,18 @@ export function AccountProvider({
       ready,
       signIn: (email: string) =>
         persist({ ...demoUser, email: email.trim() || demoUser.email }),
-      signUp: (name: string, email: string) =>
+      signUp: (
+        name: string,
+        email: string,
+        country: string,
+        postalCode: string
+      ) =>
         persist({
           ...demoUser,
           name: name.trim() || email.split("@")[0] || demoUser.name,
           email: email.trim() || demoUser.email,
+          country: country.trim() || demoUser.country,
+          postalCode: postalCode.trim() || demoUser.postalCode,
         }),
       signOut: () => persist(null),
     }),

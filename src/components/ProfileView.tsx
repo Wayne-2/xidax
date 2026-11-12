@@ -277,6 +277,18 @@ export default function ProfileView() {
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3">
+                <dt className="text-[#5c5e66]">Country</dt>
+                <dd className="min-w-0 truncate font-semibold text-[#2e3338]">
+                  {user.country}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-[#5c5e66]">Postal code</dt>
+                <dd className="min-w-0 truncate font-semibold text-[#2e3338]">
+                  {user.postalCode}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
                 <dt className="text-[#5c5e66]">Account ID</dt>
                 <dd className="min-w-0 truncate font-semibold text-[#2e3338]">
                   {user.id}

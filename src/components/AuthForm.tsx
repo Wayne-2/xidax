@@ -5,12 +5,37 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowIcon } from "@/components/BuildIcons";
 import { useAccount } from "@/components/AccountProvider";
+import { countries } from "@/data/account";
 
 export type AuthMode = "signin" | "signup";
 
-type Field = "name" | "email" | "password" | "confirm" | "terms";
+type Field =
+  | "name"
+  | "email"
+  | "country"
+  | "postal"
+  | "password"
+  | "confirm"
+  | "terms";
 
 type Errors = Partial<Record<Field, string>>;
+
+function ChevronIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
 
 function EyeIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
@@ -37,6 +62,8 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [country, setCountry] = useState("");
+  const [postal, setPostal] = useState("");
   const [terms, setTerms] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [submitting, setSubmitting] = useState(false);
@@ -59,6 +86,18 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
       next.email = "We need an email address.";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       next.email = "That email address does not look right.";
+    }
+
+    if (mode === "signup") {
+      if (!country) {
+        next.country = "Choose your country.";
+      }
+
+      if (!postal.trim()) {
+        next.postal = "Enter your postal code.";
+      } else if (!/^[a-z0-9][a-z0-9\s-]{2,9}$/i.test(postal.trim())) {
+        next.postal = "Enter a valid postal code.";
+      }
     }
 
     if (!password) {
@@ -98,7 +137,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
       if (mode === "signin") {
         signIn(email);
       } else {
-        signUp(name, email);
+        signUp(name, email, country, postal);
       }
 
       router.push("/profile");
@@ -164,6 +203,87 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
           </p>
         )}
       </div>
+
+      {mode === "signup" && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label
+              htmlFor="auth-country"
+              className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
+            >
+              Country
+            </label>
+            <div className="relative">
+              <select
+                id="auth-country"
+                value={country}
+                onChange={(event) => setCountry(event.target.value)}
+                autoComplete="country-name"
+                aria-invalid={Boolean(errors.country)}
+                aria-describedby={
+                  errors.country ? "auth-country-error" : undefined
+                }
+                className={`${inputClass} appearance-none pr-9 ${
+                  errors.country ? "border-[#DC2626]" : "border-[#d2dbe8]"
+                }`}
+              >
+                <option value="">Select country</option>
+                {countries.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#80848e]"
+              >
+                <ChevronIcon className="h-4 w-4" />
+              </span>
+            </div>
+            {errors.country && (
+              <p
+                id="auth-country-error"
+                className="mt-1.5 text-xs text-[#DC2626]"
+              >
+                {errors.country}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label
+              htmlFor="auth-postal"
+              className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
+            >
+              Postal code
+            </label>
+            <input
+              id="auth-postal"
+              value={postal}
+              onChange={(event) => setPostal(event.target.value)}
+              placeholder="100001"
+              autoComplete="postal-code"
+              inputMode="text"
+              aria-invalid={Boolean(errors.postal)}
+              aria-describedby={
+                errors.postal ? "auth-postal-error" : undefined
+              }
+              className={`${inputClass} ${
+                errors.postal ? "border-[#DC2626]" : "border-[#d2dbe8]"
+              }`}
+            />
+            {errors.postal && (
+              <p
+                id="auth-postal-error"
+                className="mt-1.5 text-xs text-[#DC2626]"
+              >
+                {errors.postal}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       <div>
         <div className="mb-1.5 flex items-center justify-between gap-3">

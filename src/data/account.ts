@@ -3,6 +3,8 @@ export type AccountUser = {
   name: string;
   email: string;
   phone: string;
+  country: string;
+  postalCode: string;
   tier: string;
   memberSince: string;
 };
@@ -33,9 +35,25 @@ export const demoUser: AccountUser = {
   name: "Wayne Adebayo",
   email: "wayne@example.com",
   phone: "+234-907649842",
+  country: "Nigeria",
+  postalCode: "100001",
   tier: "Gold member",
   memberSince: "2021",
 };
+
+export const countries = [
+  "Nigeria",
+  "Ghana",
+  "Kenya",
+  "South Africa",
+  "United Kingdom",
+  "United States",
+  "Canada",
+  "Germany",
+  "France",
+  "United Arab Emirates",
+  "Other",
+];
 
 export const accountOrders: AccountOrder[] = [
   {
