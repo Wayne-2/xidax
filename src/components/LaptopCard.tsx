@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import LaptopArtwork from "@/components/LaptopArtwork";
 import { CartIcon } from "@/components/AccessoryIcons";
-import { CheckIcon } from "@/components/BuildIcons";
+import { CheckIcon, ChevronDownIcon } from "@/components/BuildIcons";
 import {
   formatLaptopPrice,
   type Laptop,
@@ -172,7 +172,7 @@ export default function LaptopCard({
       </div>
 
       <div className="shrink-0 p-6 pt-0">
-        <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <span
               className="text-2xl font-bold tracking-tight"
@@ -185,40 +185,51 @@ export default function LaptopCard({
             </span>
           </div>
 
-          <button
-            type="button"
-            aria-pressed={added}
-            aria-label={
-              added
-                ? `Remove ${laptop.name} from cart`
-                : `Add ${laptop.name} to cart`
-            }
-            onClick={() => onToggle(laptop)}
-            className={`inline-flex h-11 touch-manipulation items-center justify-center gap-2 rounded-lg px-6 text-sm font-semibold transition-colors ${
-              added
-                ? "border border-[#5865F2]/30 bg-[#5865F2]/10 text-[#4752C4] hover:bg-[#5865F2]/15"
-                : "bg-[#5865F2] text-white hover:bg-[#4752C4]"
-            }`}
-          >
-            {added ? (
-              <CheckIcon className="h-4 w-4" />
-            ) : (
-              <CartIcon className="h-4 w-4" />
-            )}
-            {added ? "In cart" : "Add to cart"}
-          </button>
-        </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-pressed={added}
+              aria-label={
+                added
+                  ? `Remove ${laptop.name} from cart`
+                  : `Add ${laptop.name} to cart`
+              }
+              onClick={() => onToggle(laptop)}
+              className={`inline-flex h-11 touch-manipulation items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold transition-colors ${
+                added
+                  ? "border border-[#5865F2]/30 bg-[#5865F2]/10 text-[#4752C4] hover:bg-[#5865F2]/15"
+                  : "bg-[#5865F2] text-white hover:bg-[#4752C4]"
+              }`}
+            >
+              {added ? (
+                <CheckIcon className="h-4 w-4" />
+              ) : (
+                <CartIcon className="h-4 w-4" />
+              )}
+              {added ? "In cart" : "Add to cart"}
+            </button>
 
-        {overflowing && (
-          <button
-            type="button"
-            onClick={() => setExpanded((open) => !open)}
-            aria-expanded={expanded}
-            className="mt-3 inline-flex h-11 w-full touch-manipulation items-center justify-center rounded-lg border border-[#d2dbe8] bg-[#f8fafe] text-xs font-semibold text-[#5865F2] transition-colors hover:border-[#5865F2]/50 sm:hidden"
-          >
-            {expanded ? "less" : "more..."}
-          </button>
-        )}
+            {(overflowing || expanded) && (
+              <button
+                type="button"
+                onClick={() => setExpanded((open) => !open)}
+                aria-expanded={expanded}
+                aria-label={
+                  expanded
+                    ? `Hide details for ${laptop.name}`
+                    : `Show all details for ${laptop.name}`
+                }
+                className="flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-[#d2dbe8] bg-[#f8fafe] text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338] sm:hidden"
+              >
+                <ChevronDownIcon
+                  className={`h-4 w-4 transition-transform duration-300 ${
+                    expanded ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </article>
   );
