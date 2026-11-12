@@ -26,7 +26,7 @@ export default function LaptopCard({
   return (
     <article
       data-laptop-card
-      className="group flex flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] transition-colors hover:border-[#5865F2]/60"
+      className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] transition-colors hover:border-[#5865F2]/60"
     >
       <div className="relative aspect-[16/10] overflow-hidden bg-[#dce3ee]">
         <div
