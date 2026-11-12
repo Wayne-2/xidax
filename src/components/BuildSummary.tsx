@@ -200,7 +200,7 @@ export default function BuildSummary({
         )}
       </div>
 
-      <div className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-4 sm:p-5">
+      <div className="hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-4 sm:p-5 lg:block">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#80848e]">
           Build Notes
         </h2>

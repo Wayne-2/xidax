@@ -185,7 +185,7 @@ export default function LaptopCard({
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex w-full items-center gap-2 sm:w-auto">
             <button
               type="button"
               aria-pressed={added}
@@ -195,7 +195,7 @@ export default function LaptopCard({
                   : `Add ${laptop.name} to cart`
               }
               onClick={() => onToggle(laptop)}
-              className={`inline-flex h-11 touch-manipulation items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold transition-colors ${
+              className={`inline-flex h-11 flex-1 touch-manipulation items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold transition-colors sm:flex-none ${
                 added
                   ? "border border-[#5865F2]/30 bg-[#5865F2]/10 text-[#4752C4] hover:bg-[#5865F2]/15"
                   : "bg-[#5865F2] text-white hover:bg-[#4752C4]"
