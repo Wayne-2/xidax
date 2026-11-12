@@ -155,7 +155,7 @@ export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
               <Link
                 href="/support"
                 onClick={() => onOpenChange(false)}
-                className="inline-flex h-9 items-center justify-center rounded-lg bg-[#5865F2] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
+                className="shimmer inline-flex h-9 items-center justify-center rounded-lg bg-[#5865F2] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
               >
                 Get support
               </Link>

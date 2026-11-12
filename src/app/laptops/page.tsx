@@ -154,14 +154,14 @@ export default function LaptopsPage() {
             <div className="flex flex-wrap gap-3">
               <Link
                 href="/custom-builds"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#5865F2] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
+                className="shimmer inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#5865F2] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
               >
                 Build your PC
                 <ArrowIcon className="h-4 w-4" />
               </Link>
               <Link
                 href="/prebuilds"
-                className="inline-flex h-11 items-center justify-center rounded-lg border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-medium text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
+                className="shimmer inline-flex h-11 items-center justify-center rounded-lg border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-medium text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
               >
                 Shop prebuilds
               </Link>

@@ -58,14 +58,14 @@ export default function Home() {
             >
               <Link
                 href="/prebuilds"
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#5865F2] px-7 text-sm font-semibold text-white shadow-lg shadow-[#5865F2]/25 transition-colors hover:bg-[#4752C4]"
+                className="shimmer inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#5865F2] px-7 text-sm font-semibold text-white shadow-lg shadow-[#5865F2]/25 transition-colors hover:bg-[#4752C4]"
               >
                 Shop prebuilds
                 <ArrowIcon />
               </Link>
               <Link
                 href="/custom-builds"
-                className="inline-flex h-12 items-center justify-center rounded-lg border border-[#d2dbe8] px-7 text-sm font-semibold text-[#2e3338] transition-colors hover:border-[#b8c4d6] hover:bg-black/5"
+                className="shimmer inline-flex h-12 items-center justify-center rounded-lg border border-[#d2dbe8] px-7 text-sm font-semibold text-[#2e3338] transition-colors hover:border-[#b8c4d6] hover:bg-black/5"
               >
                 Build your own
               </Link>
