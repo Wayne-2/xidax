@@ -5,7 +5,7 @@ import { useState } from "react";
 import BuildPreview from "@/components/BuildPreview";
 import BuildSidebar from "@/components/BuildSidebar";
 import BuildSummary from "@/components/BuildSummary";
-import { ChevronDownIcon, ComponentIcon } from "@/components/BuildIcons";
+import { ChevronDownIcon } from "@/components/BuildIcons";
 import {
   buildPaths,
   partsByModel,
@@ -177,7 +177,6 @@ export default function CustomBuilder() {
               aria-controls="build-components"
               className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-4 text-sm font-semibold text-[#2e3338] transition-colors hover:border-[#5865F2]/50"
             >
-              <ComponentIcon className="h-4 w-4 text-[#5865F2]" />
               Add component
               <ChevronDownIcon
                 className={`h-4 w-4 text-[#80848e] transition-transform duration-300 ${
@@ -191,10 +190,23 @@ export default function CustomBuilder() {
             </span>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)_320px] xl:grid-cols-[280px_minmax(0,1fr)_360px] xl:gap-8">
+          <div className="relative grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)_320px] xl:grid-cols-[280px_minmax(0,1fr)_360px] xl:gap-8">
+            {sidebarOpen && (
+              <button
+                type="button"
+                aria-label="Close component list"
+                onClick={() => setSidebarOpen(false)}
+                className="absolute inset-0 z-20 lg:hidden"
+              />
+            )}
+
             <BuildSidebar
               id="build-components"
-              className={sidebarOpen ? "block" : "hidden lg:block"}
+              className={`${
+                sidebarOpen
+                  ? "absolute inset-x-0 top-0 z-30 max-h-[70vh] overflow-y-auto shadow-[0_24px_48px_-24px_rgba(46,51,56,0.55)]"
+                  : "hidden"
+              } lg:static lg:block lg:z-auto lg:max-h-none lg:overflow-visible lg:shadow-none`}
               modelId={modelId}
               parts={parts}
               selectedIds={selectedIds}
