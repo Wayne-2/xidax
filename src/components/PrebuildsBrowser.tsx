@@ -83,7 +83,7 @@ function FilterCheckbox({
   onChange: () => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-3 text-sm text-[#4e5058] transition-colors hover:text-[#2e3338]">
+    <label className="flex cursor-pointer items-center gap-3 text-sm text-[#5c5e66] transition-colors hover:text-[#2e3338]">
       <input
         type="checkbox"
         checked={checked}
@@ -282,7 +282,7 @@ export default function PrebuildsBrowser({
                         {refinementOptions.map((option) => (
                           <label
                             key={option.value}
-                            className="flex cursor-pointer items-center gap-3 text-sm text-[#4e5058] transition-colors hover:text-[#2e3338]"
+                            className="flex cursor-pointer items-center gap-3 text-sm text-[#5c5e66] transition-colors hover:text-[#2e3338]"
                           >
                             <input
                               type="radio"

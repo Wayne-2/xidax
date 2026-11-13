@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { CartIcon } from "@/components/AccessoryIcons";
 import { UserIcon } from "@/components/SupportIcons";
+import { useCart } from "@/components/CartProvider";
 import { navItems } from "@/data/navigation";
 
 type MobileNavProps = {
@@ -36,6 +37,7 @@ export default function MobileNav({
   accountHref,
 }: MobileNavProps) {
   const pathname = usePathname() ?? "";
+  const { count: cartCount } = useCart();
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -146,6 +148,11 @@ export default function MobileNav({
                     <CartIcon className="h-4 w-4" />
                   </span>
                   Cart
+                  {cartCount > 0 && (
+                    <span className="ml-auto rounded-full bg-[#5865F2] px-2 py-0.5 text-[11px] font-bold text-white">
+                      {cartCount}
+                    </span>
+                  )}
                 </Link>
               </li>
             </ul>

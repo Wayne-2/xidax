@@ -1,5 +1,7 @@
 import Image from "next/image";
 import { SlidersIcon } from "@/components/AccessoryIcons";
+import { useCart } from "@/components/CartProvider";
+import { cartItemFromPrebuild } from "@/data/cart";
 import type { Prebuild } from "@/data/prebuilds";
 
 const priceFormatter = new Intl.NumberFormat("en-US", {
@@ -10,6 +12,18 @@ const priceFormatter = new Intl.NumberFormat("en-US", {
 
 export default function PrebuildCard({ product }: { product: Prebuild }) {
   const inStock = product.stock === "in-stock";
+  const { items, add, remove } = useCart();
+  const inCart = items.some((entry) => entry.productId === product.id);
+
+  function toggleCart() {
+    const item = cartItemFromPrebuild(product);
+
+    if (inCart) {
+      remove(item.id);
+    } else {
+      add(item);
+    }
+  }
   const discount = Math.round(
     (1 - product.price / product.originalPrice) * 100
   );
@@ -76,15 +90,25 @@ export default function PrebuildCard({ product }: { product: Prebuild }) {
         <div className="mt-3 flex items-center gap-2 sm:hidden">
           <button
             type="button"
-            aria-label={`Add ${product.name} to cart`}
-            className="inline-flex h-11 flex-1 items-center justify-center whitespace-nowrap rounded-lg bg-[#5865F2] text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
+            aria-pressed={inCart}
+            aria-label={
+              inCart
+                ? `Remove ${product.name} from cart`
+                : `Add ${product.name} to cart`
+            }
+            onClick={toggleCart}
+            className={`inline-flex h-11 flex-1 items-center justify-center whitespace-nowrap rounded-lg text-sm font-semibold transition-colors ${
+              inCart
+                ? "border border-[#5865F2]/30 bg-[#5865F2]/10 text-[#4752C4] hover:bg-[#5865F2]/15"
+                : "bg-[#5865F2] text-white hover:bg-[#4752C4]"
+            }`}
           >
-            Add to Cart
+            {inCart ? "In cart" : "Add to Cart"}
           </button>
           <button
             type="button"
             aria-label={`Customize ${product.name}`}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#d2dbe8] text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#d2dbe8] text-[#5c5e66] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
           >
             <SlidersIcon className="h-5 w-5" />
           </button>
@@ -93,13 +117,19 @@ export default function PrebuildCard({ product }: { product: Prebuild }) {
         <div className="mt-3 hidden flex-col gap-2 sm:flex">
           <button
             type="button"
-            className="inline-flex h-11 w-full items-center justify-center whitespace-nowrap rounded-lg bg-[#5865F2] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
+            aria-pressed={inCart}
+            onClick={toggleCart}
+            className={`inline-flex h-11 w-full items-center justify-center whitespace-nowrap rounded-lg px-4 text-sm font-semibold transition-colors ${
+              inCart
+                ? "border border-[#5865F2]/30 bg-[#5865F2]/10 text-[#4752C4] hover:bg-[#5865F2]/15"
+                : "bg-[#5865F2] text-white hover:bg-[#4752C4]"
+            }`}
           >
-            Add to Cart
+            {inCart ? "In cart" : "Add to Cart"}
           </button>
           <button
             type="button"
-            className="inline-flex h-11 w-full items-center justify-center whitespace-nowrap rounded-lg border border-[#d2dbe8] px-4 text-sm font-medium text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
+            className="inline-flex h-11 w-full items-center justify-center whitespace-nowrap rounded-lg border border-[#d2dbe8] px-4 text-sm font-medium text-[#5c5e66] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
           >
             Customize Build
           </button>

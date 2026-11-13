@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { useAccount } from "@/components/AccountProvider";
+import { useCart } from "@/components/CartProvider";
+import { CartIcon } from "@/components/AccessoryIcons";
 import HeaderSearch from "@/components/HeaderSearch";
 import MobileNav from "@/components/MobileNav";
 import NavLinks from "@/components/NavLinks";
@@ -26,28 +28,11 @@ function UserIcon() {
   );
 }
 
-function BagIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-5 w-5"
-      aria-hidden="true"
-    >
-      <path d="M6 8h12l1 12H5L6 8Z" />
-      <path d="M9 8V6a3 3 0 0 1 6 0v2" />
-    </svg>
-  );
-}
-
 export default function Header() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const { user } = useAccount();
+  const { count: cartCount, ready: cartReady } = useCart();
   const accountHref = user ? "/profile" : "/login";
 
   return (
@@ -94,10 +79,15 @@ export default function Header() {
           </Link>
           <Link
             href="/cart"
-            aria-label="Cart"
-            className="hidden h-9 w-9 items-center justify-center rounded-full text-[#5c5e66] transition-colors hover:bg-black/5 hover:text-[#2e3338] md:flex"
+            aria-label={cartCount > 0 ? `Cart, ${cartCount} items` : "Cart"}
+            className="relative hidden h-9 w-9 items-center justify-center rounded-full text-[#5c5e66] transition-colors hover:bg-black/5 hover:text-[#2e3338] md:flex"
           >
-            <BagIcon />
+            <CartIcon className="h-5 w-5" />
+            {cartReady && cartCount > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#5865F2] px-1 text-[10px] font-bold text-white">
+                {cartCount > 99 ? "99+" : cartCount}
+              </span>
+            )}
           </Link>
           <MobileNav
             open={menuOpen}

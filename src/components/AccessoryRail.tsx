@@ -7,19 +7,20 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "@/components/AccessoryIcons";
+import type { CartItem } from "@/data/cart";
 import type { Accessory, AccessoryCategory } from "@/data/accessories";
 
 type AccessoryRailProps = {
   category: AccessoryCategory;
   products: Accessory[];
-  addedIds: string[];
+  cartItems: CartItem[];
   onToggle: (product: Accessory) => void;
 };
 
 export default function AccessoryRail({
   category,
   products,
-  addedIds,
+  cartItems,
   onToggle,
 }: AccessoryRailProps) {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -106,7 +107,9 @@ export default function AccessoryRail({
               key={product.id}
               category={category}
               product={product}
-              added={addedIds.includes(product.id)}
+              added={cartItems.some(
+                (entry) => entry.productId === product.id
+              )}
               onToggle={onToggle}
             />
           ))}

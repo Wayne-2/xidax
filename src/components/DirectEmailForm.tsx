@@ -91,7 +91,7 @@ export default function DirectEmailForm() {
             setMessage("");
             setSubject("");
           }}
-          className="mt-6 inline-flex h-11 items-center justify-center rounded-lg border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-semibold text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
+          className="mt-6 inline-flex h-11 items-center justify-center rounded-lg border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-semibold text-[#5c5e66] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
         >
           Send another message
         </button>
@@ -109,7 +109,7 @@ export default function DirectEmailForm() {
         <h3 className="text-xl font-bold tracking-tight text-[#2e3338]">
           Email the owners directly
         </h3>
-        <span className="inline-flex items-center gap-2 rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-xs font-semibold text-[#4e5058]">
+        <span className="inline-flex items-center gap-2 rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-xs font-semibold text-[#5c5e66]">
           <MailIcon className="h-3.5 w-3.5 text-[#5865F2]" />
           {ownersEmail}
         </span>
@@ -140,7 +140,7 @@ export default function DirectEmailForm() {
             }`}
           />
           {errors.name && (
-            <p id="support-name-error" className="mt-1.5 text-xs text-[#DC2626]">
+            <p id="support-name-error" className="mt-1.5 text-xs text-[#B91C1C]">
               {errors.name}
             </p>
           )}
@@ -166,7 +166,7 @@ export default function DirectEmailForm() {
             }`}
           />
           {errors.email && (
-            <p id="support-email-error" className="mt-1.5 text-xs text-[#DC2626]">
+            <p id="support-email-error" className="mt-1.5 text-xs text-[#B91C1C]">
               {errors.email}
             </p>
           )}
@@ -192,7 +192,7 @@ export default function DirectEmailForm() {
           }`}
         />
         {errors.subject && (
-          <p id="support-subject-error" className="mt-1.5 text-xs text-[#DC2626]">
+          <p id="support-subject-error" className="mt-1.5 text-xs text-[#B91C1C]">
             {errors.subject}
           </p>
         )}
@@ -218,7 +218,7 @@ export default function DirectEmailForm() {
           }`}
         />
         {errors.message && (
-          <p id="support-message-error" className="mt-1.5 text-xs text-[#DC2626]">
+          <p id="support-message-error" className="mt-1.5 text-xs text-[#B91C1C]">
             {errors.message}
           </p>
         )}

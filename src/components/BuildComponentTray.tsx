@@ -237,7 +237,7 @@ function ComponentPreviewPopover({
         {part.specs.map((spec) => (
           <li
             key={spec}
-            className="flex items-start gap-1.5 text-[11px] leading-relaxed text-[#4e5058]"
+            className="flex items-start gap-1.5 text-[11px] leading-relaxed text-[#5c5e66]"
           >
             <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#5865F2]" />
             {spec}

@@ -58,7 +58,7 @@ export default function ThePromise() {
           <blockquote
             data-reveal="up"
             style={{ animationDelay: "240ms" }}
-            className="mt-8 border-l-2 border-[#5865F2] pl-5 text-lg leading-relaxed text-[#4e5058]"
+            className="mt-8 border-l-2 border-[#5865F2] pl-5 text-lg leading-relaxed text-[#5c5e66]"
           >
             &quot;Bold enough to offer this level of coverage because we stand
             behind every rig as if it were our own.&quot;

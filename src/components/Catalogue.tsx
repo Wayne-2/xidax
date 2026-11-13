@@ -153,7 +153,7 @@ export default function Catalogue() {
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-[#d2dbe8] px-5 text-sm font-medium text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-[#d2dbe8] px-5 text-sm font-medium text-[#5c5e66] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
             >
               View all prebuilds
               <ArrowIcon />
@@ -232,7 +232,7 @@ export default function Catalogue() {
                   </button>
                   <button
                     type="button"
-                    className="inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-[#d2dbe8] px-4 text-sm font-medium text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
+                    className="inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-[#d2dbe8] px-4 text-sm font-medium text-[#5c5e66] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
                   >
                     Customize
                   </button>

@@ -7,6 +7,8 @@ import {
   CartIcon,
 } from "@/components/AccessoryIcons";
 import { CheckIcon } from "@/components/BuildIcons";
+import { useCart } from "@/components/CartProvider";
+import { cartItemFromAccessory } from "@/data/cart";
 import type { Accessory, AccessoryCategory } from "@/data/accessories";
 
 type AccessoriesCatalogueProps = {
@@ -23,9 +25,15 @@ export default function AccessoriesCatalogue({
   categories,
   products,
 }: AccessoriesCatalogueProps) {
-  const [addedIds, setAddedIds] = useState<string[]>([]);
+  const { items: cartItems, add: addToCart, remove: removeFromCart } =
+    useCart();
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cartCount = cartItems.reduce(
+    (sum, item) => sum + item.quantity,
+    0
+  );
 
   useEffect(() => {
     return () => {
@@ -36,13 +44,19 @@ export default function AccessoriesCatalogue({
   }, []);
 
   function toggleProduct(product: Accessory) {
-    const isAdded = addedIds.includes(product.id);
-
-    setAddedIds((current) =>
-      isAdded
-        ? current.filter((id) => id !== product.id)
-        : [...current, product.id],
+    const category =
+      categories.find((entry) => entry.id === product.category) ??
+      categories[0];
+    const item = cartItemFromAccessory(product, category);
+    const isAdded = cartItems.some(
+      (entry) => entry.productId === product.id
     );
+
+    if (isAdded) {
+      removeFromCart(item.id);
+    } else {
+      addToCart(item);
+    }
 
     setToast((current) => ({
       id: (current?.id ?? 0) + 1,
@@ -72,7 +86,7 @@ export default function AccessoriesCatalogue({
             <a
               key={category.id}
               href={`#${category.id}`}
-              className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-xs font-semibold text-[#4e5058] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338]"
+              className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-xs font-semibold text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338]"
             >
               <AccessoryCategoryIcon
                 category={category.id}
@@ -84,13 +98,13 @@ export default function AccessoriesCatalogue({
           <span
             aria-live="polite"
             className={`ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-              addedIds.length > 0
+              cartCount > 0
                 ? "border-[#5865F2] bg-[#5865F2] text-white"
                 : "border-[#d2dbe8] bg-[#f8fafe] text-[#80848e]"
             }`}
           >
             <CartIcon className="h-3.5 w-3.5" />
-            {addedIds.length} in cart
+            {cartCount} in cart
           </span>
         </div>
       </nav>
@@ -103,7 +117,7 @@ export default function AccessoriesCatalogue({
             products={products.filter(
               (product) => product.category === category.id,
             )}
-            addedIds={addedIds}
+            cartItems={cartItems}
             onToggle={toggleProduct}
           />
         ))}

@@ -79,13 +79,13 @@ export default function LaptopsPage() {
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2">
-                <span className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-xs font-semibold text-[#4e5058]">
+                <span className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-xs font-semibold text-[#5c5e66]">
                   {laptops.length} laptops
                 </span>
-                <span className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-xs font-semibold text-[#4e5058]">
+                <span className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-xs font-semibold text-[#5c5e66]">
                   {laptopCategories.length} categories
                 </span>
-                <span className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-xs font-semibold text-[#4e5058]">
+                <span className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-xs font-semibold text-[#5c5e66]">
                   Free shipping over $99
                 </span>
               </div>
@@ -113,7 +113,7 @@ export default function LaptopsPage() {
                 ].map((item) => (
                   <li
                     key={item}
-                    className="flex items-center gap-2 text-xs font-medium text-[#4e5058]"
+                    className="flex items-center gap-2 text-xs font-medium text-[#5c5e66]"
                   >
                     <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#5865F2]/10 text-[#5865F2]">
                       <CheckIcon className="h-2.5 w-2.5" />
@@ -161,7 +161,7 @@ export default function LaptopsPage() {
               </Link>
               <Link
                 href="/prebuilds"
-                className="shimmer inline-flex h-11 items-center justify-center rounded-lg border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-medium text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
+                className="shimmer inline-flex h-11 items-center justify-center rounded-lg border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-medium text-[#5c5e66] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
               >
                 Shop prebuilds
               </Link>

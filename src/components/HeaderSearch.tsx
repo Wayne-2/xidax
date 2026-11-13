@@ -356,7 +356,7 @@ export default function HeaderSearch({ open, onOpenChange }: HeaderSearchProps) 
                         key={suggestion}
                         type="button"
                         onClick={() => setQuery(suggestion)}
-                        className="rounded-full border border-[#d2dbe8] bg-[#f0f4fa] px-3 py-1.5 text-xs font-semibold text-[#4e5058] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338]"
+                        className="rounded-full border border-[#d2dbe8] bg-[#f0f4fa] px-3 py-1.5 text-xs font-semibold text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338]"
                       >
                         {suggestion}
                       </button>

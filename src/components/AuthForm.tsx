@@ -170,7 +170,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
             }`}
           />
           {errors.name && (
-            <p id="auth-name-error" className="mt-1.5 text-xs text-[#DC2626]">
+            <p id="auth-name-error" className="mt-1.5 text-xs text-[#B91C1C]">
               {errors.name}
             </p>
           )}
@@ -198,7 +198,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
           }`}
         />
         {errors.email && (
-          <p id="auth-email-error" className="mt-1.5 text-xs text-[#DC2626]">
+          <p id="auth-email-error" className="mt-1.5 text-xs text-[#B91C1C]">
             {errors.email}
           </p>
         )}
@@ -244,7 +244,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
             {errors.country && (
               <p
                 id="auth-country-error"
-                className="mt-1.5 text-xs text-[#DC2626]"
+                className="mt-1.5 text-xs text-[#B91C1C]"
               >
                 {errors.country}
               </p>
@@ -276,7 +276,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
             {errors.postal && (
               <p
                 id="auth-postal-error"
-                className="mt-1.5 text-xs text-[#DC2626]"
+                className="mt-1.5 text-xs text-[#B91C1C]"
               >
                 {errors.postal}
               </p>
@@ -332,7 +332,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
           </button>
         </div>
         {errors.password && (
-          <p id="auth-password-error" className="mt-1.5 text-xs text-[#DC2626]">
+          <p id="auth-password-error" className="mt-1.5 text-xs text-[#B91C1C]">
             {errors.password}
           </p>
         )}
@@ -362,7 +362,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
           {errors.confirm && (
             <p
               id="auth-confirm-error"
-              className="mt-1.5 text-xs text-[#DC2626]"
+              className="mt-1.5 text-xs text-[#B91C1C]"
             >
               {errors.confirm}
             </p>
@@ -384,7 +384,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
             </span>
           </label>
           {errors.terms && (
-            <p className="mt-1.5 text-xs text-[#DC2626]">{errors.terms}</p>
+            <p className="mt-1.5 text-xs text-[#B91C1C]">{errors.terms}</p>
           )}
         </div>
       )}

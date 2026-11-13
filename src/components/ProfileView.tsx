@@ -225,7 +225,7 @@ export default function ProfileView() {
               signOut();
               router.push("/login");
             }}
-            className="inline-flex h-11 touch-manipulation items-center justify-center gap-2 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-semibold text-[#4e5058] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338]"
+            className="inline-flex h-11 touch-manipulation items-center justify-center gap-2 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-semibold text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338]"
           >
             Sign out
           </button>
@@ -638,7 +638,7 @@ export default function ProfileView() {
                 resetSettings();
                 markSaved();
               }}
-              className="inline-flex h-11 touch-manipulation items-center justify-center rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-semibold text-[#4e5058] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338]"
+              className="inline-flex h-11 touch-manipulation items-center justify-center rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-semibold text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338]"
             >
               Reset preferences
             </button>

@@ -175,7 +175,7 @@ export default function BuildSummary({
                       {part.specs.map((spec) => (
                         <li
                           key={spec}
-                          className="flex items-start gap-1.5 text-[11px] leading-relaxed text-[#4e5058]"
+                          className="flex items-start gap-1.5 text-[11px] leading-relaxed text-[#5c5e66]"
                         >
                           <CheckIcon className="mt-0.5 h-3 w-3 shrink-0 text-[#5865F2]" />
                           {spec}
@@ -212,7 +212,7 @@ export default function BuildSummary({
           {buildNotes.map((note) => (
             <li
               key={note}
-              className="flex items-start gap-2 text-xs leading-relaxed text-[#4e5058]"
+              className="flex items-start gap-2 text-xs leading-relaxed text-[#5c5e66]"
             >
               <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#15803D]" />
               {note}
@@ -249,7 +249,7 @@ export default function BuildSummary({
           </button>
           <button
             type="button"
-            className="inline-flex h-11 w-full items-center justify-center rounded-lg border border-[#d2dbe8] px-4 text-sm font-medium text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
+            className="inline-flex h-11 w-full items-center justify-center rounded-lg border border-[#d2dbe8] px-4 text-sm font-medium text-[#5c5e66] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
           >
             Save build
           </button>

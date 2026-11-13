@@ -78,7 +78,7 @@ export default function SupportPage() {
                 {supportStats.map((stat) => (
                   <span
                     key={stat.label}
-                    className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-xs font-semibold text-[#4e5058]"
+                    className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-xs font-semibold text-[#5c5e66]"
                   >
                     {stat.value} {stat.label}
                   </span>
@@ -109,7 +109,7 @@ export default function SupportPage() {
                 ].map((item) => (
                   <li
                     key={item}
-                    className="flex items-center gap-2 text-xs font-medium text-[#4e5058]"
+                    className="flex items-center gap-2 text-xs font-medium text-[#5c5e66]"
                   >
                     <span className="h-1.5 w-1.5 rounded-full bg-[#5865F2]" />
                     {item}

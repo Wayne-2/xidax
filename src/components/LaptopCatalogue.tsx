@@ -10,6 +10,8 @@ import {
   GamepadIcon,
   PaletteIcon,
 } from "@/components/LaptopIcons";
+import { useCart } from "@/components/CartProvider";
+import { cartItemFromLaptop, type CartItem } from "@/data/cart";
 import {
   formatLaptopPrice,
   type Laptop,
@@ -26,7 +28,7 @@ type LaptopCatalogueProps = {
 type LaptopRowProps = {
   category: LaptopCategory;
   laptops: Laptop[];
-  addedIds: string[];
+  cartItems: CartItem[];
   onToggle: (laptop: Laptop) => void;
 };
 
@@ -52,7 +54,7 @@ function CategoryIcon({
 function LaptopRow({
   category,
   laptops,
-  addedIds,
+  cartItems,
   onToggle,
 }: LaptopRowProps) {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -187,7 +189,9 @@ function LaptopRow({
                 <LaptopCard
                   laptop={laptop}
                   category={category}
-                  added={addedIds.includes(laptop.id)}
+                  added={cartItems.some(
+                    (entry) => entry.productId === laptop.id
+                  )}
                   onToggle={onToggle}
                 />
               </div>
@@ -217,7 +221,8 @@ export default function LaptopCatalogue({
   laptops,
   featured,
 }: LaptopCatalogueProps) {
-  const [addedIds, setAddedIds] = useState<string[]>([]);
+  const { items: cartItems, add: addToCart, remove: removeFromCart } =
+    useCart();
   const [toast, setToast] = useState<{ id: number; message: string } | null>(
     null
   );
@@ -235,18 +240,28 @@ export default function LaptopCatalogue({
   const featuredCategory =
     categories.find((category) => category.id === featured.category) ??
     categories[0];
-  const total = laptops
-    .filter((laptop) => addedIds.includes(laptop.id))
-    .reduce((sum, laptop) => sum + laptop.price, 0);
+  const total = cartItems.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
+  const cartCount = cartItems.reduce(
+    (sum, item) => sum + item.quantity,
+    0
+  );
 
   function toggleLaptop(laptop: Laptop) {
-    const isAdded = addedIds.includes(laptop.id);
-
-    setAddedIds((current) =>
-      isAdded
-        ? current.filter((id) => id !== laptop.id)
-        : [...current, laptop.id]
+    const category =
+      categories.find((entry) => entry.id === laptop.category) ?? categories[0];
+    const item = cartItemFromLaptop(laptop, category);
+    const isAdded = cartItems.some(
+      (entry) => entry.productId === laptop.id
     );
+
+    if (isAdded) {
+      removeFromCart(item.id);
+    } else {
+      addToCart(item);
+    }
 
     setToast((current) => ({
       id: (current?.id ?? 0) + 1,
@@ -277,7 +292,7 @@ export default function LaptopCatalogue({
               <a
                 key={category.id}
                 href={`#${category.id}`}
-                className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3.5 py-1.5 text-xs font-semibold text-[#4e5058] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338]"
+                className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3.5 py-1.5 text-xs font-semibold text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338]"
               >
                 <span style={{ color: category.accent }}>
                   <CategoryIcon category={category.id} className="h-3.5 w-3.5" />
@@ -290,14 +305,14 @@ export default function LaptopCatalogue({
           <span
             aria-live="polite"
             className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-              addedIds.length > 0
+              cartCount > 0
                 ? "border-[#5865F2] bg-[#5865F2] text-white"
                 : "border-[#d2dbe8] bg-[#f8fafe] text-[#80848e]"
             }`}
           >
             <CartIcon className="h-3.5 w-3.5" />
-            {addedIds.length} in cart
-            {addedIds.length > 0 && (
+            {cartCount} in cart
+            {cartCount > 0 && (
               <span className="opacity-80">
                 {" · "}
                 {formatLaptopPrice(total)}
@@ -436,25 +451,37 @@ export default function LaptopCatalogue({
 
                   <button
                     type="button"
-                    aria-pressed={addedIds.includes(featured.id)}
+                    aria-pressed={cartItems.some(
+                      (entry) => entry.productId === featured.id
+                    )}
                     aria-label={
-                      addedIds.includes(featured.id)
+                      cartItems.some(
+                        (entry) => entry.productId === featured.id
+                      )
                         ? `Remove ${featured.name} from cart`
                         : `Add ${featured.name} to cart`
                     }
                     onClick={() => toggleLaptop(featured)}
                     className={`inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-lg px-7 text-sm font-semibold transition-colors ${
-                      addedIds.includes(featured.id)
+                      cartItems.some(
+                        (entry) => entry.productId === featured.id
+                      )
                         ? "border border-[#5865F2]/30 bg-[#5865F2]/10 text-[#4752C4] hover:bg-[#5865F2]/15"
                         : "bg-[#5865F2] text-white hover:bg-[#4752C4]"
                     }`}
                   >
-                    {addedIds.includes(featured.id) ? (
+                    {cartItems.some(
+                      (entry) => entry.productId === featured.id
+                    ) ? (
                       <CheckIcon className="h-4 w-4" />
                     ) : (
                       <CartIcon className="h-4 w-4" />
                     )}
-                    {addedIds.includes(featured.id) ? "In cart" : "Add to cart"}
+                    {cartItems.some(
+                      (entry) => entry.productId === featured.id
+                    )
+                      ? "In cart"
+                      : "Add to cart"}
                   </button>
                 </div>
               </div>
@@ -468,7 +495,7 @@ export default function LaptopCatalogue({
           key={category.id}
           category={category}
           laptops={laptops.filter((laptop) => laptop.category === category.id)}
-          addedIds={addedIds}
+          cartItems={cartItems}
           onToggle={toggleLaptop}
         />
       ))}
