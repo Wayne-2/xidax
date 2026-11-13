@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import LaptopArtwork from "@/components/LaptopArtwork";
 import LaptopCard from "@/components/LaptopCard";
 import { CartIcon, ChevronLeftIcon, ChevronRightIcon } from "@/components/AccessoryIcons";
@@ -333,7 +334,11 @@ export default function LaptopCatalogue({
             className="overflow-hidden rounded-3xl border border-[#dce3ee] bg-[#eaf0f8]"
           >
             <div className="grid lg:grid-cols-[minmax(0,1fr)_440px]">
-              <div className="relative aspect-[16/10] overflow-hidden bg-[#dce3ee] lg:aspect-auto lg:min-h-[26rem]">
+              <div
+                className={`relative aspect-[16/10] overflow-hidden lg:aspect-auto lg:min-h-[26rem] ${
+                  featured.image ? "bg-[#f1f4f9]" : "bg-[#dce3ee]"
+                }`}
+              >
                 <div
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-0 opacity-70"
@@ -355,11 +360,21 @@ export default function LaptopCatalogue({
                   }}
                 />
                 <div className="absolute inset-0 flex items-center justify-center p-8">
-                  <LaptopArtwork
-                    category={featured.category}
-                    accent={featuredCategory.accent}
-                    label={`${featured.name} illustration`}
-                  />
+                  {featured.image ? (
+                    <Image
+                      src={featured.image}
+                      alt={featured.name}
+                      fill
+                      sizes="(min-width: 1024px) 50vw, 90vw"
+                      className="object-contain p-3"
+                    />
+                  ) : (
+                    <LaptopArtwork
+                      category={featured.category}
+                      accent={featuredCategory.accent}
+                      label={`${featured.name} illustration`}
+                    />
+                  )}
                 </div>
                 <span className="absolute left-6 top-6 rounded-full bg-[#5865F2] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white">
                   Flagship of the range

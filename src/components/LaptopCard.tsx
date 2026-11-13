@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import LaptopArtwork from "@/components/LaptopArtwork";
 import { CartIcon } from "@/components/AccessoryIcons";
 import { CheckIcon, ChevronDownIcon } from "@/components/BuildIcons";
@@ -66,7 +67,11 @@ export default function LaptopCard({
         expanded ? "aspect-auto sm:aspect-auto" : "aspect-[1/2] sm:aspect-auto"
       }`}
     >
-      <div className="relative aspect-[16/10] shrink-0 overflow-hidden bg-[#dce3ee]">
+      <div
+        className={`relative aspect-[16/10] shrink-0 overflow-hidden ${
+          laptop.image ? "bg-[#f1f4f9]" : "bg-[#dce3ee]"
+        }`}
+      >
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 opacity-70"
@@ -86,11 +91,21 @@ export default function LaptopCard({
         />
 
         <div className="absolute inset-0 flex items-center justify-center p-6">
-          <LaptopArtwork
-            category={category.id}
-            accent={accent}
-            label={`${laptop.name} illustration`}
-          />
+          {laptop.image ? (
+            <Image
+              src={laptop.image}
+              alt={laptop.name}
+              fill
+              sizes="(min-width: 1024px) 40vw, 90vw"
+              className="object-contain p-2"
+            />
+          ) : (
+            <LaptopArtwork
+              category={category.id}
+              accent={accent}
+              label={`${laptop.name} illustration`}
+            />
+          )}
         </div>
 
         <div className="absolute inset-x-4 top-4 flex items-start justify-between gap-2">

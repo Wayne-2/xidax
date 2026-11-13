@@ -38,6 +38,7 @@ export function cartItemFromLaptop(
     href: `/laptops#${laptop.category}`,
     accent: category.accent,
     artCategory: laptop.category,
+    image: laptop.image,
   };
 }
 

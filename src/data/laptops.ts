@@ -18,6 +18,7 @@ export type Laptop = {
   id: string;
   category: LaptopCategoryId;
   name: string;
+  image?: string;
   tagline: string;
   description: string;
   price: number;
@@ -62,6 +63,7 @@ export const laptops: Laptop[] = [
     id: "apex-16",
     category: "gaming",
     name: "Apex 16",
+    image: "/laptops/506466ed290e711699e0c0d02347b5b5.jpg",
     tagline: "The flagship. Everything at max.",
     description:
       "Our most powerful laptop: a full desktop GPU, a 240Hz panel, and a vapour chamber that stays quiet under load.",
@@ -89,6 +91,7 @@ export const laptops: Laptop[] = [
     id: "vortex-15",
     category: "gaming",
     name: "Vortex 15",
+    image: "/laptops/b82681d2b64039932eb0d1961ce625f4.jpg",
     tagline: "The performance sweet spot.",
     description:
       "RTX 5070 Ti performance in a 2.1kg chassis, tuned for high-refresh esports and cinematic single-player.",
@@ -116,6 +119,7 @@ export const laptops: Laptop[] = [
     id: "falcon-14",
     category: "gaming",
     name: "Falcon 14",
+    image: "/laptops/6b2e7d671f42e2c28bd65123bd4a871a.jpg",
     tagline: "Real gaming in a 1.7kg frame.",
     description:
       "A compact RTX 4060 laptop for travel, dorm rooms, and LAN nights where portability still matters.",
@@ -142,6 +146,7 @@ export const laptops: Laptop[] = [
     id: "saber-17",
     category: "gaming",
     name: "Saber 17",
+    image: "/laptops/558b015fde0a76cd7de334f3a1bf6ada.jpg",
     tagline: "Big screen, big frame.",
     description:
       "A 17-inch display monster for simulation, strategy and streaming, with desktop-class cooling headroom.",
@@ -169,6 +174,7 @@ export const laptops: Laptop[] = [
     id: "canvas-16-pro",
     category: "creator",
     name: "Canvas 16 Pro",
+    image: "/laptops/12215a349308502f10a0fd297d2f59c0.jpg",
     tagline: "A studio that fits in a backpack.",
     description:
       "A 3K mini-LED panel at 100% DCI-P3 with the silicon to grade, edit, and render without a desk.",
@@ -196,6 +202,7 @@ export const laptops: Laptop[] = [
     id: "canvas-14",
     category: "creator",
     name: "Canvas 14",
+    image: "/laptops/16c05c9c12dac713471bcab6a738785d.jpg",
     tagline: "Light, accurate, ready anywhere.",
     description:
       "A 2.8K OLED creator laptop for photo and motion work, with a colour-accurate panel in every unit.",
@@ -222,6 +229,7 @@ export const laptops: Laptop[] = [
     id: "studio-air-15",
     category: "creator",
     name: "Studio Air 15",
+    image: "/laptops/ba3951ed80e2d7662996abe35b985164.jpg",
     tagline: "Render on the move.",
     description:
       "Balanced performance and battery for motion designers who render, preview, and deliver from anywhere.",
@@ -274,6 +282,7 @@ export const laptops: Laptop[] = [
     id: "atlas-14",
     category: "business",
     name: "Atlas 14",
+    image: "/laptops/5a20e46cda71128b2442c12ba29fdd3e.jpg",
     tagline: "The office standard.",
     description:
       "Dependable, secure, and comfortable for full days of meetings, documents, and spreadsheets.",
@@ -301,6 +310,7 @@ export const laptops: Laptop[] = [
     id: "atlas-16",
     category: "business",
     name: "Atlas 16",
+    image: "/laptops/bf5e50c684180d1e693053a46931d830.jpg",
     tagline: "More screen, more work.",
     description:
       "A 16-inch business machine with discrete graphics for occasional 3D, CAD, and data work.",
@@ -354,6 +364,7 @@ export const laptops: Laptop[] = [
     id: "executive-15",
     category: "business",
     name: "Executive 15",
+    image: "/laptops/c00f25b70836b5767332d91883754f17.jpg",
     tagline: "Built for the boardroom.",
     description:
       "Premium materials, a 2.8K display, and the security features a corporate fleet needs.",
