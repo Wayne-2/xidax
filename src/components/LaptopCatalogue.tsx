@@ -366,7 +366,7 @@ export default function LaptopCatalogue({
                       alt={featured.name}
                       fill
                       sizes="(min-width: 1024px) 50vw, 90vw"
-                      className="object-contain p-3"
+                      className="object-cover"
                     />
                   ) : (
                     <LaptopArtwork

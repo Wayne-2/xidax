@@ -97,7 +97,7 @@ export default function LaptopCard({
               alt={laptop.name}
               fill
               sizes="(min-width: 1024px) 40vw, 90vw"
-              className="object-contain p-2"
+              className="object-cover"
             />
           ) : (
             <LaptopArtwork
