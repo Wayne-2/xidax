@@ -9,6 +9,38 @@ export type AccountUser = {
   memberSince: string;
 };
 
+export type RegisteredProductKind = "pc" | "laptop";
+
+export type RegisteredProduct = {
+  id: string;
+  kind: RegisteredProductKind;
+  name: string;
+  orderNumber: string;
+  purchasedOn: string;
+  labelNumber: string;
+  trackingNumber: string;
+};
+
+const labelAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+function randomCode(length: number) {
+  let code = "";
+
+  for (let index = 0; index < length; index += 1) {
+    code += labelAlphabet[Math.floor(Math.random() * labelAlphabet.length)];
+  }
+
+  return code;
+}
+
+export function generateLabelNumber() {
+  return `PCM-LBL-${randomCode(6)}`;
+}
+
+export function generateTrackingNumber() {
+  return `PCMT-${randomCode(8)}`;
+}
+
 export type AccountSettings = {
   orderUpdates: boolean;
   dropNotifications: boolean;

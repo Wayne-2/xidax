@@ -242,6 +242,25 @@ html {
   }
 }
 
+@keyframes marquee-banner {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee-banner {
+  animation: marquee-banner 30s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee-banner {
+    animation: none;
+  }
+}
+
 @keyframes badge-pulse {
   0%,
   100% {

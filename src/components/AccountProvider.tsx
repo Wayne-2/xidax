@@ -13,10 +13,12 @@ import {
   demoUser,
   type AccountSettings,
   type AccountUser,
+  type RegisteredProduct,
 } from "@/data/account";
 
 const SESSION_KEY = "pcmart.account";
 const SETTINGS_KEY = "pcmart.settings";
+const PRODUCTS_KEY = "pcmart.products";
 
 type AccountContextValue = {
   user: AccountUser | null;
@@ -33,6 +35,9 @@ type AccountContextValue = {
   updateProfile: (patch: Partial<AccountUser>) => void;
   saveSettings: (patch: Partial<AccountSettings>) => void;
   resetSettings: () => void;
+  registeredProducts: RegisteredProduct[];
+  registerProduct: (product: RegisteredProduct) => void;
+  removeProduct: (id: string) => void;
 };
 
 const AccountContext = createContext<AccountContextValue | null>(null);
@@ -54,6 +59,9 @@ export function AccountProvider({
 }) {
   const [user, setUser] = useState<AccountUser | null>(null);
   const [settings, setSettings] = useState<AccountSettings>(defaultSettings);
+  const [registeredProducts, setRegisteredProducts] = useState<RegisteredProduct[]>(
+    []
+  );
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -68,6 +76,12 @@ export function AccountProvider({
 
       if (storedSettings) {
         setSettings({ ...defaultSettings, ...storedSettings });
+      }
+
+      const storedProducts = readStored<RegisteredProduct[]>(PRODUCTS_KEY);
+
+      if (storedProducts) {
+        setRegisteredProducts(storedProducts);
       }
 
       setReady(true);
@@ -127,8 +141,23 @@ export function AccountProvider({
         window.localStorage.removeItem(SETTINGS_KEY);
         setSettings(defaultSettings);
       },
+      registeredProducts,
+      registerProduct: (product: RegisteredProduct) => {
+        setRegisteredProducts((current) => {
+          const next = [product, ...current];
+          window.localStorage.setItem(PRODUCTS_KEY, JSON.stringify(next));
+          return next;
+        });
+      },
+      removeProduct: (id: string) => {
+        setRegisteredProducts((current) => {
+          const next = current.filter((entry) => entry.id !== id);
+          window.localStorage.setItem(PRODUCTS_KEY, JSON.stringify(next));
+          return next;
+        });
+      },
     }),
-    [user, settings, ready, persistUser]
+    [user, settings, ready, persistUser, registeredProducts]
   );
 
   return (

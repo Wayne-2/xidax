@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
 import { useAccount } from "@/components/AccountProvider";
+import ProductRegistration from "@/components/ProductRegistration";
 import {
   accountOrders,
   currencies,
@@ -435,6 +436,8 @@ export default function ProfileView() {
           </section>
         </div>
       </div>
+
+      <ProductRegistration />
 
       <section
         id="settings"

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import AnnouncementBanner from "@/components/AnnouncementBanner";
 import Catalogue from "@/components/Catalogue";
 import Community from "@/components/Community";
 import DisplayCards from "@/components/DisplayCards";
@@ -30,6 +31,7 @@ function ArrowIcon() {
 export default function Home() {
   return (
     <>
+      <AnnouncementBanner />
       <main className="relative flex-1 overflow-hidden text-[#2e3338]">
         <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-16 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:gap-12 lg:px-8 lg:py-28">
           <div>
