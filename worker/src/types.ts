@@ -89,6 +89,9 @@ export type Env = {
   SESSIONS: KVNamespace;
   BACHS_API_KEY?: string;
   BACHS_API_BASE?: string;
+  BACHS_CRYPTO_PATH?: string;
+  BACHS_WIRE_PATH?: string;
+  BACHS_WEBHOOK_SECRET?: string;
   CRYPTO_ADDRESS_BTC?: string;
   CRYPTO_ADDRESS_ETH?: string;
   CRYPTO_ADDRESS_USDT?: string;

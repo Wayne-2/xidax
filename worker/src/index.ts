@@ -205,6 +205,67 @@ async function handleRegistration(env: Env, request: Request) {
   return json({ ok: true, labelNumber, trackingNumber }, 201);
 }
 
+async function handleWebhook(env: Env, request: Request) {
+  const raw = await request.text();
+  const secret = env.BACHS_WEBHOOK_SECRET;
+
+  if (secret) {
+    const signature = request.headers.get("x-bachs-signature") ?? "";
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const digest = await crypto.subtle.sign(
+      "HMAC",
+      key,
+      new TextEncoder().encode(raw)
+    );
+    const expected = Array.from(new Uint8Array(digest))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+
+    if (signature !== expected) {
+      return json({ error: "Invalid signature." }, 401);
+    }
+  }
+
+  const payload = JSON.parse(raw) as {
+    id?: string;
+    reference?: string;
+    status?: string;
+  };
+
+  const status = payload.status ?? "paid";
+  const sessionId = payload.id;
+
+  if (sessionId) {
+    const stored = await env.SESSIONS.get(sessionId, "json");
+
+    if (stored) {
+      const session = stored as CheckoutSession;
+      const updated: CheckoutSession = { ...session, status: status as CheckoutSession["status"] };
+
+      await env.SESSIONS.put(updated.id, JSON.stringify(updated), {
+        expirationTtl: SESSION_TTL_SECONDS,
+      });
+      await env.DB.prepare("UPDATE orders SET status = ?1 WHERE id = ?2")
+        .bind(updated.status, updated.id)
+        .run();
+    }
+  }
+
+  if (payload.reference) {
+    await env.DB.prepare("UPDATE orders SET status = ?1 WHERE reference = ?2")
+      .bind(status, payload.reference)
+      .run();
+  }
+
+  return json({ ok: true });
+}
+
 async function handleOrders(env: Env, url: URL) {
   const email = url.searchParams.get("email");
 
@@ -249,6 +310,10 @@ const worker = {
 
       if (request.method === "POST" && submitMatch) {
         return await handleSubmit(env, submitMatch[1]);
+      }
+
+      if (request.method === "POST" && path === "/api/webhooks/bachs") {
+        return await handleWebhook(env, request);
       }
 
       if (request.method === "POST" && path === "/api/registrations") {

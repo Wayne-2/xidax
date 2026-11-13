@@ -23,6 +23,21 @@ gateway (crypto and wire transfer), order storage and product registration.
 
 ## Setup
 
+### Auth
+
+Wrangler needs either an OAuth session or an API token. If
+`oauth.cloudflare.com` is unreachable from your network, use a token instead —
+it only talks to `api.cloudflare.com`:
+
+```bash
+export CLOUDFLARE_API_TOKEN=<token>
+export CLOUDFLARE_ACCOUNT_ID=d289dbc731c7695dd906f8bf8ea11dd1
+```
+
+The token needs Workers Scripts (Edit), Workers KV (Edit) and D1 (Edit).
+
+### Resources
+
 ```bash
 cd worker
 npm install
@@ -36,7 +51,11 @@ npm run deploy
 
 `BACHS_API_KEY` / `BACHS_API_BASE` are optional: without them the worker
 generates its own instructions from the wallet/bank variables in
-`wrangler.toml`, which keeps local development working.
+`wrangler.toml`, which keeps local development working. The endpoint paths are
+vars (`BACHS_CRYPTO_PATH`, `BACHS_WIRE_PATH`) so they can be corrected without
+touching code. `BACHS_WEBHOOK_SECRET` turns on HMAC verification for
+`POST /api/webhooks/bachs`, which flips an order to `paid` when bachs settles
+it.
 
 ## Frontend
 

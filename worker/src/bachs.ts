@@ -56,7 +56,7 @@ export async function createCryptoInstructions(
   const remote = await bachsRequest<{
     address: string;
     amount: string;
-  }>(env, "/v1/crypto/intents", {
+  }>(env, env.BACHS_CRYPTO_PATH ?? "/v1/crypto/intents", {
     reference,
     network,
     amount: request.total,
@@ -109,7 +109,7 @@ export async function createWireInstructions(
     routingCode: string;
     swift: string;
     amount: string;
-  }>(env, "/v1/wire/instructions", {
+  }>(env, env.BACHS_WIRE_PATH ?? "/v1/wire/instructions", {
     reference,
     amount: request.total,
     currency: request.currency,

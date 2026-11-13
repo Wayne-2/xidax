@@ -4,6 +4,8 @@ compatibility_date = "2025-11-01"
 
 [vars]
 PAYMENT_PROVIDER = "bachs"
+BACHS_CRYPTO_PATH = "/v1/crypto/intents"
+BACHS_WIRE_PATH = "/v1/wire/instructions"
 WIRE_BENEFICIARY = "Pcmart Technologies Ltd"
 WIRE_BANK_NAME = "Pcmart Payments Bank"
 WIRE_ROUTING_CODE = "021000021"
@@ -12,11 +14,11 @@ WIRE_SWIFT = "PCMAGTNG"
 [[d1_databases]]
 binding = "DB"
 database_name = "pcmart"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "8d486892-1569-4863-a4be-668984c0b8a2"
 
 [[kv_namespaces]]
 binding = "SESSIONS"
-id = "00000000000000000000000000000000"
+id = "5e49ec60e71e4b029c8f641f6a857d01"
 
 [triggers]
 crons = ["0 * * * *"]
