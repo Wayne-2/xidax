@@ -9,6 +9,33 @@ export type AccountUser = {
   memberSince: string;
 };
 
+export type AccountSettings = {
+  orderUpdates: boolean;
+  dropNotifications: boolean;
+  marketingEmails: boolean;
+  language: string;
+  currency: string;
+};
+
+export const defaultSettings: AccountSettings = {
+  orderUpdates: true,
+  dropNotifications: true,
+  marketingEmails: false,
+  language: "English (Nigeria)",
+  currency: "USD ($)",
+};
+
+export const languages = [
+  "English (Nigeria)",
+  "English (United Kingdom)",
+  "English (United States)",
+  "French",
+  "German",
+  "Spanish",
+];
+
+export const currencies = ["USD ($)", "NGN (₦)", "GBP (£)", "EUR (€)"];
+
 export type AccountOrderStatus = "Delivered" | "Building" | "In transit";
 
 export type AccountOrder = {
