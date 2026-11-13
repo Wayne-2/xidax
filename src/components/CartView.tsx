@@ -99,7 +99,6 @@ export default function CartView() {
     null
   );
   const [promoError, setPromoError] = useState("");
-  const [checkoutDone, setCheckoutDone] = useState(false);
 
   const discount = promo ? Math.round(subtotal * promo.rate) : 0;
   const discounted = subtotal - discount;
@@ -457,27 +456,13 @@ export default function CartView() {
               )}
             </div>
 
-            {checkoutDone ? (
-              <div className="mt-5 rounded-xl border border-[#16A34A]/40 bg-[#16A34A]/10 p-4">
-                <p className="flex items-center gap-2 text-sm font-semibold text-[#15803D]">
-                  <CheckIcon className="h-4 w-4" />
-                  Order placed
-                </p>
-                <p className="mt-1 text-xs leading-relaxed text-[#5c5e66]">
-                  This is a demo storefront, so no payment was taken. A
-                  confirmation would be on its way to your inbox.
-                </p>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setCheckoutDone(true)}
-                className="mt-5 inline-flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
-              >
-                Checkout · {money.format(total)}
-                <ArrowIcon className="h-4 w-4" />
-              </button>
-            )}
+            <Link
+              href="/checkout"
+              className="mt-5 inline-flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
+            >
+              Checkout · {money.format(total)}
+              <ArrowIcon className="h-4 w-4" />
+            </Link>
 
             <p className="mt-3 text-center text-[11px] leading-relaxed text-[#80848e]">
               Taxes calculated at checkout. 3-year warranty and lifetime

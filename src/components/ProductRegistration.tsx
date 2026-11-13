@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CheckIcon } from "@/components/BuildIcons";
 import { useAccount } from "@/components/AccountProvider";
+import { registerProductRemote } from "@/lib/api";
 import {
   generateLabelNumber,
   generateTrackingNumber,
@@ -81,7 +82,8 @@ function TrashIcon({ className = "h-4 w-4" }: { className?: string }) {
 }
 
 export default function ProductRegistration() {
-  const { registeredProducts, registerProduct, removeProduct } = useAccount();
+  const { registeredProducts, registerProduct, removeProduct, user } =
+    useAccount();
   const [kind, setKind] = useState<"pc" | "laptop">("pc");
   const [name, setName] = useState("");
   const [orderNumber, setOrderNumber] = useState("");
@@ -93,7 +95,7 @@ export default function ProductRegistration() {
   const fieldClass =
     "h-11 w-full rounded-xl border bg-[#f8fafe] px-3.5 text-sm text-[#2e3338] outline-none transition-colors placeholder:text-[#80848e]";
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     const next: Record<string, string> = {};
 
@@ -105,14 +107,22 @@ export default function ProductRegistration() {
 
     if (Object.keys(next).length > 0) return;
 
+    const remote = await registerProductRemote({
+      kind,
+      name: name.trim(),
+      orderNumber: orderNumber.trim().toUpperCase(),
+      purchasedOn,
+      email: user?.email ?? "",
+    });
+
     const product: RegisteredProduct = {
       id: `reg-${Date.now()}`,
       kind,
       name: name.trim(),
       orderNumber: orderNumber.trim().toUpperCase(),
       purchasedOn,
-      labelNumber: generateLabelNumber(),
-      trackingNumber: generateTrackingNumber(),
+      labelNumber: remote.labelNumber ?? generateLabelNumber(),
+      trackingNumber: remote.trackingNumber ?? generateTrackingNumber(),
     };
 
     registerProduct(product);

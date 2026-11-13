@@ -1,0 +1,22 @@
+name = "pcmart-api"
+main = "src/index.ts"
+compatibility_date = "2025-11-01"
+
+[vars]
+PAYMENT_PROVIDER = "bachs"
+WIRE_BENEFICIARY = "Pcmart Technologies Ltd"
+WIRE_BANK_NAME = "Pcmart Payments Bank"
+WIRE_ROUTING_CODE = "021000021"
+WIRE_SWIFT = "PCMAGTNG"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pcmart"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "00000000000000000000000000000000"
+
+[triggers]
+crons = ["0 * * * *"]
