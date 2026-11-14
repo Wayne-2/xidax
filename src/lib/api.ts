@@ -9,7 +9,12 @@ import {
   type WireInstructions,
 } from "@/lib/payments";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "");
+const DEFAULT_API_BASE = "https://generic-pcs-api.pcmarketweb.workers.dev";
+
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || DEFAULT_API_BASE).replace(
+  /\/+$/,
+  ""
+);
 
 export function remotePaymentsEnabled() {
   return Boolean(API_BASE);
