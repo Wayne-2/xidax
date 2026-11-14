@@ -23,19 +23,19 @@ function randomCode(length: number) {
 async function bachsRequest<T>(
   env: Env,
   path: string,
-  body: Record<string, unknown>
+  options: { method?: string; body?: Record<string, unknown> } = {}
 ): Promise<T | null> {
   if (!env.BACHS_API_KEY || !env.BACHS_API_BASE) {
     return null;
   }
 
   const response = await fetch(`${env.BACHS_API_BASE}${path}`, {
-    method: "POST",
+    method: options.method ?? "POST",
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${env.BACHS_API_KEY}`,
     },
-    body: JSON.stringify(body),
+    ...(options.body ? { body: JSON.stringify(options.body) } : {}),
   });
 
   if (!response.ok) {
@@ -57,6 +57,67 @@ async function bachsRequest<T>(
 
 export class GatewayAuthError extends Error {}
 
+type CustomerRecord = {
+  id?: string;
+  customer_id?: string;
+  email?: string;
+  customer?: { id?: string };
+};
+
+async function resolveCustomerId(
+  env: Env,
+  details: CheckoutRequest["details"]
+): Promise<string> {
+  if (!env.BACHS_API_KEY || !env.BACHS_API_BASE) {
+    return details.email;
+  }
+
+  const listed = await bachsRequest<CustomerRecord[] | { customers?: CustomerRecord[] }>(
+    env,
+    `/v1/customers?email=${encodeURIComponent(details.email)}`,
+    { method: "GET" }
+  );
+
+  const records = Array.isArray(listed)
+    ? listed
+    : (listed?.customers ?? []);
+  const match = records.find((record) => record.email === details.email);
+
+  if (match?.id) {
+    return match.id;
+  }
+
+  const created = await bachsRequest<CustomerRecord>(env, "/v1/customers", {
+    method: "POST",
+    body: {
+      email: details.email,
+      name: details.name,
+      phone: details.phone,
+      country: details.country,
+      metadata: { postal_code: details.postalCode },
+    },
+  });
+
+  const record = created as
+    | (CustomerRecord & { data?: CustomerRecord })
+    | null
+    | undefined;
+  const id =
+    record?.id ??
+    record?.customer_id ??
+    record?.customer?.id ??
+    record?.data?.id ??
+    record?.data?.customer_id;
+
+  if (!id) {
+    throw new Error(
+      `bachs customer creation returned no id: ${JSON.stringify(created).slice(0, 300)}`
+    );
+  }
+
+  return id;
+}
+
 export async function createCryptoInstructions(
   env: Env,
   request: CheckoutRequest,
@@ -68,19 +129,31 @@ export async function createCryptoInstructions(
   const network = (request.network ?? "btc") as CryptoNetwork;
   const config = cryptoNetworks[network];
 
+  const customer = await resolveCustomerId(env, request.details);
+
   const remote = await bachsRequest<{
     address: string;
     amount: string;
-  }>(env, env.BACHS_CRYPTO_PATH ?? "/v1/crypto/intents", {
-    reference,
-    network,
-    amount: request.total,
-    currency: request.currency,
-    metadata: {
-      email: request.details.email,
-      name: request.details.name,
-    },
-  });
+  }>(
+    env,
+    env.BACHS_CRYPTO_PATH ?? "/v1/charges",
+    {
+      method: "POST",
+      body: {
+        reference,
+        network,
+        amount: request.total,
+        currency: request.currency,
+        customer,
+        metadata: {
+          name: request.details.name,
+          phone: request.details.phone,
+          country: request.details.country,
+          postal_code: request.details.postalCode,
+        },
+      },
+    }
+  );
 
   if (remote) {
     return {
@@ -125,6 +198,8 @@ export async function createWireInstructions(
   instructions: WireInstructions;
   warning?: string;
 }> {
+  const customer = await resolveCustomerId(env, request.details);
+
   const remote = await bachsRequest<{
     beneficiary: string;
     bankName: string;
@@ -132,12 +207,25 @@ export async function createWireInstructions(
     routingCode: string;
     swift: string;
     amount: string;
-  }>(env, env.BACHS_WIRE_PATH ?? "/v1/wire/instructions", {
-    reference,
-    amount: request.total,
-    currency: request.currency,
-    accountHolder: request.details.name,
-  });
+  }>(
+    env,
+    env.BACHS_WIRE_PATH ?? "/v1/transfers",
+    {
+      method: "POST",
+      body: {
+        reference,
+        amount: request.total,
+        currency: request.currency,
+        customer,
+        metadata: {
+          name: request.details.name,
+          phone: request.details.phone,
+          country: request.details.country,
+          postal_code: request.details.postalCode,
+        },
+      },
+    }
+  );
 
   if (remote) {
     return {
