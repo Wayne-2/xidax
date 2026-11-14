@@ -2,26 +2,6 @@
 
 import Link from "next/link";
 
-function TruckIcon({ className = "h-4 w-4" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M3 7h11v9H3z" />
-      <path d="M14 10h4l3 3v3h-7" />
-      <circle cx="7" cy="18" r="1.6" />
-      <circle cx="17.5" cy="18" r="1.6" />
-    </svg>
-  );
-}
-
 function ArrowIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg
@@ -58,9 +38,7 @@ export default function AnnouncementBanner() {
             key={copy}
             className="flex shrink-0 items-center gap-3 pr-10 text-[11px] font-semibold uppercase tracking-[0.2em] text-white"
           >
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15">
-              <TruckIcon className="h-3.5 w-3.5" />
-            </span>
+            <span className="h-3 w-3 shrink-0 rounded-[2px] bg-white/70" />
             <span>{headline}</span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[10px] tracking-[0.18em]">
               {cta}

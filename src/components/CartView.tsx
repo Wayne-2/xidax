@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import AccessoryArtwork from "@/components/AccessoryArtwork";
-import { CartIcon } from "@/components/AccessoryIcons";
 import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
 import { useCart } from "@/components/CartProvider";
 import LaptopArtwork from "@/components/LaptopArtwork";
@@ -188,9 +187,7 @@ export default function CartView() {
         <div className="mt-8 h-40 animate-pulse rounded-2xl bg-[#eaf0f8]" />
       ) : items.length === 0 ? (
         <div className="mt-8 rounded-2xl border border-dashed border-[#d2dbe8] bg-[#eaf0f8] px-6 py-16 text-center">
-          <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-[#d2dbe8] bg-[#f8fafe] text-[#80848e]">
-            <CartIcon className="h-8 w-8" />
-          </span>
+          <span className="mx-auto block h-16 w-16 rounded-2xl border border-dashed border-[#c8d1de] bg-[#f8fafe]" />
           <h2 className="mt-6 text-xl font-bold tracking-tight text-[#2e3338]">
             Your cart is empty
           </h2>

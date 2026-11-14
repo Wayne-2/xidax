@@ -3,12 +3,7 @@
 import { useState } from "react";
 import { CheckIcon } from "@/components/BuildIcons";
 import { useAccount } from "@/components/AccountProvider";
-import { registerProductRemote } from "@/lib/api";
-import {
-  generateLabelNumber,
-  generateTrackingNumber,
-  type RegisteredProduct,
-} from "@/data/account";
+import type { AccountProductPayload } from "@/lib/api";
 
 function DesktopIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
@@ -82,14 +77,15 @@ function TrashIcon({ className = "h-4 w-4" }: { className?: string }) {
 }
 
 export default function ProductRegistration() {
-  const { registeredProducts, registerProduct, removeProduct, user } =
-    useAccount();
+  const { products, addProduct, removeProduct } = useAccount();
   const [kind, setKind] = useState<"pc" | "laptop">("pc");
   const [name, setName] = useState("");
   const [orderNumber, setOrderNumber] = useState("");
   const [purchasedOn, setPurchasedOn] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [issued, setIssued] = useState<RegisteredProduct | null>(null);
+  const [issuedProduct, setIssuedProduct] =
+    useState<AccountProductPayload | null>(null);
+
   const [copied, setCopied] = useState<string | null>(null);
 
   const fieldClass =
@@ -107,26 +103,19 @@ export default function ProductRegistration() {
 
     if (Object.keys(next).length > 0) return;
 
-    const remote = await registerProductRemote({
+    const result = await addProduct({
       kind,
       name: name.trim(),
       orderNumber: orderNumber.trim().toUpperCase(),
       purchasedOn,
-      email: user?.email ?? "",
     });
 
-    const product: RegisteredProduct = {
-      id: `reg-${Date.now()}`,
-      kind,
-      name: name.trim(),
-      orderNumber: orderNumber.trim().toUpperCase(),
-      purchasedOn,
-      labelNumber: remote.labelNumber ?? generateLabelNumber(),
-      trackingNumber: remote.trackingNumber ?? generateTrackingNumber(),
-    };
+    if (typeof result === "string") {
+      setErrors({ form: result });
+      return;
+    }
 
-    registerProduct(product);
-    setIssued(product);
+    setIssuedProduct(result);
     setName("");
     setOrderNumber("");
     setPurchasedOn("");
@@ -159,21 +148,21 @@ export default function ProductRegistration() {
           </p>
         </div>
         <span className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-[11px] font-semibold text-[#4e5058]">
-          {registeredProducts.length}{" "}
-          {registeredProducts.length === 1 ? "machine" : "machines"}
+          {products.length}{" "}
+          {products.length === 1 ? "machine" : "machines"}
         </span>
       </div>
 
-      {issued && (
+      {issuedProduct && (
         <div className="mt-5 rounded-xl border border-[#16A34A]/40 bg-[#16A34A]/10 p-4">
           <p className="flex items-center gap-2 text-sm font-semibold text-[#15803D]">
             <CheckIcon className="h-4 w-4" />
-            {issued.name} is registered
+            {issuedProduct.name} is registered
           </p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {[
-              { label: "Purchase label number", value: issued.labelNumber },
-              { label: "Tracking number", value: issued.trackingNumber },
+              { label: "Purchase label number", value: issuedProduct.labelNumber },
+              { label: "Tracking number", value: issuedProduct.trackingNumber },
             ].map((entry) => (
               <div
                 key={entry.label}
@@ -342,9 +331,9 @@ export default function ProductRegistration() {
         </button>
       </form>
 
-      {registeredProducts.length > 0 && (
+      {products.length > 0 && (
         <ul className="mt-5 space-y-3">
-          {registeredProducts.map((product) => (
+          {products.map((product) => (
             <li
               key={product.id}
               className="rounded-xl border border-[#dce3ee] bg-[#f8fafe] p-4"

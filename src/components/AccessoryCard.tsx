@@ -91,11 +91,9 @@ export default function AccessoryCard({
               className="flex items-start gap-2 text-xs leading-relaxed text-[#5c5e66]"
             >
               <span
-                className="mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center"
-                style={{ color: accent }}
-              >
-                <CheckIcon className="h-3 w-3" />
-              </span>
+                aria-hidden="true"
+                className="mt-2 h-px w-3 shrink-0 bg-[#5865F2]/50"
+              />
               <span>{spec}</span>
             </li>
           ))}

@@ -9,155 +9,345 @@ import {
   useState,
 } from "react";
 import {
-  defaultSettings,
-  demoUser,
-  type AccountSettings,
-  type AccountUser,
-  type RegisteredProduct,
-} from "@/data/account";
+  createAccountProduct,
+  deleteAccountProduct,
+  fetchAccount,
+  fetchAccountOrders,
+  fetchAccountProducts,
+  loginAccount,
+  logoutAccount,
+  registerAccount,
+  updateAccount,
+  updateAccountSettings,
+  type AccountOrderPayload,
+  type AccountProductPayload,
+  type AccountSettingsPayload,
+  type AccountUserPayload,
+} from "@/lib/api";
 
-const SESSION_KEY = "pcmart.account";
-const SETTINGS_KEY = "pcmart.settings";
-const PRODUCTS_KEY = "pcmart.products";
+const TOKEN_KEY = "generic-pcs.session";
 
 type AccountContextValue = {
-  user: AccountUser | null;
-  settings: AccountSettings;
+  user: AccountUserPayload | null;
+  settings: AccountSettingsPayload;
+  orders: AccountOrderPayload[];
+  products: AccountProductPayload[];
   ready: boolean;
-  signIn: (email: string) => void;
-  signUp: (
-    name: string,
-    email: string,
-    country: string,
-    postalCode: string
-  ) => void;
-  signOut: () => void;
-  updateProfile: (patch: Partial<AccountUser>) => void;
-  saveSettings: (patch: Partial<AccountSettings>) => void;
-  resetSettings: () => void;
-  registeredProducts: RegisteredProduct[];
-  registerProduct: (product: RegisteredProduct) => void;
-  removeProduct: (id: string) => void;
+  busy: boolean;
+  error: string;
+  signIn: (email: string, password: string) => Promise<string | null>;
+  signUp: (input: {
+    name: string;
+    email: string;
+    phone: string;
+    country: string;
+    postalCode: string;
+    password: string;
+  }) => Promise<string | null>;
+  signOut: () => Promise<void>;
+  updateProfile: (patch: Partial<AccountUserPayload>) => Promise<void>;
+  saveSettings: (patch: Partial<AccountSettingsPayload>) => Promise<void>;
+  resetSettings: () => Promise<void>;
+  addProduct: (input: {
+    kind: "pc" | "laptop";
+    name: string;
+    orderNumber: string;
+    purchasedOn: string;
+  }) => Promise<AccountProductPayload | string>;
+  removeProduct: (id: string) => Promise<void>;
+  refresh: () => Promise<void>;
+};
+
+const defaultSettings: AccountSettingsPayload = {
+  orderUpdates: true,
+  dropNotifications: true,
+  marketingEmails: false,
+  language: "English (Nigeria)",
+  currency: "USD ($)",
 };
 
 const AccountContext = createContext<AccountContextValue | null>(null);
-
-function readStored<T>(key: string): T | null {
-  try {
-    const stored = window.localStorage.getItem(key);
-    return stored ? (JSON.parse(stored) as T) : null;
-  } catch {
-    window.localStorage.removeItem(key);
-    return null;
-  }
-}
 
 export function AccountProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [user, setUser] = useState<AccountUser | null>(null);
-  const [settings, setSettings] = useState<AccountSettings>(defaultSettings);
-  const [registeredProducts, setRegisteredProducts] = useState<RegisteredProduct[]>(
+  const [user, setUser] = useState<AccountUserPayload | null>(null);
+  const [settings, setSettings] =
+    useState<AccountSettingsPayload>(defaultSettings);
+  const [orders, setOrders] = useState<AccountOrderPayload[]>([]);
+  const [products, setProducts] = useState<AccountProductPayload[]>([]);
+  const [token, setToken] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const readToken = useCallback(() => {
+    try {
+      return window.localStorage.getItem(TOKEN_KEY);
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const loadSession = useCallback(
+    async (activeToken: string | null) => {
+      if (!activeToken) {
+        setUser(null);
+        setOrders([]);
+        setProducts([]);
+        return;
+      }
+
+      const account = await fetchAccount(activeToken);
+
+      setUser(account.user);
+      setSettings(account.settings);
+
+      const [orderResult, productResult] = await Promise.all([
+        fetchAccountOrders(activeToken).catch(() => ({ orders: [] })),
+        fetchAccountProducts(activeToken).catch(() => ({ products: [] })),
+      ]);
+
+      setOrders(orderResult.orders);
+      setProducts(productResult.products);
+    },
     []
   );
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const storedUser = readStored<AccountUser>(SESSION_KEY);
+    const timer = window.setTimeout(async () => {
+      const stored = readToken();
 
-      if (storedUser) {
-        setUser(storedUser);
-      }
-
-      const storedSettings = readStored<Partial<AccountSettings>>(SETTINGS_KEY);
-
-      if (storedSettings) {
-        setSettings({ ...defaultSettings, ...storedSettings });
-      }
-
-      const storedProducts = readStored<RegisteredProduct[]>(PRODUCTS_KEY);
-
-      if (storedProducts) {
-        setRegisteredProducts(storedProducts);
+      if (stored) {
+        try {
+          await loadSession(stored);
+          setToken(stored);
+        } catch {
+          window.localStorage.removeItem(TOKEN_KEY);
+          setToken(null);
+        }
       }
 
       setReady(true);
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [loadSession, readToken]);
 
-  const persistUser = useCallback((next: AccountUser | null) => {
-    setUser(next);
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      setBusy(true);
+      setError("");
 
-    if (next) {
-      window.localStorage.setItem(SESSION_KEY, JSON.stringify(next));
-    } else {
-      window.localStorage.removeItem(SESSION_KEY);
+      try {
+        const result = await loginAccount(email, password);
+
+        window.localStorage.setItem(TOKEN_KEY, result.token);
+        setToken(result.token);
+        await loadSession(result.token);
+
+        return null;
+      } catch (requestError) {
+        const message =
+          requestError instanceof Error
+            ? requestError.message
+            : "We could not sign you in.";
+
+        setError(message);
+
+        return message;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [loadSession]
+  );
+
+  const signUp = useCallback(
+    async (input: {
+      name: string;
+      email: string;
+      phone: string;
+      country: string;
+      postalCode: string;
+      password: string;
+    }) => {
+      setBusy(true);
+      setError("");
+
+      try {
+        const result = await registerAccount(input);
+
+        window.localStorage.setItem(TOKEN_KEY, result.token);
+        setToken(result.token);
+        await loadSession(result.token);
+
+        return null;
+      } catch (requestError) {
+        const message =
+          requestError instanceof Error
+            ? requestError.message
+            : "We could not create that account.";
+
+        setError(message);
+
+        return message;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [loadSession]
+  );
+
+  const signOut = useCallback(async () => {
+    const active = token ?? readToken();
+
+    if (active) {
+      await logoutAccount(active).catch(() => null);
     }
-  }, []);
+
+    window.localStorage.removeItem(TOKEN_KEY);
+    setToken(null);
+    setUser(null);
+    setOrders([]);
+    setProducts([]);
+    setSettings(defaultSettings);
+  }, [token, readToken]);
+
+  const updateProfile = useCallback(
+    async (patch: Partial<AccountUserPayload>) => {
+      const active = token ?? readToken();
+
+      if (!active) return;
+
+      const result = await updateAccount(active, patch);
+
+      setUser(result.user);
+    },
+    [token, readToken]
+  );
+
+  const saveSettings = useCallback(
+    async (patch: Partial<AccountSettingsPayload>) => {
+      const active = token ?? readToken();
+
+      if (!active) return;
+
+      const result = await updateAccountSettings(active, patch);
+
+      setSettings(result.settings);
+    },
+    [token, readToken]
+  );
+
+  const addProduct = useCallback(
+    async (input: {
+      kind: "pc" | "laptop";
+      name: string;
+      orderNumber: string;
+      purchasedOn: string;
+    }) => {
+      const active = token ?? readToken();
+
+      if (!active) return "You need to sign in first.";
+
+      try {
+        const result = await createAccountProduct(active, input);
+
+        setProducts((current) => [result.product, ...current]);
+
+        return result.product;
+      } catch (requestError) {
+        return requestError instanceof Error
+          ? requestError.message
+          : "We could not register that machine.";
+      }
+    },
+    [token, readToken]
+  );
+
+  const removeProduct = useCallback(
+    async (id: string) => {
+      const active = token ?? readToken();
+
+      if (!active) return;
+
+      await deleteAccountProduct(active, id).catch(() => null);
+      setProducts((current) => current.filter((product) => product.id !== id));
+    },
+    [token, readToken]
+  );
+
+  const resetSettings = useCallback(async () => {
+    const active = token ?? readToken();
+
+    if (!active) return;
+
+    const result = await updateAccountSettings(active, {
+      orderUpdates: defaultSettings.orderUpdates,
+      dropNotifications: defaultSettings.dropNotifications,
+      marketingEmails: defaultSettings.marketingEmails,
+      language: defaultSettings.language,
+      currency: defaultSettings.currency,
+    });
+
+    setSettings(result.settings);
+  }, [token, readToken]);
+
+  const refresh = useCallback(async () => {
+    const active = token ?? readToken();
+
+    if (!active) return;
+
+    try {
+      await loadSession(active);
+    } catch {
+      // session expired
+      window.localStorage.removeItem(TOKEN_KEY);
+      setToken(null);
+      setUser(null);
+    }
+  }, [token, readToken, loadSession]);
 
   const value = useMemo<AccountContextValue>(
     () => ({
       user,
       settings,
+      orders,
+      products,
       ready,
-      signIn: (email: string) =>
-        persistUser({ ...demoUser, email: email.trim() || demoUser.email }),
-      signUp: (
-        name: string,
-        email: string,
-        country: string,
-        postalCode: string
-      ) =>
-        persistUser({
-          ...demoUser,
-          name: name.trim() || email.split("@")[0] || demoUser.name,
-          email: email.trim() || demoUser.email,
-          country: country.trim() || demoUser.country,
-          postalCode: postalCode.trim() || demoUser.postalCode,
-        }),
-      signOut: () => persistUser(null),
-      updateProfile: (patch: Partial<AccountUser>) => {
-        setUser((current) => {
-          if (!current) return current;
-
-          const next = { ...current, ...patch };
-          window.localStorage.setItem(SESSION_KEY, JSON.stringify(next));
-          return next;
-        });
-      },
-      saveSettings: (patch: Partial<AccountSettings>) => {
-        setSettings((current) => {
-          const next = { ...current, ...patch };
-          window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
-          return next;
-        });
-      },
-      resetSettings: () => {
-        window.localStorage.removeItem(SETTINGS_KEY);
-        setSettings(defaultSettings);
-      },
-      registeredProducts,
-      registerProduct: (product: RegisteredProduct) => {
-        setRegisteredProducts((current) => {
-          const next = [product, ...current];
-          window.localStorage.setItem(PRODUCTS_KEY, JSON.stringify(next));
-          return next;
-        });
-      },
-      removeProduct: (id: string) => {
-        setRegisteredProducts((current) => {
-          const next = current.filter((entry) => entry.id !== id);
-          window.localStorage.setItem(PRODUCTS_KEY, JSON.stringify(next));
-          return next;
-        });
-      },
+      busy,
+      error,
+      signIn,
+      signUp,
+      signOut,
+      updateProfile,
+      saveSettings,
+      resetSettings,
+      addProduct,
+      removeProduct,
+      refresh,
     }),
-    [user, settings, ready, persistUser, registeredProducts]
+    [
+      user,
+      settings,
+      orders,
+      products,
+      ready,
+      busy,
+      error,
+      signIn,
+      signUp,
+      signOut,
+      updateProfile,
+      saveSettings,
+      resetSettings,
+      addProduct,
+      removeProduct,
+      refresh,
+    ]
   );
 
   return (

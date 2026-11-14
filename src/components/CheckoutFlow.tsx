@@ -26,42 +26,6 @@ const money = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
-function CryptoIcon({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="9" />
-      <path d="M9.5 8h3.2a2.3 2.3 0 0 1 0 4.6H9.5zM9.5 12.6h3.6a2.3 2.3 0 0 1 0 4.6H9.5zM9.5 8v9.2M8 8h3.4M8 12.6h3.4M8 17.2h3.4" />
-    </svg>
-  );
-}
-
-function BankIcon({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M3 9.5 12 4l9 5.5" />
-      <path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18" />
-    </svg>
-  );
-}
-
 function StepBadge({
   index,
   label,
@@ -427,17 +391,13 @@ export default function CheckoutFlow() {
                       }`}
                     >
                       <span
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold ${
                           active
                             ? "bg-[#5865F2] text-white"
                             : "bg-[#eaf0f8] text-[#5c5e66]"
                         }`}
                       >
-                        {option.value === "crypto" ? (
-                          <CryptoIcon className="h-5 w-5" />
-                        ) : (
-                          <BankIcon className="h-5 w-5" />
-                        )}
+                        {option.value === "crypto" ? "01" : "02"}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm font-semibold text-[#2e3338]">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CloseIcon, SendIcon, UserIcon } from "@/components/SupportIcons";
+import { CloseIcon, SendIcon } from "@/components/SupportIcons";
 
 type Message = {
   id: number;
@@ -135,8 +135,8 @@ export default function LiveChatPanel({ open, onClose }: LiveChatPanelProps) {
             }`}
           >
             {message.from === "user" && (
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#eaf0f8] text-[#5c5e66]">
-                <UserIcon className="h-3.5 w-3.5" />
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#eaf0f8] text-[10px] font-bold text-[#5c5e66]">
+                {message.from === "user" ? "You" : "PS"}
               </span>
             )}
             <p

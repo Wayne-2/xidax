@@ -165,4 +165,173 @@ export async function registerProductRemote(payload: RegisteredProductPayload): 
   });
 }
 
+export type AccountUserPayload = {
+  id: string;
+  email: string;
+  name: string;
+  phone: string;
+  country: string;
+  postalCode: string;
+  tier: string;
+  memberSince: string;
+  createdAt: string;
+};
+
+export type AccountSettingsPayload = {
+  orderUpdates: boolean;
+  dropNotifications: boolean;
+  marketingEmails: boolean;
+  language: string;
+  currency: string;
+};
+
+export type AccountOrderPayload = {
+  id: string;
+  reference: string;
+  title: string;
+  detail: string;
+  total: number;
+  currency: string;
+  status: string;
+  method: string;
+  date: string;
+  href: string;
+  createdAt: string;
+};
+
+export type AccountProductPayload = {
+  id: string;
+  kind: "pc" | "laptop";
+  name: string;
+  orderNumber: string;
+  purchasedOn: string;
+  labelNumber: string;
+  trackingNumber: string;
+  createdAt: string;
+};
+
+export async function accountRequest<T>(
+  path: string,
+  options: {
+    method?: string;
+    body?: unknown;
+    token?: string | null;
+  } = {}
+): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: options.method ?? "GET",
+    headers: {
+      "content-type": "application/json",
+      ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
+    },
+    ...(options.body === undefined
+      ? {}
+      : { body: JSON.stringify(options.body) }),
+  });
+
+  const payload = (await response.json().catch(() => null)) as {
+    error?: string;
+  } | null;
+
+  if (!response.ok) {
+    throw new Error(
+      payload?.error ?? `Request to ${path} failed (${response.status}).`
+    );
+  }
+
+  return payload as T;
+}
+
+export async function registerAccount(payload: {
+  email: string;
+  name: string;
+  phone: string;
+  country: string;
+  postalCode: string;
+  password: string;
+}) {
+  return accountRequest<{
+    token: string;
+    user: AccountUserPayload;
+  }>("/api/auth/register", { method: "POST", body: payload });
+}
+
+export async function loginAccount(email: string, password: string) {
+  return accountRequest<{ token: string; user: AccountUserPayload }>(
+    "/api/auth/login",
+    { method: "POST", body: { email, password } }
+  );
+}
+
+export async function logoutAccount(token: string) {
+  return accountRequest<{ ok: boolean }>("/api/auth/logout", {
+    method: "POST",
+    token,
+  });
+}
+
+export async function fetchAccount(token: string) {
+  return accountRequest<{
+    user: AccountUserPayload;
+    settings: AccountSettingsPayload;
+    counts: { orders: number; products: number };
+  }>("/api/me", { token });
+}
+
+export async function updateAccount(
+  token: string,
+  patch: Partial<AccountUserPayload>
+) {
+  return accountRequest<{ user: AccountUserPayload }>("/api/me", {
+    method: "PATCH",
+    body: patch,
+    token,
+  });
+}
+
+export async function fetchAccountOrders(token: string) {
+  return accountRequest<{ orders: AccountOrderPayload[] }>("/api/me/orders", {
+    token,
+  });
+}
+
+export async function fetchAccountProducts(token: string) {
+  return accountRequest<{ products: AccountProductPayload[] }>(
+    "/api/me/products",
+    { token }
+  );
+}
+
+export async function createAccountProduct(
+  token: string,
+  payload: {
+    kind: "pc" | "laptop";
+    name: string;
+    orderNumber: string;
+    purchasedOn: string;
+  }
+) {
+  return accountRequest<{ product: AccountProductPayload }>(
+    "/api/me/products",
+    { method: "POST", body: payload, token }
+  );
+}
+
+export async function deleteAccountProduct(token: string, id: string) {
+  return accountRequest<{ ok: boolean }>(`/api/me/products/${id}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+export async function updateAccountSettings(
+  token: string,
+  patch: Partial<AccountSettingsPayload>
+) {
+  return accountRequest<{ settings: AccountSettingsPayload }>(
+    "/api/me/settings",
+    { method: "PATCH", body: patch, token }
+  );
+}
+
 export { cryptoNetworks };

@@ -12,11 +12,13 @@ export type AuthMode = "signin" | "signup";
 type Field =
   | "name"
   | "email"
+  | "phone"
   | "country"
   | "postal"
   | "password"
   | "confirm"
-  | "terms";
+  | "terms"
+  | "form";
 
 type Errors = Partial<Record<Field, string>>;
 
@@ -57,9 +59,10 @@ function EyeIcon({ className = "h-4 w-4" }: { className?: string }) {
 
 export default function AuthForm({ mode }: { mode: AuthMode }) {
   const router = useRouter();
-  const { user, ready, signIn, signUp } = useAccount();
+  const { user, ready, signIn, signUp, busy } = useAccount();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [country, setCountry] = useState("");
@@ -89,6 +92,8 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
     }
 
     if (mode === "signup") {
+      if (!phone.trim()) next.phone = "Add a phone number for delivery.";
+
       if (!country) {
         next.country = "Choose your country.";
       }
@@ -121,7 +126,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
     return next;
   }
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     const nextErrors = validate();
 
@@ -133,15 +138,26 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
 
     setSubmitting(true);
 
-    window.setTimeout(() => {
-      if (mode === "signin") {
-        signIn(email);
-      } else {
-        signUp(name, email, country, postal);
-      }
+    const failure =
+      mode === "signin"
+        ? await signIn(email, password)
+        : await signUp({
+            name,
+            email,
+            phone,
+            country,
+            postalCode: postal,
+            password,
+          });
 
-      router.push("/profile");
-    }, 650);
+    setSubmitting(false);
+
+    if (failure) {
+      setErrors({ form: failure });
+      return;
+    }
+
+    router.push("/profile");
   }
 
   const inputClass =
@@ -206,6 +222,33 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
 
       {mode === "signup" && (
         <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label
+              htmlFor="auth-phone"
+              className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
+            >
+              Phone
+            </label>
+            <input
+              id="auth-phone"
+              type="tel"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              placeholder="+234-907649842"
+              autoComplete="tel"
+              aria-invalid={Boolean(errors.phone)}
+              aria-describedby={errors.phone ? "auth-phone-error" : undefined}
+              className={`${inputClass} ${
+                errors.phone ? "border-[#DC2626]" : "border-[#d2dbe8]"
+              }`}
+            />
+            {errors.phone && (
+              <p id="auth-phone-error" className="mt-1.5 text-xs text-[#B91C1C]">
+                {errors.phone}
+              </p>
+            )}
+          </div>
+
           <div>
             <label
               htmlFor="auth-country"
@@ -391,10 +434,10 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
 
       <button
         type="submit"
-        disabled={submitting}
+        disabled={submitting || busy}
         className="inline-flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:cursor-not-allowed disabled:opacity-70"
       >
-        {submitting
+        {submitting || busy
           ? "One moment…"
           : mode === "signin"
             ? "Sign in"

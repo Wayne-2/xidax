@@ -1,4 +1,17 @@
 import {
+  attachOrderToUser,
+  handleDeleteProduct,
+  handleLogin,
+  handleLogout,
+  handleMe,
+  handleUserOrders,
+  handleProducts,
+  handleRegister,
+  handleSettings,
+  handleUpdateMe,
+  json,
+} from "./account";
+import {
   buildSession,
   confirmGatewayPayment,
   createCryptoInstructions,
@@ -69,18 +82,6 @@ async function ensureSchema(env: Env) {
   }
 
   schemaReady = true;
-}
-
-function json(payload: unknown, status = 200) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: {
-      "content-type": "application/json",
-      "access-control-allow-origin": "*",
-      "access-control-allow-headers": "content-type",
-      "access-control-allow-methods": "GET,POST,OPTIONS",
-    },
-  });
 }
 
 function readNumber(value: unknown) {
@@ -206,6 +207,15 @@ async function handleCheckout(env: Env, request: Request) {
     { expirationTtl: SESSION_TTL_SECONDS }
   );
   await persistOrder(env, session);
+  await attachOrderToUser(env, request, {
+    id: session.id,
+    reference: session.reference,
+    lines: payload.lines,
+    total: session.total,
+    currency: session.currency,
+    status: session.status,
+    method: payload.method,
+  });
 
   return json(session, 201);
 }
@@ -388,6 +398,52 @@ const worker = {
 
       if (request.method === "GET" && path === "/api/health") {
         return json({ ok: true, provider: "bachs", time: new Date().toISOString() });
+      }
+
+      if (request.method === "POST" && path === "/api/auth/register") {
+        return await handleRegister(request, env);
+      }
+
+      if (request.method === "POST" && path === "/api/auth/login") {
+        return await handleLogin(request, env);
+      }
+
+      if (request.method === "POST" && path === "/api/auth/logout") {
+        return await handleLogout(request, env);
+      }
+
+      if (request.method === "GET" && path === "/api/me") {
+        return await handleMe(request, env);
+      }
+
+      if (request.method === "PATCH" && path === "/api/me") {
+        return await handleUpdateMe(request, env);
+      }
+
+      if (request.method === "GET" && path === "/api/me/orders") {
+        return await handleUserOrders(request, env);
+      }
+
+      if (request.method === "GET" && path === "/api/me/settings") {
+        return await handleSettings(request, env);
+      }
+
+      if (request.method === "PATCH" && path === "/api/me/settings") {
+        return await handleSettings(request, env);
+      }
+
+      if (request.method === "GET" && path === "/api/me/products") {
+        return await handleProducts(request, env);
+      }
+
+      if (request.method === "POST" && path === "/api/me/products") {
+        return await handleProducts(request, env);
+      }
+
+      const productMatch = path.match(/^\/api\/me\/products\/([^/]+)$/);
+
+      if (request.method === "DELETE" && productMatch) {
+        return await handleDeleteProduct(request, env, productMatch[1]);
       }
 
       if (request.method === "POST" && path === "/api/checkout") {

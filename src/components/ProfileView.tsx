@@ -7,7 +7,6 @@ import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
 import { useAccount } from "@/components/AccountProvider";
 import ProductRegistration from "@/components/ProductRegistration";
 import {
-  accountOrders,
   currencies,
   languages,
   savedItems,
@@ -138,6 +137,7 @@ export default function ProfileView() {
     updateProfile,
     saveSettings,
     resetSettings,
+    orders,
   } = useAccount();
   const [saved, setSaved] = useState(false);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -252,7 +252,7 @@ export default function ProfileView() {
 
           <div className="grid grid-cols-3 gap-3 sm:gap-6">
             {[
-              { value: accountOrders.length, label: "Orders" },
+              { value: orders.length, label: "Orders" },
               { value: savedItems.length, label: "Saved" },
               { value: "24/7", label: "Support" },
             ].map((stat) => (
@@ -284,7 +284,14 @@ export default function ProfileView() {
           </div>
 
           <ul className="mt-4 space-y-3">
-            {accountOrders.map((order) => (
+            {orders.length === 0 && (
+              <p className="rounded-xl border border-dashed border-[#d2dbe8] bg-[#f8fafe] px-4 py-6 text-center text-sm text-[#5c5e66]">
+                No orders yet. Your purchases will appear here once they are
+                placed.
+              </p>
+            )}
+
+            {orders.map((order) => (
               <li
                 key={order.id}
                 className="rounded-xl border border-[#dce3ee] bg-[#f8fafe] p-4"
@@ -308,7 +315,7 @@ export default function ProfileView() {
                     </span>
                     <span
                       className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
-                        statusTone[order.status]
+                        statusTone[order.status as AccountOrderStatus]
                       }`}
                     >
                       {order.status}

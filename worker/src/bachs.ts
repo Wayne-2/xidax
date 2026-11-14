@@ -207,7 +207,7 @@ type ResolvedCustomer = {
   phone?: string;
 };
 
-async function resolveCustomer(
+export async function resolveCustomer(
   env: Env,
   details: CheckoutRequest["details"]
 ): Promise<ResolvedCustomer> {
