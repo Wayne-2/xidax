@@ -1,6 +1,6 @@
 export type PaymentMethod = "crypto" | "wire";
 
-export type CryptoNetwork = "btc" | "eth" | "usdt";
+export type CryptoNetwork = "btc" | "eth" | "usdt" | "sol";
 
 export type PaymentStatus =
   | "pending"
@@ -26,25 +26,35 @@ export type CheckoutDetails = {
   postalCode: string;
 };
 
+export type ExcludedMethod = {
+  id: string;
+  reason: string;
+  limit?: string;
+  currency?: string;
+};
+
 export type CryptoInstructions = {
   method: "crypto";
   network: CryptoNetwork;
   currency: string;
-  address: string;
+  billingCurrency: string;
   amount: string;
   confirmations: number;
+  checkoutUrl: string;
+  checkoutId: string;
+  availableMethods: string[];
+  excludedMethods: ExcludedMethod[];
 };
 
 export type WireInstructions = {
   method: "wire";
   currency: string;
+  billingCurrency: string;
   amount: string;
-  beneficiary: string;
-  bankName: string;
-  accountNumber: string;
-  routingCode: string;
-  swift: string;
-  reference: string;
+  checkoutUrl: string;
+  checkoutId: string;
+  availableMethods: string[];
+  excludedMethods: ExcludedMethod[];
 };
 
 export type PaymentInstructions = CryptoInstructions | WireInstructions;
@@ -111,4 +121,5 @@ export const cryptoNetworks: Record<
   btc: { label: "Bitcoin", currency: "BTC", confirmations: 2, rate: 96000 },
   eth: { label: "Ethereum", currency: "ETH", confirmations: 3, rate: 3200 },
   usdt: { label: "Tether", currency: "USDT", confirmations: 1, rate: 1 },
+  sol: { label: "Solana", currency: "SOL", confirmations: 1, rate: 150 },
 };

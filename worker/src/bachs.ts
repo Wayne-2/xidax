@@ -5,8 +5,13 @@ import {
   type CryptoInstructions,
   type CryptoNetwork,
   type Env,
+  type ExcludedMethod,
   type WireInstructions,
 } from "./types";
+
+function networkConfig(network: CryptoNetwork) {
+  return cryptoNetworks[network] ?? cryptoNetworks.usdt;
+}
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -57,6 +62,86 @@ async function bachsRequest<T>(
 
 export class GatewayAuthError extends Error {}
 
+const cryptoCurrencyMap: Record<CryptoNetwork, string> = {
+  btc: "USDT_TRC20",
+  eth: "ETH_ETH",
+  usdt: "USDT_TRC20",
+  sol: "SOL_SOL",
+};
+
+function readStringList(
+  source: unknown,
+  keys: string[]
+): string[] {
+  if (!source || typeof source !== "object") return [];
+
+  const record = source as Record<string, unknown>;
+
+  for (const key of keys) {
+    const value = record[key];
+
+    if (Array.isArray(value)) {
+      return value.filter((entry): entry is string => typeof entry === "string");
+    }
+  }
+
+  for (const key of ["instructions", "payment", "data"]) {
+    const nested = readStringList(record[key], keys);
+
+    if (nested.length) {
+      return nested;
+    }
+  }
+
+  return [];
+}
+
+function readExcluded(source: unknown): ExcludedMethod[] {
+  if (!source || typeof source !== "object") return [];
+
+  const record = source as Record<string, unknown>;
+  const list = record.excluded_payment_methods;
+
+  if (!Array.isArray(list)) return [];
+
+  return list
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+    .map((entry) => ({
+      id: String(entry.payment_method ?? entry.id ?? "unknown"),
+      reason: String(entry.reason ?? "not available"),
+      limit: entry.limit ? String(entry.limit) : undefined,
+      currency: entry.currency ? String(entry.currency) : undefined,
+    }));
+}
+
+function readString(
+  source: unknown,
+  keys: string[],
+  depth = 0
+): string | undefined {
+  if (!source || typeof source !== "object" || depth > 3) return undefined;
+
+  const record = source as Record<string, unknown>;
+
+  for (const key of keys) {
+    const value = record[key];
+
+    if (typeof value === "string" && value.length > 0) {
+      return value;
+    }
+  }
+
+  for (const key of ["instructions", "payment", "data", "charge", "session"]) {
+    const nested = readString(record[key], keys, depth + 1);
+
+    if (nested) {
+      return nested;
+    }
+  }
+
+  return undefined;
+}
+
 type CustomerRecord = {
   id?: string;
   customer_id?: string;
@@ -64,12 +149,70 @@ type CustomerRecord = {
   customer?: { id?: string };
 };
 
-async function resolveCustomerId(
+type ProductRecord = {
+  id?: string;
+  product_id?: string;
+  name?: string;
+  amount?: number;
+  price?: number;
+  currency?: string;
+};
+
+async function resolveProductId(
   env: Env,
-  details: CheckoutRequest["details"]
+  line: CheckoutRequest["lines"][number],
+  currency = "USD"
 ): Promise<string> {
   if (!env.BACHS_API_KEY || !env.BACHS_API_BASE) {
-    return details.email;
+    return line.id;
+  }
+
+  const listed = await bachsRequest<ProductRecord[] | { products?: ProductRecord[] }>(
+    env,
+    "/v1/products?limit=200",
+    { method: "GET" }
+  );
+
+  const records = Array.isArray(listed) ? listed : (listed?.products ?? []);
+  const match = records.find((record) => record.name === line.name);
+
+  if (match?.id) {
+    return match.id;
+  }
+
+  const created = await bachsRequest<ProductRecord>(env, "/v1/products", {
+    method: "POST",
+    body: {
+      name: line.name,
+      price: { amount: line.price, currency },
+      metadata: { reference: line.id, kind: line.kind },
+    },
+  });
+
+  const id = created?.id ?? created?.product_id;
+
+  if (!id) {
+    throw new Error(
+      `bachs product creation returned no id: ${JSON.stringify(created).slice(0, 300)}`
+    );
+  }
+
+  return id;
+}
+
+type ResolvedCustomer = {
+  id: string;
+  email: string;
+  name?: string;
+  phone?: string;
+};
+
+async function resolveCustomer(
+  env: Env,
+  details: CheckoutRequest["details"]
+): Promise<ResolvedCustomer> {
+  if (!env.BACHS_API_KEY || !env.BACHS_API_BASE) {
+    return { id: details.email, email: details.email, name: details.name };
   }
 
   const listed = await bachsRequest<CustomerRecord[] | { customers?: CustomerRecord[] }>(
@@ -84,7 +227,12 @@ async function resolveCustomerId(
   const match = records.find((record) => record.email === details.email);
 
   if (match?.id) {
-    return match.id;
+    return {
+      id: match.id,
+      email: match.email ?? details.email,
+      name: details.name,
+      phone: details.phone,
+    };
   }
 
   const created = await bachsRequest<CustomerRecord>(env, "/v1/customers", {
@@ -115,7 +263,12 @@ async function resolveCustomerId(
     );
   }
 
-  return id;
+  return {
+    id,
+    email: details.email,
+    name: details.name,
+    phone: details.phone,
+  };
 }
 
 export async function createCryptoInstructions(
@@ -126,25 +279,31 @@ export async function createCryptoInstructions(
   instructions: CryptoInstructions;
   warning?: string;
 }> {
-  const network = (request.network ?? "btc") as CryptoNetwork;
-  const config = cryptoNetworks[network];
+  const customer = await resolveCustomer(env, request.details);
+  const config = networkConfig(request.network ?? "usdt");
+  const bachsCurrency = cryptoCurrencyMap[request.network ?? "usdt"];
 
-  const customer = await resolveCustomerId(env, request.details);
-
-  const remote = await bachsRequest<{
-    address: string;
-    amount: string;
-  }>(
+  const remote = await bachsRequest<Record<string, unknown>>(
     env,
-    env.BACHS_CRYPTO_PATH ?? "/v1/charges",
+    env.BACHS_CRYPTO_PATH ?? "/v1/checkout-sessions",
     {
       method: "POST",
       body: {
+        payment_method: "CRYPTO",
+        currency: bachsCurrency,
+        product_cart: await Promise.all(
+          request.lines.map(async (line) => ({
+            product_id: await resolveProductId(env, line, request.currency),
+            quantity: line.quantity,
+          }))
+        ),
+        customer: {
+          id: customer.id,
+          email: customer.email,
+          name: customer.name,
+          phone: customer.phone,
+        },
         reference,
-        network,
-        amount: request.total,
-        currency: request.currency,
-        customer,
         metadata: {
           name: request.details.name,
           phone: request.details.phone,
@@ -159,34 +318,38 @@ export async function createCryptoInstructions(
     return {
       instructions: {
         method: "crypto",
-        network,
-        currency: config.currency,
-        address: remote.address,
-        amount: remote.amount,
+        network: request.network ?? "usdt",
+        currency: bachsCurrency,
+        billingCurrency:
+          readString(remote, ["billing_currency"]) ?? request.currency,
+        amount:
+          readString(remote, ["amount", "amount_due", "total"]) ??
+          request.total.toFixed(2),
         confirmations: config.confirmations,
+        checkoutUrl: readString(remote, ["checkout_url"]) ?? "",
+        checkoutId: readString(remote, ["checkout_id"]) ?? "",
+        availableMethods: readStringList(remote, ["available_payment_methods"]),
+        excludedMethods: readExcluded(remote),
       },
     };
   }
 
-  const fallback =
-    network === "btc"
-      ? env.CRYPTO_ADDRESS_BTC
-      : network === "eth"
-        ? env.CRYPTO_ADDRESS_ETH
-        : env.CRYPTO_ADDRESS_USDT;
-
   return {
     instructions: {
       method: "crypto",
-      network,
-      currency: config.currency,
-      address: fallback ?? `pending-${randomCode(20).toLowerCase()}`,
+      network: request.network ?? "usdt",
+      currency: bachsCurrency,
+      billingCurrency: request.currency,
       amount: (request.total / config.rate).toFixed(
-        network === "usdt" ? 2 : 6
+        (request.network ?? "usdt") === "usdt" ? 2 : 6
       ),
       confirmations: config.confirmations,
+      checkoutUrl: "",
+      checkoutId: "",
+      availableMethods: ["CRYPTO", "NGN_BANK_TRANSFER"],
+      excludedMethods: [],
     },
-    warning: `Live ${config.label} addresses are unavailable until the bachs key has the payments:write scope.`,
+    warning: `Live ${config.label} deposit addresses are unavailable until the bachs key has the customers:write and payments:write scopes.`,
   };
 }
 
@@ -198,25 +361,29 @@ export async function createWireInstructions(
   instructions: WireInstructions;
   warning?: string;
 }> {
-  const customer = await resolveCustomerId(env, request.details);
+  const customer = await resolveCustomer(env, request.details);
 
-  const remote = await bachsRequest<{
-    beneficiary: string;
-    bankName: string;
-    accountNumber: string;
-    routingCode: string;
-    swift: string;
-    amount: string;
-  }>(
+  const remote = await bachsRequest<Record<string, unknown>>(
     env,
-    env.BACHS_WIRE_PATH ?? "/v1/transfers",
+    env.BACHS_WIRE_PATH ?? "/v1/checkout-sessions",
     {
       method: "POST",
       body: {
+        payment_method: "NGN_BANK_TRANSFER",
+        currency: "NGN",
+        product_cart: await Promise.all(
+          request.lines.map(async (line) => ({
+            product_id: await resolveProductId(env, line, request.currency),
+            quantity: line.quantity,
+          }))
+        ),
+        customer: {
+          id: customer.id,
+          email: customer.email,
+          name: customer.name,
+          phone: customer.phone,
+        },
         reference,
-        amount: request.total,
-        currency: request.currency,
-        customer,
         metadata: {
           name: request.details.name,
           phone: request.details.phone,
@@ -231,14 +398,16 @@ export async function createWireInstructions(
     return {
       instructions: {
         method: "wire",
-        currency: request.currency,
-        amount: remote.amount,
-        beneficiary: remote.beneficiary,
-        bankName: remote.bankName,
-        accountNumber: remote.accountNumber,
-        routingCode: remote.routingCode,
-        swift: remote.swift,
-        reference,
+        currency: readString(remote, ["currency"]) ?? "NGN",
+        billingCurrency:
+          readString(remote, ["billing_currency"]) ?? request.currency,
+        amount:
+          readString(remote, ["amount", "amount_due", "total"]) ??
+          request.total.toFixed(2),
+        checkoutUrl: readString(remote, ["checkout_url"]) ?? "",
+        checkoutId: readString(remote, ["checkout_id"]) ?? "",
+        availableMethods: readStringList(remote, ["available_payment_methods"]),
+        excludedMethods: readExcluded(remote),
       },
     };
   }
@@ -246,18 +415,37 @@ export async function createWireInstructions(
   return {
     instructions: {
       method: "wire",
-      currency: request.currency,
+      currency: "NGN",
+      billingCurrency: request.currency,
       amount: request.total.toFixed(2),
-      beneficiary: env.WIRE_BENEFICIARY ?? "Pcmart Technologies Ltd",
-      bankName: env.WIRE_BANK_NAME ?? "Pcmart Payments Bank",
-      accountNumber: env.WIRE_ACCOUNT_NUMBER ?? `P${randomCode(8)}`,
-      routingCode: env.WIRE_ROUTING_CODE ?? "021000021",
-      swift: env.WIRE_SWIFT ?? "PCMAGTNG",
-      reference,
+      checkoutUrl: "",
+      checkoutId: "",
+      availableMethods: ["CRYPTO", "NGN_BANK_TRANSFER"],
+      excludedMethods: [],
     },
     warning:
-      "Live wire instructions are unavailable until the bachs key has the transfers:write scope.",
+      "Live wire instructions are unavailable until the bachs key has the customers:write and transfers:write scopes.",
   };
+}
+
+export async function confirmGatewayPayment(
+  env: Env,
+  checkoutId: string
+): Promise<boolean> {
+  if (!env.BACHS_API_KEY || !env.BACHS_API_BASE || !checkoutId) {
+    return false;
+  }
+
+  try {
+    await bachsRequest<Record<string, unknown>>(
+      env,
+      `/v1/checkout-sessions/${checkoutId}/confirm`,
+      { method: "POST", body: {} }
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function buildSession(

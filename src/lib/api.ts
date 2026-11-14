@@ -26,29 +26,27 @@ function randomCode(length: number) {
   return code;
 }
 
-function mockAddress(network: string) {
-  const prefix =
-    network === "btc" ? "bc1q" : network === "eth" ? "0x" : "0x";
-
-  return `${prefix}${randomCode(network === "btc" ? 30 : 36).toLowerCase()}`;
-}
-
 function mockInstructions(
   request: CheckoutRequest
 ): PaymentInstructions {
   if (request.method === "crypto") {
-    const network = networkConfig(request.network ?? "btc");
-    const amount = (request.total / network.rate).toFixed(
-      network.value === "usdt" ? 2 : 6
+    const network = request.network ?? "usdt";
+    const config = networkConfig(network);
+    const amount = (request.total / config.rate).toFixed(
+      network === "usdt" ? 2 : 6
     );
 
     const instructions: CryptoInstructions = {
       method: "crypto",
-      network: network.value,
-      currency: network.currency,
-      address: mockAddress(network.value),
+      network,
+      currency: config.currency,
+      billingCurrency: request.currency,
       amount,
-      confirmations: network.confirmations,
+      confirmations: config.confirmations,
+      checkoutUrl: "",
+      checkoutId: "",
+      availableMethods: ["CRYPTO", "NGN_BANK_TRANSFER"],
+      excludedMethods: [],
     };
 
     return instructions;
@@ -56,14 +54,13 @@ function mockInstructions(
 
   const instructions: WireInstructions = {
     method: "wire",
-    currency: request.currency,
+    currency: "NGN",
+    billingCurrency: request.currency,
     amount: request.total.toFixed(2),
-    beneficiary: "Pcmart Technologies Ltd",
-    bankName: "Pcmart Payments Bank",
-    accountNumber: `P${randomCode(8)}`,
-    routingCode: "021000021",
-    swift: "PCMAGTNG",
-    reference: `PCM-${randomCode(6)}`,
+    checkoutUrl: "",
+    checkoutId: "",
+    availableMethods: ["CRYPTO", "NGN_BANK_TRANSFER"],
+    excludedMethods: [],
   };
 
   return instructions;

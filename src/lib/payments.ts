@@ -8,7 +8,7 @@ export type RegisteredProductPayload = {
 
 export type PaymentMethod = "crypto" | "wire";
 
-export type CryptoNetwork = "btc" | "eth" | "usdt";
+export type CryptoNetwork = "eth" | "usdt" | "sol";
 
 export type PaymentStatus =
   | "pending"
@@ -36,25 +36,35 @@ export type CheckoutDetails = {
   postalCode: string;
 };
 
+export type ExcludedMethod = {
+  id: string;
+  reason: string;
+  limit?: string;
+  currency?: string;
+};
+
 export type CryptoInstructions = {
   method: "crypto";
   network: CryptoNetwork;
   currency: string;
-  address: string;
+  billingCurrency: string;
   amount: string;
   confirmations: number;
+  checkoutUrl: string;
+  checkoutId: string;
+  availableMethods: string[];
+  excludedMethods: ExcludedMethod[];
 };
 
 export type WireInstructions = {
   method: "wire";
   currency: string;
+  billingCurrency: string;
   amount: string;
-  beneficiary: string;
-  bankName: string;
-  accountNumber: string;
-  routingCode: string;
-  swift: string;
-  reference: string;
+  checkoutUrl: string;
+  checkoutId: string;
+  availableMethods: string[];
+  excludedMethods: ExcludedMethod[];
 };
 
 export type PaymentInstructions = CryptoInstructions | WireInstructions;
@@ -91,29 +101,33 @@ export const cryptoNetworks: {
   value: CryptoNetwork;
   label: string;
   currency: string;
+  chain: string;
   confirmations: number;
   rate: number;
 }[] = [
   {
-    value: "btc",
-    label: "Bitcoin",
-    currency: "BTC",
-    confirmations: 2,
-    rate: 96000,
+    value: "usdt",
+    label: "Tether",
+    currency: "USDT",
+    chain: "TRC20",
+    confirmations: 1,
+    rate: 1,
   },
   {
     value: "eth",
     label: "Ethereum",
     currency: "ETH",
+    chain: "Ethereum",
     confirmations: 3,
     rate: 3200,
   },
   {
-    value: "usdt",
-    label: "Tether",
-    currency: "USDT",
+    value: "sol",
+    label: "Solana",
+    currency: "SOL",
+    chain: "Solana",
     confirmations: 1,
-    rate: 1,
+    rate: 150,
   },
 ];
 
@@ -125,14 +139,23 @@ export const paymentMethods: {
   {
     value: "crypto",
     label: "Crypto",
-    description: "Pay with Bitcoin, Ethereum or USDT. Settles once the network confirms.",
+    description:
+      "Pay with USDT, Ethereum or Solana. Settles once the network confirms.",
   },
   {
     value: "wire",
     label: "Wire transfer",
-    description: "Bank transfer straight to our account. We release the build once it clears.",
+    description:
+      "Bank transfer straight to our account. We release the build once it clears.",
   },
 ];
+
+export const gatewayMethodLabels: Record<string, string> = {
+  CRYPTO: "Cryptocurrency",
+  NGN_BANK_TRANSFER: "Naira bank transfer",
+  NGN_CARD: "Naira card",
+  USD_CARD: "USD card",
+};
 
 export function networkConfig(network: CryptoNetwork) {
   return (

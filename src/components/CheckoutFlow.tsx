@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import {
   cryptoNetworks,
+  gatewayMethodLabels,
   paymentMethods,
   type CheckoutSession,
   type CryptoNetwork,
@@ -24,24 +25,6 @@ const money = new Intl.NumberFormat("en-US", {
   currency: "USD",
   maximumFractionDigits: 2,
 });
-
-function CopyIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <rect x="9" y="9" width="12" height="12" rx="2" />
-      <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
-    </svg>
-  );
-}
 
 function CryptoIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
@@ -126,11 +109,10 @@ export default function CheckoutFlow() {
   const [country, setCountry] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("crypto");
-  const [network, setNetwork] = useState<CryptoNetwork>("btc");
+  const [network, setNetwork] = useState<CryptoNetwork>("usdt");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [session, setSession] = useState<CheckoutSession | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
   const [now, setNow] = useState(0);
 
   const shipping = subtotal >= 99 || subtotal === 0 ? 0 : 19;
@@ -236,43 +218,6 @@ export default function CheckoutFlow() {
     } finally {
       setSubmitting(false);
     }
-  }
-
-  async function copyValue(value: string) {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(value);
-      window.setTimeout(() => setCopied(null), 1800);
-    } catch {
-      setCopied(null);
-    }
-  }
-
-  function copyRow(label: string, value: string) {
-    return (
-      <div className="flex items-center justify-between gap-3 rounded-lg border border-[#d2dbe8] bg-white/70 px-3 py-2">
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
-            {label}
-          </p>
-          <p className="truncate font-mono text-xs font-semibold text-[#2e3338]">
-            {value}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => copyValue(value)}
-          aria-label={`Copy ${label}`}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#5c5e66] transition-colors hover:bg-[#eaf0f8] hover:text-[#2e3338]"
-        >
-          {copied === value ? (
-            <CheckIcon className="h-3.5 w-3.5" />
-          ) : (
-            <CopyIcon />
-          )}
-        </button>
-      </div>
-    );
   }
 
   const fieldClass =
@@ -612,49 +557,78 @@ export default function CheckoutFlow() {
                 </div>
               )}
 
-              {session.instructions.method === "crypto" ? (
-                <div className="mt-5 space-y-3">
-                  {copyRow(
-                    `${session.instructions.currency} address`,
-                    session.instructions.address
-                  )}
-                  {copyRow(
-                    `Amount (${session.instructions.currency})`,
-                    session.instructions.amount
-                  )}
-                  <div className="rounded-lg border border-[#d2dbe8] bg-white/70 px-3 py-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
-                      Network
-                    </p>
-                    <p className="mt-0.5 text-xs font-semibold text-[#2e3338]">
-                      {cryptoNetwork?.label ?? session.instructions.network}
-                      {" · "}
-                      {session.instructions.confirmations}{" "}
-                      {session.instructions.confirmations === 1
-                        ? "confirmation"
-                        : "confirmations"}{" "}
-                      needed before we release the build
-                    </p>
-                  </div>
-                  <p className="text-xs leading-relaxed text-[#5c5e66]">
-                    Send only {session.instructions.currency} on the network
-                    above. Funds sent on another network cannot be recovered
-                    automatically.
+              <div className="mt-5 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
+                  Amount due
+                </p>
+                <p className="mt-1 text-2xl font-bold tracking-tight text-[#2e3338]">
+                  {session.instructions.amount}{" "}
+                  <span className="text-base font-semibold text-[#5c5e66]">
+                    {session.instructions.billingCurrency}
+                  </span>
+                </p>
+                {instructions?.method === "crypto" && (
+                  <p className="mt-1 text-xs leading-relaxed text-[#5c5e66]">
+                    bachs converts this to {instructions.currency} on the{" "}
+                    {cryptoNetwork?.chain ?? instructions.network} network at
+                    the live rate. It releases after {instructions.confirmations}{" "}
+                    {instructions.confirmations === 1
+                      ? "confirmation"
+                      : "confirmations"}
+                    .
                   </p>
-                </div>
+                )}
+              </div>
+
+              {session.instructions.checkoutUrl ? (
+                <a
+                  href={session.instructions.checkoutUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
+                >
+                  Pay securely with bachs
+                  <ArrowIcon className="h-4 w-4" />
+                </a>
               ) : (
-                <div className="mt-5 space-y-3">
-                  {copyRow("Amount", `${session.instructions.amount} ${session.instructions.currency}`)}
-                  {copyRow("Bank", session.instructions.bankName)}
-                  {copyRow("Account name", session.instructions.beneficiary)}
-                  {copyRow("Account number", session.instructions.accountNumber)}
-                  {copyRow("Routing / sort code", session.instructions.routingCode)}
-                  {copyRow("SWIFT / BIC", session.instructions.swift)}
-                  {copyRow("Payment reference", session.instructions.reference)}
-                  <p className="text-xs leading-relaxed text-[#5c5e66]">
-                    Put the reference in the payment narration so we can match
-                    your transfer. We release the build once the funds clear.
+                <p className="mt-4 rounded-xl border border-[#B45309]/40 bg-[#B45309]/10 px-4 py-3 text-xs leading-relaxed text-[#4e5058]">
+                  The bachs checkout link is unavailable for this order yet.
+                  Send the amount above using the reference {session.reference}.
+                </p>
+              )}
+
+              {session.instructions.availableMethods.length > 0 && (
+                <div className="mt-5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
+                    Payment methods
                   </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {session.instructions.availableMethods.map((method) => (
+                      <span
+                        key={method}
+                        className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1 text-[11px] font-semibold text-[#5c5e66]"
+                      >
+                        {gatewayMethodLabels[method] ?? method}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {session.instructions.excludedMethods.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {session.instructions.excludedMethods.map((method) => (
+                    <p
+                      key={method.id}
+                      className="flex items-start gap-2 text-xs leading-relaxed text-[#80848e]"
+                    >
+                      <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-[#c8d1de]" />
+                      {gatewayMethodLabels[method.id] ?? method.id} is not
+                      available
+                      {method.limit ? ` above ${method.limit}` : ""} for this
+                      amount.
+                    </p>
+                  ))}
                 </div>
               )}
 
@@ -680,20 +654,6 @@ export default function CheckoutFlow() {
                   View my orders
                 </Link>
               </div>
-
-              {session.status === "submitted" && (
-                <div className="mt-5 rounded-xl border border-[#16A34A]/40 bg-[#16A34A]/10 p-4">
-                  <p className="flex items-center gap-2 text-sm font-semibold text-[#15803D]">
-                    <CheckIcon className="h-4 w-4" />
-                    Payment submitted — we are watching for it
-                  </p>
-                  <p className="mt-1 text-xs leading-relaxed text-[#4e5058]">
-                    We will email you the moment the payment clears and start
-                    building your machine. Reference{" "}
-                    {session.reference}.
-                  </p>
-                </div>
-              )}
             </section>
           )}
         </div>

@@ -1,5 +1,6 @@
 import {
   buildSession,
+  confirmGatewayPayment,
   createCryptoInstructions,
   createWireInstructions,
   GatewayAuthError,
@@ -239,6 +240,10 @@ async function handleSubmit(env: Env, id: string) {
   }
 
   const updated: CheckoutSession = { ...session, status: "submitted" };
+
+  if (updated.instructions.checkoutId) {
+    await confirmGatewayPayment(env, updated.instructions.checkoutId);
+  }
 
   await env.SESSIONS.put(
     updated.id,
