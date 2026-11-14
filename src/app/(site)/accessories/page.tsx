@@ -6,7 +6,7 @@ import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
 import { accessoryCategories, accessories } from "@/data/accessories";
 
 export const metadata: Metadata = {
-  title: "Accessories | Pcmart",
+  title: "Accessories | Genericpcs",
 };
 
 const gridMask =

@@ -1,6 +1,6 @@
-# Pcmart API (Cloudflare Worker)
+# Genericpcs API (Cloudflare Worker)
 
-Backend for the Pcmart storefront. Handles checkout sessions, the bachs payment
+Backend for the Genericpcs storefront. Handles checkout sessions, the bachs payment
 gateway (crypto and wire transfer), order storage and product registration.
 
 ## Stack

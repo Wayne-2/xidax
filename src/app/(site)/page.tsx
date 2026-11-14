@@ -82,7 +82,7 @@ export default function Home() {
             <Parallax speed={0.06}>
               <Image
                 src="/hero_image.png"
-                alt="Pcmart custom gaming PC"
+                alt="Genericpcs custom gaming PC"
                 width={900}
                 height={900}
                 priority

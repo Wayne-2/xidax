@@ -49,7 +49,7 @@ export default function ThePromise() {
             style={{ animationDelay: "160ms" }}
             className="mt-4 max-w-xl text-base leading-relaxed text-[#5c5e66]"
           >
-            Every Pcmart desktop is covered by lifetime service and labor — for
+            Every Genericpcs desktop is covered by lifetime service and labor — for
             as long as you own the machine. Parts get cheaper to replace. Labor
             never does. Our competitors think we&apos;re crazy for offering
             this. We think they&apos;re crazy for not.
@@ -83,7 +83,7 @@ export default function ThePromise() {
           <Parallax speed={0.05} className="absolute -inset-y-12 inset-x-0">
             <Image
               src="/terms_image.png"
-              alt="Pcmart lifetime service and labor"
+              alt="Genericpcs lifetime service and labor"
               fill
               sizes="(min-width: 1024px) 50vw, 100vw"
               quality={90}

@@ -81,5 +81,6 @@ export function cartItemFromPrebuild(prebuild: Prebuild): CartItem {
 export const cartPromoCodes: Record<string, number> = {
   PCM10: 0.1,
   PCMART15: 0.15,
+  GENERICPCS15: 0.15,
   WELCOME: 0.05,
 };

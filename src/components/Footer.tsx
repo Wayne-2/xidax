@@ -37,8 +37,8 @@ export default function Footer() {
           <div data-reveal="up">
             <Link href="/" className="inline-flex items-center">
               <Image
-                src="/pcmart.png"
-                alt="Pcmart"
+                src="/Genericpcs.png"
+                alt="Genericpcs"
                 width={497}
                 height={141}
                 className="h-10 w-auto"
@@ -92,7 +92,7 @@ export default function Footer() {
           className="mt-14 flex flex-col gap-4 border-t border-[#dce3ee] pt-6 text-sm text-[#5c5e66] sm:flex-row sm:items-center sm:justify-between"
         >
           <p>
-            &copy; <CopyrightYear /> Pcmart. All rights reserved.
+            &copy; <CopyrightYear /> Genericpcs. All rights reserved.
           </p>
           <div className="flex items-center gap-6">
             <Link href="#" className="transition-colors hover:text-[#2e3338]">

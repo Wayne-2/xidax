@@ -3,7 +3,7 @@ import CustomBuilder from "@/components/CustomBuilder";
 import RevealObserver from "@/components/RevealObserver";
 
 export const metadata: Metadata = {
-  title: "Custom Builds | Pcmart",
+  title: "Custom Builds | Genericpcs",
 };
 
 export default function CustomBuildsPage() {

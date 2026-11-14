@@ -303,7 +303,7 @@ export const accessories: Accessory[] = [
   {
     id: "pcmart-controller-pro",
     category: "other",
-    name: "Pcmart Controller Pro",
+    name: "Genericpcs Controller Pro",
     description:
       "Hall-effect sticks and back paddles for precise, drift-free control.",
     price: 69,

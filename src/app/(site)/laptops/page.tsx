@@ -10,7 +10,7 @@ import {
 } from "@/data/laptops";
 
 export const metadata: Metadata = {
-  title: "Laptops | Pcmart",
+  title: "Laptops | Genericpcs",
 };
 
 const gridMask =

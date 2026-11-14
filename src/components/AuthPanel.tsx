@@ -43,8 +43,8 @@ export default function AuthPanel({ mode }: { mode: AuthMode }) {
           className="mx-auto flex items-center justify-center transition-opacity hover:opacity-80"
         >
           <Image
-            src="/pcmart.png"
-            alt="Pcmart"
+            src="/Genericpcs.png"
+            alt="Genericpcs"
             width={497}
             height={141}
             priority
@@ -68,7 +68,7 @@ export default function AuthPanel({ mode }: { mode: AuthMode }) {
         </div>
 
         <p className="mt-6 text-center text-sm text-[#5c5e66]">
-          {isSignIn ? "New to Pcmart?" : "Already have an account?"}{" "}
+          {isSignIn ? "New to Genericpcs?" : "Already have an account?"}{" "}
           <Link
             href={isSignIn ? "/signup" : "/login"}
             className="font-semibold text-[#5865F2] transition-colors hover:text-[#4752C4]"

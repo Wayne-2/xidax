@@ -19,7 +19,7 @@ export default function LiveChatPanel({ open, onClose }: LiveChatPanelProps) {
     {
       id: 1,
       from: "agent",
-      text: "Hi there. You have reached Pcmart support. Tell us what you need help with and we will pick it up right away.",
+      text: "Hi there. You have reached Genericpcs support. Tell us what you need help with and we will pick it up right away.",
     },
   ]);
   const [draft, setDraft] = useState("");
@@ -97,7 +97,7 @@ export default function LiveChatPanel({ open, onClose }: LiveChatPanelProps) {
   return (
     <div
       role="dialog"
-      aria-label="Live chat with Pcmart support"
+      aria-label="Live chat with Genericpcs support"
       className="animate-chat-in fixed bottom-4 right-4 z-50 flex max-h-[min(30rem,calc(100vh-2rem))] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-[#d2dbe8] bg-[#f8fafe] shadow-2xl"
     >
       <div className="flex items-center gap-3 bg-[#2e3338] px-4 py-3 text-white">
@@ -105,7 +105,7 @@ export default function LiveChatPanel({ open, onClose }: LiveChatPanelProps) {
           PC
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold">Pcmart Support</p>
+          <p className="text-sm font-semibold">Genericpcs Support</p>
           <p className="flex items-center gap-1.5 text-[11px] text-white/70">
             <span className="h-1.5 w-1.5 rounded-full bg-[#34D399]" />
             Online now

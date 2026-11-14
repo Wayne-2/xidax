@@ -380,7 +380,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
               className="mt-0.5 h-4 w-4 shrink-0 accent-[#5865F2]"
             />
             <span>
-              I agree to the Pcmart terms of sale and the privacy policy.
+              I agree to the Genericpcs terms of sale and the privacy policy.
             </span>
           </label>
           {errors.terms && (

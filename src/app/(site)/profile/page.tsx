@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import ProfileView from "@/components/ProfileView";
 
 export const metadata: Metadata = {
-  title: "Profile | Pcmart",
-  description: "Your Pcmart orders, saved builds and account details.",
+  title: "Profile | Genericpcs",
+  description: "Your Genericpcs orders, saved builds and account details.",
 };
 
 export default function ProfilePage() {
