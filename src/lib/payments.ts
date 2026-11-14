@@ -84,6 +84,7 @@ export type CheckoutSession = {
   lines: CheckoutLine[];
   details: CheckoutDetails;
   instructions: PaymentInstructions;
+  gatewayWarning?: string;
 };
 
 export const cryptoNetworks: {

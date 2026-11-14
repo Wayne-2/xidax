@@ -4,8 +4,9 @@ compatibility_date = "2025-11-01"
 
 [vars]
 PAYMENT_PROVIDER = "bachs"
-BACHS_CRYPTO_PATH = "/v1/crypto/intents"
-BACHS_WIRE_PATH = "/v1/wire/instructions"
+BACHS_API_BASE = "https://sandbox-api.bachs.io"
+BACHS_CRYPTO_PATH = "/v1/charges"
+BACHS_WIRE_PATH = "/v1/transfers"
 WIRE_BENEFICIARY = "Pcmart Technologies Ltd"
 WIRE_BANK_NAME = "Pcmart Payments Bank"
 WIRE_ROUTING_CODE = "021000021"

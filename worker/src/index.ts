@@ -2,6 +2,7 @@ import {
   buildSession,
   createCryptoInstructions,
   createWireInstructions,
+  GatewayAuthError,
 } from "./bachs";
 import {
   cryptoNetworks,
@@ -163,12 +164,40 @@ async function handleCheckout(env: Env, request: Request) {
 
   const reference = `PCM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
-  const instructions =
-    payload.method === "crypto"
-      ? await createCryptoInstructions(env, payload, reference)
-      : await createWireInstructions(env, payload, reference);
+  let warning: string | undefined;
+  let instructions: CheckoutSession["instructions"];
 
-  const session = buildSession(payload, instructions, reference);
+  try {
+    const created =
+      payload.method === "crypto"
+        ? await createCryptoInstructions(env, payload, reference)
+        : await createWireInstructions(env, payload, reference);
+
+    instructions = created.instructions;
+    warning = created.warning;
+  } catch (error) {
+    if (!(error instanceof GatewayAuthError)) {
+      throw error;
+    }
+
+    const fallback =
+      payload.method === "crypto"
+        ? await createCryptoInstructions(
+            { ...env, BACHS_API_KEY: undefined, BACHS_API_BASE: undefined },
+            payload,
+            reference
+          )
+        : await createWireInstructions(
+            { ...env, BACHS_API_KEY: undefined, BACHS_API_BASE: undefined },
+            payload,
+            reference
+          );
+
+    instructions = fallback.instructions;
+    warning = `${fallback.warning ?? "Payment gateway unavailable."} (${error.message})`;
+  }
+
+  const session = buildSession(payload, instructions, reference, warning);
 
   await env.SESSIONS.put(
     session.id,

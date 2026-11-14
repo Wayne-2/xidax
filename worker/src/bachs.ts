@@ -39,17 +39,32 @@ async function bachsRequest<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`bachs request failed (${response.status}).`);
+    const detail = await response.text();
+
+    if (response.status === 401 || response.status === 403) {
+      throw new GatewayAuthError(
+        `bachs ${path} rejected the key (${response.status}): ${detail.slice(0, 200)}`
+      );
+    }
+
+    throw new Error(
+      `bachs ${path} failed (${response.status}): ${detail.slice(0, 400)}`
+    );
   }
 
   return (await response.json()) as T;
 }
 
+export class GatewayAuthError extends Error {}
+
 export async function createCryptoInstructions(
   env: Env,
   request: CheckoutRequest,
   reference: string
-): Promise<CryptoInstructions> {
+): Promise<{
+  instructions: CryptoInstructions;
+  warning?: string;
+}> {
   const network = (request.network ?? "btc") as CryptoNetwork;
   const config = cryptoNetworks[network];
 
@@ -69,12 +84,14 @@ export async function createCryptoInstructions(
 
   if (remote) {
     return {
-      method: "crypto",
-      network,
-      currency: config.currency,
-      address: remote.address,
-      amount: remote.amount,
-      confirmations: config.confirmations,
+      instructions: {
+        method: "crypto",
+        network,
+        currency: config.currency,
+        address: remote.address,
+        amount: remote.amount,
+        confirmations: config.confirmations,
+      },
     };
   }
 
@@ -86,14 +103,17 @@ export async function createCryptoInstructions(
         : env.CRYPTO_ADDRESS_USDT;
 
   return {
-    method: "crypto",
-    network,
-    currency: config.currency,
-    address: fallback ?? `pending-${randomCode(20).toLowerCase()}`,
-    amount: (request.total / config.rate).toFixed(
-      network === "usdt" ? 2 : 6
-    ),
-    confirmations: config.confirmations,
+    instructions: {
+      method: "crypto",
+      network,
+      currency: config.currency,
+      address: fallback ?? `pending-${randomCode(20).toLowerCase()}`,
+      amount: (request.total / config.rate).toFixed(
+        network === "usdt" ? 2 : 6
+      ),
+      confirmations: config.confirmations,
+    },
+    warning: `Live ${config.label} addresses are unavailable until the bachs key has the payments:write scope.`,
   };
 }
 
@@ -101,7 +121,10 @@ export async function createWireInstructions(
   env: Env,
   request: CheckoutRequest,
   reference: string
-): Promise<WireInstructions> {
+): Promise<{
+  instructions: WireInstructions;
+  warning?: string;
+}> {
   const remote = await bachsRequest<{
     beneficiary: string;
     bankName: string;
@@ -118,35 +141,42 @@ export async function createWireInstructions(
 
   if (remote) {
     return {
-      method: "wire",
-      currency: request.currency,
-      amount: remote.amount,
-      beneficiary: remote.beneficiary,
-      bankName: remote.bankName,
-      accountNumber: remote.accountNumber,
-      routingCode: remote.routingCode,
-      swift: remote.swift,
-      reference,
+      instructions: {
+        method: "wire",
+        currency: request.currency,
+        amount: remote.amount,
+        beneficiary: remote.beneficiary,
+        bankName: remote.bankName,
+        accountNumber: remote.accountNumber,
+        routingCode: remote.routingCode,
+        swift: remote.swift,
+        reference,
+      },
     };
   }
 
   return {
-    method: "wire",
-    currency: request.currency,
-    amount: request.total.toFixed(2),
-    beneficiary: env.WIRE_BENEFICIARY ?? "Pcmart Technologies Ltd",
-    bankName: env.WIRE_BANK_NAME ?? "Pcmart Payments Bank",
-    accountNumber: env.WIRE_ACCOUNT_NUMBER ?? `P${randomCode(8)}`,
-    routingCode: env.WIRE_ROUTING_CODE ?? "021000021",
-    swift: env.WIRE_SWIFT ?? "PCMAGTNG",
-    reference,
+    instructions: {
+      method: "wire",
+      currency: request.currency,
+      amount: request.total.toFixed(2),
+      beneficiary: env.WIRE_BENEFICIARY ?? "Pcmart Technologies Ltd",
+      bankName: env.WIRE_BANK_NAME ?? "Pcmart Payments Bank",
+      accountNumber: env.WIRE_ACCOUNT_NUMBER ?? `P${randomCode(8)}`,
+      routingCode: env.WIRE_ROUTING_CODE ?? "021000021",
+      swift: env.WIRE_SWIFT ?? "PCMAGTNG",
+      reference,
+    },
+    warning:
+      "Live wire instructions are unavailable until the bachs key has the transfers:write scope.",
   };
 }
 
 export function buildSession(
   request: CheckoutRequest,
   instructions: CheckoutSession["instructions"],
-  reference: string
+  reference: string,
+  warning?: string
 ): CheckoutSession {
   const now = Date.now();
   const lifetime =
@@ -166,5 +196,6 @@ export function buildSession(
     lines: request.lines,
     details: request.details,
     instructions,
+    gatewayWarning: warning,
   };
 }

@@ -601,6 +601,17 @@ export default function CheckoutFlow() {
                 </span>
               </div>
 
+              {session.gatewayWarning && (
+                <div className="mt-4 rounded-xl border border-[#B45309]/40 bg-[#B45309]/10 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#B45309]">
+                    Payment gateway notice
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-[#4e5058]">
+                    {session.gatewayWarning}
+                  </p>
+                </div>
+              )}
+
               {session.instructions.method === "crypto" ? (
                 <div className="mt-5 space-y-3">
                   {copyRow(

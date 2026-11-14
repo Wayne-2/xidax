@@ -53,11 +53,21 @@ The worker also runs its own `CREATE TABLE IF NOT EXISTS` migration on the first
 request of a cold isolate, so the API is usable even before the CLI migration
 has been applied.
 
-`BACHS_API_KEY` / `BACHS_API_BASE` are optional: without them the worker
-generates its own instructions from the wallet/bank variables in
-`wrangler.toml`, which keeps local development working. The endpoint paths are
-vars (`BACHS_CRYPTO_PATH`, `BACHS_WIRE_PATH`) so they can be corrected without
-touching code. `BACHS_WEBHOOK_SECRET` turns on HMAC verification for
+## bachs
+
+Base URL: `https://sandbox-api.bachs.io` (`BACHS_API_BASE`).
+
+| Purpose | Endpoint | Required scope |
+| --- | --- | --- |
+| Crypto charge (address + amount) | `POST /v1/payments/charges` — `BACHS_CRYPTO_PATH` | `payments:write` |
+| Wire transfer instructions | `POST /v1/payments/transfers` — `BACHS_WIRE_PATH` | `transfers:write` |
+
+Both paths are vars so they can be corrected without touching code. The bachs
+key needs the scopes above; if a scope is missing the worker falls back to the
+wallet/bank variables in `wrangler.toml` and returns a `gatewayWarning` on the
+session so the storefront can show a notice instead of failing the checkout.
+
+`BACHS_WEBHOOK_SECRET` turns on HMAC verification for
 `POST /api/webhooks/bachs`, which flips an order to `paid` when bachs settles
 it.
 
