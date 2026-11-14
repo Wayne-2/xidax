@@ -7,8 +7,6 @@ const nextConfig: NextConfig = {
     qualities: [75, 90],
     unoptimized: process.env.NODE_ENV === "development",
   },
-  cacheComponents: true,
-  partialPrefetching: true,
   turbopack: {
     rules: {
       "*.css": {

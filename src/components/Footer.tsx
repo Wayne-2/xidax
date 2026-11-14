@@ -2,8 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import SocialLinks from "@/components/SocialLinks";
 
-async function CopyrightYear() {
-  "use cache";
+function CopyrightYear() {
   return <>{new Date().getFullYear()}</>;
 }
 

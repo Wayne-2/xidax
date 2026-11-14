@@ -43,7 +43,8 @@ next-env.d.ts
 
 # wrangler local state
 worker/.wrangler
-.dev.vars
 
 # opennext / cloudflare
-.open-next
+.wrangler/
+.dev.vars
+.open-next/
