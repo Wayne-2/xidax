@@ -43,11 +43,15 @@ cd worker
 npm install
 npx wrangler d1 create pcmart            # then paste the id into wrangler.toml
 npx wrangler kv namespace create SESSIONS # then paste the id into wrangler.toml
-npm run db:init                           # applies schema.sql to D1
+npx wrangler d1 execute pcmart --remote --file=./schema.sql
 npx wrangler secret put BACHS_API_KEY
 npx wrangler secret put BACHS_API_BASE
 npm run deploy
 ```
+
+The worker also runs its own `CREATE TABLE IF NOT EXISTS` migration on the first
+request of a cold isolate, so the API is usable even before the CLI migration
+has been applied.
 
 `BACHS_API_KEY` / `BACHS_API_BASE` are optional: without them the worker
 generates its own instructions from the wallet/bank variables in
