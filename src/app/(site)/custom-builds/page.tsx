@@ -3,7 +3,7 @@ import CustomBuilder from "@/components/CustomBuilder";
 import RevealObserver from "@/components/RevealObserver";
 
 export const metadata: Metadata = {
-  title: "Custom Builds | Genericpcs",
+  title: "Custom Builds | generic pcs",
 };
 
 export default function CustomBuildsPage() {

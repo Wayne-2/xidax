@@ -1,4 +1,4 @@
-name = "pcmart-api"
+name = "generic-pcs-api"
 main = "src/index.ts"
 compatibility_date = "2025-11-01"
 
@@ -7,19 +7,19 @@ PAYMENT_PROVIDER = "bachs"
 BACHS_API_BASE = "https://sandbox-api.bachs.io"
 BACHS_CRYPTO_PATH = "/v1/checkout-sessions"
 BACHS_WIRE_PATH = "/v1/checkout-sessions"
-WIRE_BENEFICIARY = "Genericpcs Technologies Ltd"
-WIRE_BANK_NAME = "Genericpcs Payments Bank"
+WIRE_BENEFICIARY = "generic pcs Technologies Ltd"
+WIRE_BANK_NAME = "generic pcs Payments Bank"
 WIRE_ROUTING_CODE = "021000021"
 WIRE_SWIFT = "PCMAGTNG"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "pcmart"
-database_id = "8d486892-1569-4863-a4be-668984c0b8a2"
+database_name = "generic-pcs"
+database_id = "b258856d-5461-40f4-9923-527179b80d68"
 
 [[kv_namespaces]]
 binding = "SESSIONS"
-id = "5e49ec60e71e4b029c8f641f6a857d01"
+id = "f6cc58992677400581984356fa837ba7"
 
 [triggers]
 crons = ["0 * * * *"]

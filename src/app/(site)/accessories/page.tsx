@@ -6,7 +6,7 @@ import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
 import { accessoryCategories, accessories } from "@/data/accessories";
 
 export const metadata: Metadata = {
-  title: "Accessories | Genericpcs",
+  title: "Accessories | generic pcs",
 };
 
 const gridMask =

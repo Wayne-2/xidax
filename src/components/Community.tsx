@@ -17,7 +17,7 @@ const reviews = [
     initials: "DR",
     name: "Diego R.",
     comment:
-      "Second rig from Genericpcs. Both still running flawlessly years later. The lifetime labor coverage is why I won't buy anywhere else.",
+      "Second rig from generic pcs. Both still running flawlessly years later. The lifetime labor coverage is why I won't buy anywhere else.",
   },
 ];
 

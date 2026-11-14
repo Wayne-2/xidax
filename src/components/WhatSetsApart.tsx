@@ -3,7 +3,7 @@ const reasons = [
     number: "01",
     title: "Lifetime Service & Labor",
     description:
-      "Every Genericpcs desktop ships with a lifetime service and labor warranty. Not 1 year, not 3 — for as long as you own the machine",
+      "Every generic pcs desktop ships with a lifetime service and labor warranty. Not 1 year, not 3 — for as long as you own the machine",
   },
   {
     number: "02",
@@ -52,7 +52,7 @@ export default function WhatSetsApart() {
           style={{ animationDelay: "160ms" }}
           className="mt-4 max-w-2xl text-base leading-relaxed text-[#5c5e66]"
         >
-          Four reasons every Genericpcs desktop punches above its price tag.
+          Four reasons every generic pcs desktop punches above its price tag.
         </p>
 
         <div className="mt-12 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#dce3ee] sm:grid-cols-2 lg:grid-cols-4">

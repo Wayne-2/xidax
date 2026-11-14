@@ -116,7 +116,7 @@ export default function DirectEmailForm() {
       </div>
 
       <p className="mt-2 text-sm leading-relaxed text-[#5c5e66]">
-        This goes straight to the people who run Genericpcs — no ticket queue, no
+        This goes straight to the people who run generic pcs — no ticket queue, no
         forwarding.
       </p>
 

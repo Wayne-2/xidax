@@ -44,7 +44,7 @@ export default function AuthPanel({ mode }: { mode: AuthMode }) {
         >
           <Image
             src="/Genericpcs.png"
-            alt="Genericpcs"
+            alt="generic pcs"
             width={497}
             height={141}
             priority
@@ -68,7 +68,7 @@ export default function AuthPanel({ mode }: { mode: AuthMode }) {
         </div>
 
         <p className="mt-6 text-center text-sm text-[#5c5e66]">
-          {isSignIn ? "New to Genericpcs?" : "Already have an account?"}{" "}
+          {isSignIn ? "New to generic pcs?" : "Already have an account?"}{" "}
           <Link
             href={isSignIn ? "/signup" : "/login"}
             className="font-semibold text-[#5865F2] transition-colors hover:text-[#4752C4]"

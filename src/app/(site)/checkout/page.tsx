@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import CheckoutFlow from "@/components/CheckoutFlow";
 
 export const metadata: Metadata = {
-  title: "Checkout | Genericpcs",
-  description: "Complete your Genericpcs order with crypto or wire transfer.",
+  title: "Checkout | generic pcs",
+  description: "Complete your generic pcs order with crypto or wire transfer.",
 };
 
 export default function CheckoutPage() {

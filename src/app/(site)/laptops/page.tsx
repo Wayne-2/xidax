@@ -10,7 +10,7 @@ import {
 } from "@/data/laptops";
 
 export const metadata: Metadata = {
-  title: "Laptops | Genericpcs",
+  title: "Laptops | generic pcs",
 };
 
 const gridMask =

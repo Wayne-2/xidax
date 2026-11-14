@@ -41,7 +41,7 @@ export default function Header() {
         <Link href="/" className="flex shrink-0 items-center">
           <Image
             src="/Genericpcs.png"
-            alt="Genericpcs"
+            alt="generic pcs"
             width={497}
             height={141}
             priority

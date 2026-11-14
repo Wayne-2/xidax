@@ -7,7 +7,7 @@ import SupportChannels from "@/components/SupportChannels";
 import { supportStats } from "@/data/support";
 
 export const metadata: Metadata = {
-  title: "Support | Genericpcs",
+  title: "Support | generic pcs",
 };
 
 const gridMask =
@@ -187,7 +187,7 @@ export default function SupportPage() {
               className="max-w-md text-sm leading-relaxed text-[#5c5e66]"
             >
               Skip the queue entirely. Send your message below and it lands
-              with the people behind Genericpcs.
+              with the people behind generic pcs.
             </p>
           </div>
 

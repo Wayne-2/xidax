@@ -5,7 +5,7 @@ import RevealObserver from "@/components/RevealObserver";
 import { prebuilds } from "@/data/prebuilds";
 
 export const metadata: Metadata = {
-  title: "Prebuilds | Genericpcs",
+  title: "Prebuilds | generic pcs",
 };
 
 const gridMask =

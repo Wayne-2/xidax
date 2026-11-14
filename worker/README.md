@@ -1,6 +1,6 @@
-# Genericpcs API (Cloudflare Worker)
+# generic pcs API (Cloudflare Worker)
 
-Backend for the Genericpcs storefront. Handles checkout sessions, the bachs payment
+Backend for the generic pcs storefront. Handles checkout sessions, the bachs payment
 gateway (crypto and wire transfer), order storage and product registration.
 
 ## Stack
@@ -41,9 +41,9 @@ The token needs Workers Scripts (Edit), Workers KV (Edit) and D1 (Edit).
 ```bash
 cd worker
 npm install
-npx wrangler d1 create pcmart            # then paste the id into wrangler.toml
+npx wrangler d1 create generic-pcs            # then paste the id into wrangler.toml
 npx wrangler kv namespace create SESSIONS # then paste the id into wrangler.toml
-npx wrangler d1 execute pcmart --remote --file=./schema.sql
+npx wrangler d1 execute generic-pcs --remote --file=./schema.sql
 npx wrangler secret put BACHS_API_KEY
 npx wrangler secret put BACHS_API_BASE
 npm run deploy
@@ -77,7 +77,7 @@ Point the Next app at the worker:
 
 ```bash
 # .env.local
-NEXT_PUBLIC_API_BASE_URL=https://pcmart-api.<account>.workers.dev
+NEXT_PUBLIC_API_BASE_URL=https://generic-pcs-api.<account>.workers.dev
 ```
 
 Without that variable the app falls back to a local demo gateway that returns
