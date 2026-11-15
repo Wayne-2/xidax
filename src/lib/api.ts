@@ -8,6 +8,7 @@ import {
   type RegisteredProductPayload,
   type WireInstructions,
 } from "@/lib/payments";
+import { AppError, isOffline } from "@/lib/errors";
 
 const DEFAULT_API_BASE = "https://generic-pcs-api.pcmarketweb.workers.dev";
 
@@ -94,26 +95,71 @@ function mockSession(request: CheckoutRequest): CheckoutSession {
   };
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
+const REQUEST_TIMEOUT_MS = 25000;
 
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as {
-      error?: string;
-    } | null;
+function withTimeout() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-    throw new Error(
-      payload?.error ?? `Request to ${path} failed (${response.status}).`
+  return {
+    signal: controller.signal,
+    dispose: () => clearTimeout(timer),
+  };
+}
+
+async function send<T>(
+  path: string,
+  init: RequestInit | undefined,
+  fallback: string,
+  token?: string | null
+): Promise<T> {
+  const timeout = withTimeout();
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      signal: timeout.signal,
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...(init?.headers ?? {}),
+      },
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new AppError(
+        "That took longer than expected. Please try again.",
+        { code: "timeout" }
+      );
+    }
+
+    throw new AppError(
+      isOffline()
+        ? "You appear to be offline. Check your connection and try again."
+        : "We could not reach the store. Please try again in a moment.",
+      { offline: true, code: "network" }
     );
+  } finally {
+    timeout.dispose();
   }
 
-  return (await response.json()) as T;
+  const payload = (await response.json().catch(() => null)) as {
+    error?: string;
+  } | null;
+
+  if (!response.ok) {
+    throw new AppError(payload?.error ?? fallback, {
+      status: response.status,
+    });
+  }
+
+  return payload as T;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  return send<T>(path, init, "The store could not complete that request.");
 }
 
 export async function createCheckoutSession(
@@ -181,6 +227,7 @@ export type AccountUserPayload = {
   tier: string;
   memberSince: string;
   createdAt: string;
+  emailVerified: boolean;
 };
 
 export type AccountSettingsPayload = {
@@ -224,28 +271,17 @@ export async function accountRequest<T>(
     token?: string | null;
   } = {}
 ): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: options.method ?? "GET",
-    headers: {
-      "content-type": "application/json",
-      ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
+  return send<T>(
+    path,
+    {
+      method: options.method ?? "GET",
+      ...(options.body === undefined
+        ? {}
+        : { body: JSON.stringify(options.body) }),
     },
-    ...(options.body === undefined
-      ? {}
-      : { body: JSON.stringify(options.body) }),
-  });
-
-  const payload = (await response.json().catch(() => null)) as {
-    error?: string;
-  } | null;
-
-  if (!response.ok) {
-    throw new Error(
-      payload?.error ?? `Request to ${path} failed (${response.status}).`
-    );
-  }
-
-  return payload as T;
+    "We could not reach your account. Please try again.",
+    options.token
+  );
 }
 
 export async function registerAccount(payload: {
@@ -306,6 +342,19 @@ export async function fetchAccountProducts(token: string) {
     "/api/me/products",
     { token }
   );
+}
+
+export async function sendMessage(payload: {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  country?: string;
+}) {
+  return request<{ ok: boolean; id: string }>("/api/messages", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function createAccountProduct(
