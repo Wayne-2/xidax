@@ -112,7 +112,7 @@ export function AccountProvider({
         setSettings(defaultSettings);
         setOrders([]);
         setProducts([]);
-        setError("Please verify your email address to continue.");
+        toast.error("Please verify your email address to continue.");
         return;
       }
 

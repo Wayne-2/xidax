@@ -132,6 +132,7 @@ export async function handleRegister(request: Request, env: Env) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
       },
       body: JSON.stringify({
         from: "onboarding@generic-pcs.com",

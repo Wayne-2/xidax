@@ -647,6 +647,8 @@ const worker = {
 
       if (request.method === "GET" && path === "/api/orders") {
         return await handleOrders(env, url);
+      if (request.method === "GET" && path === "/api/auth/verify") {
+        return await handleVerifyEmail(request, env);
       }
 
       return json({ error: "Not found." }, 404);
@@ -671,6 +673,32 @@ const worker = {
       .bind(new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString())
       .run();
   },
-};
+
+  async function handleVerifyEmail(request: Request, env: Env) {
+    const { token, email } = Object.fromEntries(new URL(request.url).searchParams) as {
+      token: string;
+      email: string;
+    };
+
+    if (!token || !email) {
+      return json({ error: "Missing token or email." }, 400);
+    }
+
+    // Verify the user exists and update email_verified status
+    const row = await env.DB.prepare(
+      "UPDATE users SET email_verified = 1 WHERE email = ?1 AND email_verified = 0"
+    )
+      .bind(email)
+      .run();
+
+    const changes = row.changes ?? 0;
+
+    if (changes === 0) {
+      // Already verified or user not found
+      return json({ alreadyVerified: true });
+    }
+
+    return json({ verified: true });
+  },
 
 export default worker;
