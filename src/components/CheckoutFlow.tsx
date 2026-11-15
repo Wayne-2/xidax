@@ -558,6 +558,13 @@ export default function CheckoutFlow() {
                     .
                   </p>
                 )}
+                {instructions?.method === "wire" && (
+                  <p className="mt-1 text-xs leading-relaxed text-[#5c5e66]">
+                    bachs shows you the account to pay into and matches your
+                    transfer to order {session.reference}. We release the build
+                    once the bank clears.
+                  </p>
+                )}
               </div>
 
               {session.instructions.checkoutUrl ? (

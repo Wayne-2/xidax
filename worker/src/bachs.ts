@@ -290,6 +290,7 @@ export async function createCryptoInstructions(
       method: "POST",
       body: {
         payment_method: "CRYPTO",
+        payment_method_types: ["CRYPTO"],
         currency: bachsCurrency,
         product_cart: await Promise.all(
           request.lines.map(async (line) => ({
@@ -370,6 +371,7 @@ export async function createWireInstructions(
       method: "POST",
       body: {
         payment_method: "NGN_BANK_TRANSFER",
+        payment_method_types: ["NGN_BANK_TRANSFER"],
         currency: "NGN",
         product_cart: await Promise.all(
           request.lines.map(async (line) => ({
