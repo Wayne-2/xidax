@@ -301,7 +301,7 @@ export const accessories: Accessory[] = [
     specs: ["750W SFX 80+ Gold", "ATX 3.1 ready", "SFX-to-ATX bracket included"],
   },
   {
-    id: "pcmart-controller-pro",
+    id: "genericpcs-controller-pro",
     category: "other",
     name: "generic pcs Controller Pro",
     description:
