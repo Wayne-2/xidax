@@ -1,16 +1,12 @@
 import Image from "next/image";
 import { SlidersIcon } from "@/components/AccessoryIcons";
 import { useCart } from "@/components/CartProvider";
+import { useRegion } from "@/components/RegionProvider";
 import { cartItemFromPrebuild } from "@/data/cart";
 import type { Prebuild } from "@/data/prebuilds";
 
-const priceFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 0,
-});
-
 export default function PrebuildCard({ product }: { product: Prebuild }) {
+  const { formatMoney } = useRegion();
   const inStock = product.stock === "in-stock";
   const { items, add, remove } = useCart();
   const inCart = items.some((entry) => entry.productId === product.id);
@@ -29,7 +25,7 @@ export default function PrebuildCard({ product }: { product: Prebuild }) {
   );
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] transition-colors hover:border-[#5865F2]/60">
+    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card transition-colors hover:border-[#5865F2]/60 hover:shadow-card-hover">
       <div className="relative aspect-[4/3] overflow-hidden bg-[#dce3ee]">
         <Image
           src={product.image}
@@ -76,10 +72,10 @@ export default function PrebuildCard({ product }: { product: Prebuild }) {
         <div className="mt-auto pt-4">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <span className="text-xl font-bold text-[#5865F2]">
-              {priceFormatter.format(product.price)}
+              {formatMoney(product.price)}
             </span>
             <span className="text-sm text-[#80848e] line-through">
-              {priceFormatter.format(product.originalPrice)}
+              {formatMoney(product.originalPrice)}
             </span>
             <span className="rounded-full bg-[#DC2626]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#B91C1C]">
               Save {discount}%

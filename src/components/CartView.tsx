@@ -6,6 +6,7 @@ import { useState } from "react";
 import AccessoryArtwork from "@/components/AccessoryArtwork";
 import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
 import { useCart } from "@/components/CartProvider";
+import { useRegion } from "@/components/RegionProvider";
 import LaptopArtwork from "@/components/LaptopArtwork";
 import {
   cartItemFromAccessory,
@@ -17,12 +18,7 @@ import {
 } from "@/data/cart";
 import { accessories, accessoryCategories } from "@/data/accessories";
 import { laptops, laptopCategories } from "@/data/laptops";
-
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 0,
-});
+import { deliveryWindow } from "@/lib/regions";
 
 function TrashIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
@@ -93,6 +89,7 @@ function ItemThumbnail({ item }: { item: CartItem }) {
 export default function CartView() {
   const { items, count, subtotal, ready, add, remove, setQuantity, clear } =
     useCart();
+  const { formatMoney, formatBase, region, clock } = useRegion();
   const [promoInput, setPromoInput] = useState("");
   const [promo, setPromo] = useState<{ code: string; rate: number } | null>(
     null
@@ -178,7 +175,7 @@ export default function CartView() {
         </div>
         {count > 0 && (
           <p className="text-sm font-medium text-[#5c5e66]">
-            {count} {count === 1 ? "item" : "items"} · {money.format(subtotal)}
+            {count} {count === 1 ? "item" : "items"} · {formatMoney(subtotal)}
           </p>
         )}
       </div>
@@ -186,9 +183,8 @@ export default function CartView() {
       {!ready ? (
         <div className="mt-8 h-40 animate-pulse rounded-2xl bg-[#eaf0f8]" />
       ) : items.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-[#d2dbe8] bg-[#eaf0f8] px-6 py-16 text-center">
-          <span className="mx-auto block h-16 w-16 rounded-2xl border border-dashed border-[#c8d1de] bg-[#f8fafe]" />
-          <h2 className="mt-6 text-xl font-bold tracking-tight text-[#2e3338]">
+        <div className="mt-8 rounded-2xl border border-dashed border-[#d2dbe8] bg-[#eaf0f8] px-6 py-14 text-center">
+          <h2 className="text-xl font-bold tracking-tight text-[#2e3338]">
             Your cart is empty
           </h2>
           <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-[#5c5e66]">
@@ -224,7 +220,7 @@ export default function CartView() {
               {items.map((item) => (
                 <li
                   key={item.id}
-                  className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-4 sm:p-5"
+                  className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-4 sm:p-5"
                 >
                   <div className="flex gap-4">
                     <div
@@ -262,7 +258,7 @@ export default function CartView() {
 
                       <div className="mt-auto flex flex-wrap items-end justify-between gap-3 pt-4">
                         <div className="flex items-center gap-3">
-                          <div className="flex items-center rounded-lg border border-[#d2dbe8] bg-[#f8fafe]">
+                          <div className="flex items-center rounded-lg border border-[#d2dbe8] bg-[#f8fafe] shadow-card">
                             <button
                               type="button"
                               onClick={() =>
@@ -289,12 +285,12 @@ export default function CartView() {
                           </div>
 
                           <span className="text-xs text-[#80848e]">
-                            {money.format(item.price)} each
+                            {formatMoney(item.price)} each
                           </span>
                         </div>
 
                         <span className="text-lg font-bold tracking-tight text-[#2e3338]">
-                          {money.format(item.price * item.quantity)}
+                          {formatMoney(item.price * item.quantity)}
                         </span>
                       </div>
                     </div>
@@ -303,7 +299,7 @@ export default function CartView() {
               ))}
             </ul>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#d2dbe8] bg-[#eaf0f8] px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#d2dbe8] bg-[#eaf0f8] shadow-card px-4 py-3">
               <button
                 type="button"
                 onClick={clear}
@@ -321,7 +317,7 @@ export default function CartView() {
             </div>
 
             {suggestions.length > 0 && (
-              <section className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-4 sm:p-5">
+              <section className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-4 sm:p-5">
                 <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
                   Complete your setup
                 </h2>
@@ -330,7 +326,7 @@ export default function CartView() {
                   {suggestions.map(({ item }) => (
                     <li
                       key={item.id}
-                      className="flex items-center gap-3 rounded-xl border border-[#dce3ee] bg-[#f8fafe] p-3"
+                      className="flex items-center gap-3 rounded-xl border border-[#dce3ee] bg-[#f8fafe] shadow-card p-3"
                     >
                       <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#d2dbe8] bg-[#dce3ee] p-1.5">
                         <ItemThumbnail item={item} />
@@ -340,7 +336,7 @@ export default function CartView() {
                           {item.name}
                         </p>
                         <p className="truncate text-xs text-[#5c5e66]">
-                          {item.category} · {money.format(item.price)}
+                          {item.category} · {formatMoney(item.price)}
                         </p>
                       </div>
                       <button
@@ -360,17 +356,17 @@ export default function CartView() {
             )}
           </div>
 
-          <aside className="min-w-0 rounded-2xl border border-[#5865F2]/25 bg-[#eaf0f8] p-5 sm:p-6 lg:sticky lg:top-24">
+          <aside className="min-w-0 rounded-2xl border border-[#5865F2]/25 bg-[#eaf0f8] shadow-card p-5 sm:p-6 lg:sticky lg:top-24">
             <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
               Order summary
             </h2>
 
             {awayFromFree > 0 && (
-              <div className="mt-4 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] p-3">
+              <div className="mt-4 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] shadow-card p-3">
                 <p className="text-xs leading-relaxed text-[#5c5e66]">
                   Add{" "}
                   <span className="font-semibold text-[#2e3338]">
-                    {money.format(awayFromFree)}
+                    {formatMoney(awayFromFree)}
                   </span>{" "}
                   more for free shipping.
                 </p>
@@ -394,7 +390,7 @@ export default function CartView() {
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-[#5c5e66]">Subtotal</dt>
                 <dd className="font-semibold text-[#2e3338]">
-                  {money.format(subtotal)}
+                  {formatMoney(subtotal)}
                 </dd>
               </div>
 
@@ -405,7 +401,7 @@ export default function CartView() {
                     {promo.code}
                   </dt>
                   <dd className="font-semibold text-[#15803D]">
-                    −{money.format(discount)}
+                    −{formatMoney(discount)}
                   </dd>
                 </div>
               )}
@@ -413,14 +409,21 @@ export default function CartView() {
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-[#5c5e66]">Shipping</dt>
                 <dd className="font-semibold text-[#2e3338]">
-                  {shipping === 0 ? "Free" : money.format(shipping)}
+                  {shipping === 0 ? "Free" : formatMoney(shipping)}
                 </dd>
               </div>
 
               <div className="flex items-center justify-between gap-3 border-t border-[#d2dbe8] pt-3">
                 <dt className="text-base font-bold text-[#2e3338]">Total</dt>
-                <dd className="text-xl font-bold tracking-tight text-[#2e3338]">
-                  {money.format(total)}
+                <dd className="text-right">
+                  <span className="block text-xl font-bold tracking-tight text-[#2e3338]">
+                    {formatMoney(total)}
+                  </span>
+                  {region.currency !== "USD" && (
+                    <span className="mt-0.5 block text-[11px] text-[#80848e]">
+                      {formatBase(total)} charged
+                    </span>
+                  )}
                 </dd>
               </div>
             </dl>
@@ -457,24 +460,31 @@ export default function CartView() {
               href="/checkout"
               className="mt-5 inline-flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
             >
-              Checkout · {money.format(total)}
+              Checkout · {formatMoney(total)}
               <ArrowIcon className="h-4 w-4" />
             </Link>
 
             <p className="mt-3 text-center text-[11px] leading-relaxed text-[#80848e]">
+              {region.currency !== "USD"
+                ? `${formatBase(total)} is charged at checkout. `
+                : ""}
               Taxes calculated at checkout. 3-year warranty and lifetime
               labour coverage included.
             </p>
 
-            <details className="mt-4 group rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-3.5 py-2.5">
+            <details className="mt-4 group rounded-xl border border-[#d2dbe8] bg-[#f8fafe] shadow-card px-3.5 py-2.5">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-semibold text-[#5c5e66]">
                 Shipping &amp; returns
                 <ChevronIcon className="h-4 w-4 transition-transform group-open:rotate-180" />
               </summary>
               <p className="mt-2 text-xs leading-relaxed text-[#5c5e66]">
-                Free tracked shipping over {money.format(freeShippingThreshold)}.
-                Prebuilt machines leave the workshop in 1–3 business days, and
-                every order can be returned within 30 days.
+                Free tracked shipping over {formatMoney(freeShippingThreshold)}.
+                Prebuilt machines leave the workshop in 1–3 business days and
+                reach {region.country} in {deliveryWindow(region)}, and every
+                order can be returned within 30 days.
+              </p>
+              <p className="mt-2 text-[11px] leading-relaxed text-[#80848e]">
+                Your local time is {clock.label} ({region.timeZone}).
               </p>
             </details>
           </aside>

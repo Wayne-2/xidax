@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
 import { useAccount } from "@/components/AccountProvider";
+import { useRegion } from "@/components/RegionProvider";
 import ProductRegistration from "@/components/ProductRegistration";
 import {
-  currencies,
   languages,
   savedItems,
   type AccountOrderStatus,
 } from "@/data/account";
+import { currencyLabel } from "@/lib/regions";
 import { countries } from "@/data/account";
 
 const statusTone: Record<AccountOrderStatus, string> = {
@@ -19,12 +20,6 @@ const statusTone: Record<AccountOrderStatus, string> = {
   Building: "bg-[#B45309]/10 text-[#B45309]",
   "In transit": "bg-[#5865F2]/10 text-[#4752C4]",
 };
-
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 0,
-});
 
 function ChevronIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
@@ -139,6 +134,7 @@ export default function ProfileView() {
     resetSettings,
     orders,
   } = useAccount();
+  const { region, formatMoney, formatDateTime, clock } = useRegion();
   const [saved, setSaved] = useState(false);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -155,6 +151,14 @@ export default function ProfileView() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const next = currencyLabel(region.currency);
+
+    if (settings.currency !== next) {
+      saveSettings({ currency: next });
+    }
+  }, [region.currency, settings.currency, saveSettings]);
 
   function markSaved() {
     setSaved(true);
@@ -233,7 +237,7 @@ export default function ProfileView() {
         </div>
       </div>
 
-      <section className="mt-8 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5 sm:p-6">
+      <section className="mt-8 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-5 sm:p-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#5865F2] text-lg font-bold text-white">
@@ -270,7 +274,7 @@ export default function ProfileView() {
       </section>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="min-w-0 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5 sm:p-6">
+        <section className="min-w-0 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-5 sm:p-6">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
               Recent orders
@@ -294,7 +298,7 @@ export default function ProfileView() {
             {orders.map((order) => (
               <li
                 key={order.id}
-                className="rounded-xl border border-[#dce3ee] bg-[#f8fafe] p-4"
+                className="rounded-xl border border-[#dce3ee] bg-[#f8fafe] shadow-card p-4"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -305,13 +309,16 @@ export default function ProfileView() {
                       {order.detail}
                     </p>
                     <p className="mt-1 text-[11px] text-[#80848e]">
-                      {order.id} · {order.date}
+                      {order.reference || order.id} ·{" "}
+                      {order.createdAt
+                        ? formatDateTime(order.createdAt)
+                        : order.date}
                     </p>
                   </div>
 
                   <div className="flex shrink-0 flex-col items-end gap-2">
                     <span className="text-sm font-bold text-[#2e3338]">
-                      {money.format(order.total)}
+                      {formatMoney(order.total)}
                     </span>
                     <span
                       className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
@@ -344,7 +351,7 @@ export default function ProfileView() {
         </section>
 
         <div className="min-w-0 space-y-6">
-          <section className="min-w-0 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5 sm:p-6">
+          <section className="min-w-0 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-5 sm:p-6">
             <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
               Saved for later
             </h2>
@@ -354,7 +361,7 @@ export default function ProfileView() {
                 <li key={item.id}>
                   <Link
                     href={item.href}
-                    className="group flex items-center justify-between gap-3 rounded-xl border border-[#dce3ee] bg-[#f8fafe] p-3 transition-colors hover:border-[#5865F2]/50"
+                    className="group flex items-center justify-between gap-3 rounded-xl border border-[#dce3ee] bg-[#f8fafe] shadow-card p-3 transition-colors hover:border-[#5865F2]/50 hover:shadow-card-hover"
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-semibold text-[#2e3338]">
@@ -365,7 +372,7 @@ export default function ProfileView() {
                       </span>
                     </span>
                     <span className="shrink-0 text-sm font-bold text-[#5865F2]">
-                      {money.format(item.price)}
+                      {formatMoney(item.price)}
                     </span>
                   </Link>
                 </li>
@@ -373,7 +380,7 @@ export default function ProfileView() {
             </ul>
           </section>
 
-          <section className="min-w-0 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5 sm:p-6">
+          <section className="min-w-0 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-5 sm:p-6">
             <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
               Account details
             </h2>
@@ -404,6 +411,18 @@ export default function ProfileView() {
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3">
+                <dt className="text-[#5c5e66]">Currency</dt>
+                <dd className="min-w-0 truncate font-semibold text-[#2e3338]">
+                  {currencyLabel(region.currency)} · {region.country}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-[#5c5e66]">Local time</dt>
+                <dd className="min-w-0 truncate font-semibold text-[#2e3338]">
+                  {clock.label} · {region.timeZone}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
                 <dt className="text-[#5c5e66]">Account ID</dt>
                 <dd className="min-w-0 truncate font-semibold text-[#2e3338]">
                   {user.id}
@@ -412,7 +431,7 @@ export default function ProfileView() {
             </dl>
           </section>
 
-          <section className="min-w-0 rounded-2xl border border-[#5865F2]/25 bg-[#eaf0f8] p-5 sm:p-6">
+          <section className="min-w-0 rounded-2xl border border-[#5865F2]/25 bg-[#eaf0f8] shadow-card p-5 sm:p-6">
             <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
               Need a hand?
             </h2>
@@ -448,7 +467,7 @@ export default function ProfileView() {
 
       <section
         id="settings"
-        className="mt-6 scroll-mt-28 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5 sm:p-6"
+        className="mt-6 scroll-mt-28 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-5 sm:p-6"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -472,7 +491,7 @@ export default function ProfileView() {
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <div className="rounded-xl border border-[#dce3ee] bg-[#f8fafe] p-4 sm:p-5">
+          <div className="rounded-xl border border-[#dce3ee] bg-[#f8fafe] shadow-card p-4 sm:p-5">
             <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-[#80848e]">
               Profile details
             </h3>
@@ -535,7 +554,7 @@ export default function ProfileView() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-[#dce3ee] bg-[#f8fafe] p-4 sm:p-5">
+          <div className="rounded-xl border border-[#dce3ee] bg-[#f8fafe] shadow-card p-4 sm:p-5">
             <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-[#80848e]">
               Delivery address
             </h3>
@@ -571,7 +590,7 @@ export default function ProfileView() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-[#dce3ee] bg-[#f8fafe] p-4 sm:p-5">
+          <div className="rounded-xl border border-[#dce3ee] bg-[#f8fafe] shadow-card p-4 sm:p-5">
             <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-[#80848e]">
               Notifications
             </h3>
@@ -607,7 +626,7 @@ export default function ProfileView() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-[#dce3ee] bg-[#f8fafe] p-4 sm:p-5">
+          <div className="rounded-xl border border-[#dce3ee] bg-[#f8fafe] shadow-card p-4 sm:p-5">
             <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-[#80848e]">
               Preferences
             </h3>
@@ -623,16 +642,23 @@ export default function ProfileView() {
                   markSaved();
                 }}
               />
-              <SelectField
-                id="settings-currency"
-                label="Currency"
-                value={settings.currency}
-                options={currencies}
-                onChange={(next) => {
-                  saveSettings({ currency: next });
-                  markSaved();
-                }}
-              />
+              <div>
+                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]">
+                  Currency &amp; delivery
+                </p>
+                <div className="rounded-xl border border-[#d2dbe8] bg-[#f8fafe] shadow-card px-3.5 py-3">
+                  <p className="text-sm font-semibold text-[#2e3338]">
+                    {currencyLabel(region.currency)} · {region.country}
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-[#5c5e66]">
+                    Prices, dates and delivery windows follow {region.country}.
+                    Your local time is {clock.label} ({region.timeZone}).
+                  </p>
+                </div>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-[#80848e]">
+                  Change your country above to switch currency and time zone.
+                </p>
+              </div>
             </div>
           </div>
         </div>

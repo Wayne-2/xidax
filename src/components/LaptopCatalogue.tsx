@@ -12,9 +12,9 @@ import {
   PaletteIcon,
 } from "@/components/LaptopIcons";
 import { useCart } from "@/components/CartProvider";
+import { useRegion } from "@/components/RegionProvider";
 import { cartItemFromLaptop, type CartItem } from "@/data/cart";
 import {
-  formatLaptopPrice,
   type Laptop,
   type LaptopCategory,
   type LaptopCategoryId,
@@ -222,6 +222,7 @@ export default function LaptopCatalogue({
   laptops,
   featured,
 }: LaptopCatalogueProps) {
+  const { formatMoney } = useRegion();
   const { items: cartItems, add: addToCart, remove: removeFromCart } =
     useCart();
   const [toast, setToast] = useState<{ id: number; message: string } | null>(
@@ -316,7 +317,7 @@ export default function LaptopCatalogue({
             {cartCount > 0 && (
               <span className="opacity-80">
                 {" · "}
-                {formatLaptopPrice(total)}
+                {formatMoney(total)}
               </span>
             )}
           </span>
@@ -331,7 +332,7 @@ export default function LaptopCatalogue({
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div
             data-reveal="up"
-            className="overflow-hidden rounded-3xl border border-[#dce3ee] bg-[#eaf0f8]"
+            className="overflow-hidden rounded-3xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card"
           >
             <div className="grid lg:grid-cols-[minmax(0,1fr)_440px]">
               <div
@@ -457,7 +458,7 @@ export default function LaptopCatalogue({
                       className="text-3xl font-bold tracking-tight"
                       style={{ color: featuredCategory.accent }}
                     >
-                      {formatLaptopPrice(featured.price)}
+                      {formatMoney(featured.price)}
                     </span>
                     <span className="ml-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#80848e]">
                       Free shipping

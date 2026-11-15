@@ -64,7 +64,7 @@ export default function BuildPreview({
     <div
       data-reveal="up"
       style={{ animationDelay: "80ms" }}
-      className="overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto [scrollbar-width:thin]"
+      className="overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto [scrollbar-width:thin]"
     >
       <div className="relative flex min-h-[420px] items-center justify-center overflow-hidden bg-[#dce3ee] p-6 sm:min-h-[500px] sm:p-10 lg:min-h-[560px]">
         <div

@@ -23,24 +23,24 @@ export default function AuthPanel({ mode }: { mode: AuthMode }) {
   const isSignIn = mode === "signin";
 
   return (
-    <main className="relative flex-1">
+    <main className="relative flex flex-1 flex-col">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(88,101,242,0.12),transparent_60%)]"
       />
 
-      <Link
-        href="/"
-        className="absolute left-4 top-6 inline-flex items-center gap-1.5 text-xs font-semibold text-[#5c5e66] transition-colors hover:text-[#5865F2] sm:left-8"
-      >
-        <BackIcon />
-        Back to store
-      </Link>
-
-      <div className="relative mx-auto flex min-h-full w-full max-w-md flex-col justify-center px-4 py-12 sm:px-6">
+      <div className="relative mx-auto flex w-full max-w-md flex-1 flex-col px-4 pb-12 pt-5 sm:px-6 sm:pt-8">
         <Link
           href="/"
-          className="mx-auto flex items-center justify-center transition-opacity hover:opacity-80"
+          className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[#dce3ee] bg-[#eaf0f8] px-3.5 py-2 text-xs font-semibold text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338] sm:px-4"
+        >
+          <BackIcon />
+          Back to store
+        </Link>
+
+        <Link
+          href="/"
+          className="mx-auto mt-8 flex items-center justify-center transition-opacity hover:opacity-80 sm:mt-10"
         >
           <Image
             src="/Genericpcs.png"
@@ -63,7 +63,7 @@ export default function AuthPanel({ mode }: { mode: AuthMode }) {
           </p>
         </div>
 
-        <div className="mt-8 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5 sm:p-7">
+        <div className="mt-8 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5 shadow-card sm:p-7">
           <AuthForm mode={mode} />
         </div>
 

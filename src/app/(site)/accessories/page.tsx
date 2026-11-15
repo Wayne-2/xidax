@@ -3,6 +3,7 @@ import Link from "next/link";
 import AccessoriesCatalogue from "@/components/AccessoriesCatalogue";
 import RevealObserver from "@/components/RevealObserver";
 import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
+import Money from "@/components/Money";
 import { accessoryCategories, accessories } from "@/data/accessories";
 
 export const metadata: Metadata = {
@@ -80,7 +81,7 @@ export default function AccessoriesPage() {
                   {accessoryCategories.length} categories
                 </span>
                 <span className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-xs font-semibold text-[#5c5e66]">
-                  Free shipping over $99
+                  Free shipping over <Money usd={99} />
                 </span>
               </div>
             </div>
@@ -88,7 +89,7 @@ export default function AccessoriesPage() {
             <div
               data-reveal="up"
               style={{ animationDelay: "120ms" }}
-              className="rounded-2xl border border-[#d2dbe8] bg-[#eaf0f8] p-5 sm:p-6"
+              className="rounded-2xl border border-[#d2dbe8] bg-[#eaf0f8] shadow-card p-5 sm:p-6"
             >
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#5865F2]">
                 Setup essentials
@@ -102,18 +103,25 @@ export default function AccessoriesPage() {
               </p>
               <ul className="mt-4 space-y-2 border-t border-[#d2dbe8] pt-4">
                 {[
-                  "Free shipping over $99",
-                  "30-day easy returns",
-                  "Lifetime support",
+                  {
+                    id: "shipping",
+                    node: (
+                      <>
+                        Free shipping over <Money usd={99} />
+                      </>
+                    ),
+                  },
+                  { id: "returns", node: "30-day easy returns" },
+                  { id: "support", node: "Lifetime support" },
                 ].map((item) => (
                   <li
-                    key={item}
+                    key={item.id}
                     className="flex items-center gap-2 text-xs font-medium text-[#5c5e66]"
                   >
                     <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#5865F2]/10 text-[#5865F2]">
                       <CheckIcon className="h-2.5 w-2.5" />
                     </span>
-                    {item}
+                    {item.node}
                   </li>
                 ))}
               </ul>
@@ -131,7 +139,7 @@ export default function AccessoriesPage() {
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <div
             data-reveal="up"
-            className="flex flex-col gap-6 rounded-2xl border border-[#d2dbe8] bg-[#f8fafe] p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between"
+            className="flex flex-col gap-6 rounded-2xl border border-[#d2dbe8] bg-[#f8fafe] shadow-card p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between"
           >
             <div className="max-w-xl">
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#5865F2]">

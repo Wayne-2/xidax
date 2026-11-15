@@ -72,7 +72,7 @@ export default function DirectEmailForm() {
 
   if (sent) {
     return (
-      <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-8 text-center">
+      <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-8 text-center">
         <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#16A34A]/10 text-[#15803D]">
           <CheckIcon className="h-7 w-7" />
         </span>
@@ -103,7 +103,7 @@ export default function DirectEmailForm() {
     <form
       onSubmit={handleSubmit}
       noValidate
-      className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-6 sm:p-8"
+      className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-6 sm:p-8"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-xl font-bold tracking-tight text-[#2e3338]">

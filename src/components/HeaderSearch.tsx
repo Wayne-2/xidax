@@ -9,6 +9,7 @@ import {
 } from "@/data/accessories";
 import { laptops, laptopCategories } from "@/data/laptops";
 import { prebuilds } from "@/data/prebuilds";
+import { useRegion } from "@/components/RegionProvider";
 
 type SearchItem = {
   id: string;
@@ -33,12 +34,6 @@ const suggestions = [
   "Mice",
   "RTX 4060",
 ];
-
-const priceFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 0,
-});
 
 function SearchIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
@@ -90,6 +85,7 @@ function scoreItem(item: SearchItem, query: string) {
 }
 
 export default function HeaderSearch({ open, onOpenChange }: HeaderSearchProps) {
+  const { formatMoney } = useRegion();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -327,7 +323,7 @@ export default function HeaderSearch({ open, onOpenChange }: HeaderSearchProps) 
                             </span>
                             {item.price !== undefined && (
                               <span className="shrink-0 text-xs font-semibold text-[#5865F2]">
-                                {priceFormatter.format(item.price)}
+                                {formatMoney(item.price)}
                               </span>
                             )}
                           </button>

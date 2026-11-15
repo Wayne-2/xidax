@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "@fontsource-variable/oxanium";
 import { AccountProvider } from "@/components/AccountProvider";
 import { CartProvider } from "@/components/CartProvider";
+import { RegionProvider } from "@/components/RegionProvider";
 import ScrollEffects from "@/components/ScrollEffects";
 import SiteBackground from "@/components/SiteBackground";
 import "./globals.css";
@@ -25,7 +26,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ScrollEffects />
         <SiteBackground />
         <AccountProvider>
-          <CartProvider>{children}</CartProvider>
+          <RegionProvider>
+            <CartProvider>{children}</CartProvider>
+          </RegionProvider>
         </AccountProvider>
       </body>
     </html>

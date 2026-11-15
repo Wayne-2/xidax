@@ -66,8 +66,6 @@ export const languages = [
   "Spanish",
 ];
 
-export const currencies = ["USD ($)", "NGN (₦)", "GBP (£)", "EUR (€)"];
-
 export type AccountOrderStatus = "Delivered" | "Building" | "In transit";
 
 export type AccountOrder = {

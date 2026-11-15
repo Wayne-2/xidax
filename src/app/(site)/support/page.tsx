@@ -89,7 +89,7 @@ export default function SupportPage() {
             <div
               data-reveal="up"
               style={{ animationDelay: "120ms" }}
-              className="rounded-2xl border border-[#d2dbe8] bg-[#eaf0f8] p-5 sm:p-6"
+              className="rounded-2xl border border-[#d2dbe8] bg-[#eaf0f8] shadow-card p-5 sm:p-6"
             >
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#5865F2]">
                 Before you write

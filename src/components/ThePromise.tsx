@@ -78,7 +78,7 @@ export default function ThePromise() {
         <div
           data-reveal="scale"
           style={{ animationDelay: "180ms" }}
-          className="relative aspect-square overflow-hidden rounded-lg border border-[#dce3ee] bg-[#eaf0f8]"
+          className="relative aspect-square overflow-hidden rounded-lg border border-[#dce3ee] bg-[#eaf0f8] shadow-card"
         >
           <Parallax speed={0.05} className="absolute -inset-y-12 inset-x-0">
             <Image

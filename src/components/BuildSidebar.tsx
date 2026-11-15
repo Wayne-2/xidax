@@ -3,11 +3,11 @@
 import Link from "next/link";
 import {
   buildPaths,
-  formatPrice,
   type BuildModelId,
   type BuildPart,
 } from "@/data/customBuild";
 import { CheckIcon, DesktopIcon } from "@/components/BuildIcons";
+import { useRegion } from "@/components/RegionProvider";
 import BuildModelSelect from "@/components/BuildModelSelect";
 
 type BuildSidebarProps = {
@@ -29,15 +29,16 @@ export default function BuildSidebar({
   className = "",
   id,
 }: BuildSidebarProps) {
+  const { formatMoney } = useRegion();
   const desktopPath =
     buildPaths.find((item) => item.id === "desktop") ?? buildPaths[0];
 
   return (
     <aside
       id={id}
-      className={`rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-4 sm:p-5 ${className}`}
+      className={`rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-4 sm:p-5 ${className}`}
     >
-      <div className="hidden items-center gap-3 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-3 py-2.5 lg:flex">
+      <div className="hidden items-center gap-3 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] shadow-card px-3 py-2.5 lg:flex">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#5865F2]/10 text-[#5865F2]">
           <DesktopIcon className="h-4 w-4" />
         </span>
@@ -116,7 +117,7 @@ export default function BuildSidebar({
                       </span>
                     </span>
                     <span className="shrink-0 text-[11px] font-semibold text-[#5865F2]">
-                      {formatPrice(part.price)}
+                      {formatMoney(part.price)}
                     </span>
                   </span>
                   <span className="mt-1 hidden text-xs leading-relaxed text-[#5c5e66] lg:block">
@@ -131,7 +132,7 @@ export default function BuildSidebar({
 
       <Link
         href="/laptops"
-        className="mt-6 hidden items-center justify-between gap-3 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-3.5 py-3 transition-colors hover:border-[#5865F2]/50 lg:flex"
+        className="mt-6 hidden items-center justify-between gap-3 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] shadow-card px-3.5 py-3 transition-colors hover:border-[#5865F2]/50 lg:flex hover:shadow-card-hover"
       >
         <span>
           <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-[#80848e]">

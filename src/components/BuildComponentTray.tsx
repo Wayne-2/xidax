@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { formatPrice, type BuildPart } from "@/data/customBuild";
+import { type BuildPart } from "@/data/customBuild";
 import { CheckIcon, ComponentIcon } from "@/components/BuildIcons";
+import { useRegion } from "@/components/RegionProvider";
 
 type HoveredComponent = {
   part: BuildPart;
@@ -168,6 +169,7 @@ function ComponentPreviewPopover({
   onMouseLeave: () => void;
 }) {
   const { part, rect } = hovered;
+  const { formatMoney } = useRegion();
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
   const width = Math.min(320, viewportWidth - 24);
@@ -225,7 +227,7 @@ function ComponentPreviewPopover({
           </h3>
         </div>
         <span className="shrink-0 text-base font-bold text-[#5865F2]">
-          {formatPrice(part.price)}
+          {formatMoney(part.price)}
         </span>
       </div>
 

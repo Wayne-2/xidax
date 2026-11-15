@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import { CartIcon } from "@/components/AccessoryIcons";
 import { UserIcon } from "@/components/SupportIcons";
 import { useCart } from "@/components/CartProvider";
+import RegionMenu from "@/components/RegionMenu";
 import { navItems } from "@/data/navigation";
 
 type MobileNavProps = {
@@ -157,17 +158,22 @@ export default function MobileNav({
               </li>
             </ul>
 
-            <div className="flex items-center justify-between gap-3 border-t border-[#d2dbe8] py-4 pl-4">
+            <div className="border-t border-[#d2dbe8] py-4 pl-4 pr-4">
               <a
                 href="tel:+234907649842"
                 className="text-sm font-semibold text-[#5c5e66] transition-colors hover:text-[#5865F2]"
               >
                 +234-907649842
               </a>
+
+              <div className="mt-3">
+                <RegionMenu variant="inline" />
+              </div>
+
               <Link
                 href="/support"
                 onClick={() => onOpenChange(false)}
-                className="shimmer inline-flex h-9 items-center justify-center rounded-lg bg-[#5865F2] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
+                className="shimmer mt-3 inline-flex h-11 w-full items-center justify-center rounded-lg bg-[#5865F2] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
               >
                 Get support
               </Link>

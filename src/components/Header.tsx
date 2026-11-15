@@ -7,6 +7,7 @@ import { useAccount } from "@/components/AccountProvider";
 import { useCart } from "@/components/CartProvider";
 import { CartIcon } from "@/components/AccessoryIcons";
 import HeaderSearch from "@/components/HeaderSearch";
+import RegionMenu from "@/components/RegionMenu";
 import MobileNav from "@/components/MobileNav";
 import NavLinks from "@/components/NavLinks";
 
@@ -70,6 +71,7 @@ export default function Header() {
               }
             }}
           />
+          <RegionMenu className="hidden sm:block" />
           <Link
             href={accountHref}
             aria-label={user ? "Your profile" : "Sign in"}

@@ -9,14 +9,37 @@ import PrebuildFilters, {
 } from "@/components/PrebuildFilters";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/components/AccessoryIcons";
 import type { Prebuild } from "@/data/prebuilds";
+import { useRegion } from "@/components/RegionProvider";
 
-const priceRanges = [
-  { value: "under-1500", label: "Under $1,500", min: 0, max: 1499 },
-  { value: "1500-2500", label: "$1,500 - $2,500", min: 1500, max: 2500 },
-  { value: "2500-3999", label: "$2,500 - $3,999", min: 2501, max: 3999 },
+type PriceRange = {
+  value: string;
+  label: (format: (amountUsd: number) => string) => string;
+  min: number;
+  max: number;
+};
+
+const priceRanges: PriceRange[] = [
+  {
+    value: "under-1500",
+    label: (format) => `Under ${format(1500)}`,
+    min: 0,
+    max: 1499,
+  },
+  {
+    value: "1500-2500",
+    label: (format) => `${format(1500)} - ${format(2500)}`,
+    min: 1500,
+    max: 2500,
+  },
+  {
+    value: "2500-3999",
+    label: (format) => `${format(2500)} - ${format(3999)}`,
+    min: 2501,
+    max: 3999,
+  },
   {
     value: "4000-plus",
-    label: "$4,000+",
+    label: (format) => `${format(4000)}+`,
     min: 4000,
     max: Number.POSITIVE_INFINITY,
   },
@@ -32,11 +55,14 @@ const brandOptions = [
   { value: "intel", label: "Intel - Core" },
 ];
 
-const refinementOptions: { value: RefinementFilter; label: string }[] = [
-  { value: "all", label: "Everything" },
-  { value: "in-stock", label: "In stock only" },
-  { value: "flagship", label: "Flagship only" },
-  { value: "under-2k", label: "Under $2,000" },
+const refinementOptions: {
+  value: RefinementFilter;
+  label: (format: (amountUsd: number) => string) => string;
+}[] = [
+  { value: "all", label: () => "Everything" },
+  { value: "in-stock", label: () => "In stock only" },
+  { value: "flagship", label: () => "Flagship only" },
+  { value: "under-2k", label: (format) => `Under ${format(2000)}` },
 ];
 
 function matchesPrice(price: number, rangeValue: string) {
@@ -100,6 +126,7 @@ export default function PrebuildsBrowser({
 }: {
   products: Prebuild[];
 }) {
+  const { formatMoney } = useRegion();
   const [refinement, setRefinement] = useState<RefinementFilter>("all");
   const [priceFilters, setPriceFilters] = useState<string[]>([]);
   const [stockFilters, setStockFilters] = useState<string[]>([]);
@@ -234,7 +261,7 @@ export default function PrebuildsBrowser({
                 onClick={() => setFiltersOpen((open) => !open)}
                 aria-expanded={filtersOpen}
                 aria-controls="prebuild-filters"
-                className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] px-5 py-4 text-left transition-colors hover:border-[#b8c4d6] lg:hidden"
+                className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card px-5 py-4 text-left transition-colors hover:border-[#b8c4d6] lg:hidden hover:shadow-card-hover"
               >
                 <span className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
                   Filters
@@ -259,7 +286,7 @@ export default function PrebuildsBrowser({
               >
                 <div
                   data-reveal="up"
-                  className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5 sm:p-6"
+                  className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-5 sm:p-6"
                 >
                   <div className="flex items-center justify-between gap-4">
                     <h2 className="hidden text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338] lg:block">
@@ -291,7 +318,7 @@ export default function PrebuildsBrowser({
                               onChange={() => setRefinement(option.value)}
                               className="h-4 w-4 shrink-0 accent-[#5865F2]"
                             />
-                            <span>{option.label}</span>
+                            <span>{option.label(formatMoney)}</span>
                           </label>
                         ))}
                       </FilterGroup>
@@ -301,7 +328,7 @@ export default function PrebuildsBrowser({
                       {priceRanges.map((range) => (
                         <FilterCheckbox
                           key={range.value}
-                          label={range.label}
+                          label={range.label(formatMoney)}
                           checked={priceFilters.includes(range.value)}
                           onChange={() =>
                             toggleValue(

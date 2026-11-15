@@ -5,11 +5,8 @@ import Image from "next/image";
 import LaptopArtwork from "@/components/LaptopArtwork";
 import { CartIcon } from "@/components/AccessoryIcons";
 import { CheckIcon, ChevronDownIcon } from "@/components/BuildIcons";
-import {
-  formatLaptopPrice,
-  type Laptop,
-  type LaptopCategory,
-} from "@/data/laptops";
+import { useRegion } from "@/components/RegionProvider";
+import { type Laptop, type LaptopCategory } from "@/data/laptops";
 
 type LaptopCardProps = {
   laptop: Laptop;
@@ -24,6 +21,7 @@ export default function LaptopCard({
   added,
   onToggle,
 }: LaptopCardProps) {
+  const { formatMoney } = useRegion();
   const accent = category.accent;
   const inStock = laptop.stock === "in-stock";
   const [expanded, setExpanded] = useState(false);
@@ -63,7 +61,7 @@ export default function LaptopCard({
   return (
     <article
       data-laptop-card
-      className={`group flex flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] transition-colors hover:border-[#5865F2]/60 ${
+      className={`group flex flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card transition-colors hover:border-[#5865F2]/60 hover:shadow-card-hover ${
         expanded ? "aspect-auto sm:aspect-auto" : "aspect-[1/2] sm:aspect-auto"
       }`}
     >
@@ -163,7 +161,7 @@ export default function LaptopCard({
           ))}
         </ul>
 
-        <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] p-4">
+        <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] shadow-card p-4">
           {laptop.specs.map((spec) => (
             <div key={spec.label} className="min-w-0">
               <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
@@ -191,7 +189,7 @@ export default function LaptopCard({
               className="text-2xl font-bold tracking-tight"
               style={{ color: accent }}
             >
-              {formatLaptopPrice(laptop.price)}
+              {formatMoney(laptop.price)}
             </span>
             <span className="ml-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#80848e]">
               Free shipping

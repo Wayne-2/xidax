@@ -152,7 +152,7 @@ export default function LiveChatPanel({ open, onClose }: LiveChatPanelProps) {
         ))}
 
         {typing && (
-          <p className="self-start rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] px-3.5 py-2.5 text-sm text-[#5c5e66]">
+          <p className="self-start rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card px-3.5 py-2.5 text-sm text-[#5c5e66]">
             Typing…
           </p>
         )}

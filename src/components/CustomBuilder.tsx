@@ -132,7 +132,7 @@ export default function CustomBuilder() {
             <div
               data-reveal="up"
               style={{ animationDelay: "120ms" }}
-              className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5"
+              className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-5"
             >
               <label
                 htmlFor="project-name"

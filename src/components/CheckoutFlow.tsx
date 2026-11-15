@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
 import { useAccount } from "@/components/AccountProvider";
 import { useCart } from "@/components/CartProvider";
+import { useRegion } from "@/components/RegionProvider";
 import {
   createCheckoutSession,
   remotePaymentsEnabled,
@@ -19,12 +20,6 @@ import {
   type CryptoNetwork,
   type PaymentMethod,
 } from "@/lib/payments";
-
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 2,
-});
 
 function StepBadge({
   index,
@@ -65,14 +60,16 @@ export default function CheckoutFlow() {
   const router = useRouter();
   const { items, subtotal, ready } = useCart();
   const { user } = useAccount();
+  const { region, formatMoney, formatBase, clock, setCountry: setRegionCountry } =
+    useRegion();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [country, setCountry] = useState("");
+  const [country, setCountry] = useState<string | null>(null);
   const [postalCode, setPostalCode] = useState("");
-  const [method, setMethod] = useState<PaymentMethod>("crypto");
+  const [method, setMethod] = useState<PaymentMethod | null>(null);
   const [network, setNetwork] = useState<CryptoNetwork>("usdt");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -81,6 +78,8 @@ export default function CheckoutFlow() {
 
   const shipping = subtotal >= 99 || subtotal === 0 ? 0 : 19;
   const total = subtotal + shipping;
+  const selectedMethod: PaymentMethod = method ?? region.payment;
+  const countryValue = country ?? user?.country ?? region.country;
 
   useEffect(() => {
     if (!user) return;
@@ -151,7 +150,7 @@ export default function CheckoutFlow() {
       next.email = "That email address does not look right.";
     }
     if (!phone.trim()) next.phone = "Add a phone number for delivery.";
-    if (!country.trim()) next.country = "Choose the delivery country.";
+    if (!countryValue.trim()) next.country = "Choose the delivery country.";
     if (!postalCode.trim()) next.postalCode = "Add the delivery postal code.";
 
     setErrors(next);
@@ -165,9 +164,9 @@ export default function CheckoutFlow() {
     try {
       const created = await createCheckoutSession({
         lines,
-        details: { name, email, phone, country, postalCode },
-        method,
-        network: method === "crypto" ? network : undefined,
+        details: { name, email, phone, country: countryValue, postalCode },
+        method: selectedMethod,
+        network: selectedMethod === "crypto" ? network : undefined,
         subtotal,
         shipping,
         total,
@@ -216,13 +215,20 @@ export default function CheckoutFlow() {
             CHECKOUT
           </h1>
         </div>
-        <p className="text-sm font-medium text-[#5c5e66]">
-          {items.length} {items.length === 1 ? "item" : "items"} ·{" "}
-          {money.format(total)}
-        </p>
+        <div className="text-sm font-medium text-[#5c5e66]">
+          <p>
+            {items.length} {items.length === 1 ? "item" : "items"} ·{" "}
+            {formatMoney(total)}
+          </p>
+          {region.currency !== "USD" && (
+            <p className="mt-0.5 text-xs text-[#80848e]">
+              {formatBase(total)} charged in USD
+            </p>
+          )}
+        </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap items-center gap-4 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] px-4 py-3">
+      <div className="mt-6 flex flex-wrap items-center gap-4 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card px-4 py-3">
         <StepBadge index={1} label="Details" active={step === 1} done={step > 1} />
         <span className="hidden h-px w-8 bg-[#d2dbe8] sm:block" />
         <StepBadge index={2} label="Payment" active={step === 2} done={step > 2} />
@@ -237,7 +243,7 @@ export default function CheckoutFlow() {
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
         <div className="min-w-0 space-y-4">
           {step === 1 && (
-            <section className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5 sm:p-6">
+            <section className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-5 sm:p-6">
               <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
                 Delivery &amp; contact
               </h2>
@@ -316,7 +322,7 @@ export default function CheckoutFlow() {
                   </label>
                   <input
                     id="checkout-country"
-                    value={country}
+                    value={countryValue}
                     onChange={(event) => setCountry(event.target.value)}
                     placeholder="Nigeria"
                     className={`${fieldClass} ${
@@ -328,6 +334,21 @@ export default function CheckoutFlow() {
                       {errors.country}
                     </p>
                   )}
+                  {countryValue.trim() &&
+                    countryValue.trim().toLowerCase() !==
+                      region.country.toLowerCase() && (
+                      <p className="mt-1.5 text-[11px] leading-relaxed text-[#80848e]">
+                        Prices are shown for {region.country}.{" "}
+                        <button
+                          type="button"
+                          onClick={() => setRegionCountry(countryValue.trim())}
+                          className="font-semibold text-[#5865F2] underline-offset-2 transition-colors hover:text-[#4752C4] hover:underline"
+                        >
+                          Switch to {countryValue.trim()}
+                        </button>{" "}
+                        for local currency and delivery times.
+                      </p>
+                    )}
                 </div>
 
                 <div>
@@ -370,7 +391,7 @@ export default function CheckoutFlow() {
           )}
 
           {step === 2 && (
-            <section className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5 sm:p-6">
+            <section className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-5 sm:p-6">
               <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
                 Payment method
               </h2>
@@ -381,7 +402,7 @@ export default function CheckoutFlow() {
 
               <div className="mt-5 space-y-3">
                 {paymentMethods.map((option) => {
-                  const active = method === option.value;
+                  const active = selectedMethod === option.value;
 
                   return (
                     <button
@@ -396,10 +417,8 @@ export default function CheckoutFlow() {
                       }`}
                     >
                       <span
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold ${
-                          active
-                            ? "bg-[#5865F2] text-white"
-                            : "bg-[#eaf0f8] text-[#5c5e66]"
+                        className={`shrink-0 pt-0.5 text-[11px] font-bold uppercase tracking-[0.2em] ${
+                          active ? "text-[#5865F2]" : "text-[#80848e]"
                         }`}
                       >
                         {option.value === "crypto" ? "01" : "02"}
@@ -426,7 +445,7 @@ export default function CheckoutFlow() {
                 })}
               </div>
 
-              {method === "crypto" && (
+              {selectedMethod === "crypto" && (
                 <div className="mt-6">
                   <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]">
                     Network
@@ -487,7 +506,7 @@ export default function CheckoutFlow() {
           )}
 
           {step === 3 && session && (
-            <section className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5 sm:p-6">
+            <section className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-5 sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
@@ -512,7 +531,7 @@ export default function CheckoutFlow() {
               </div>
 
               {session.gatewayWarning && (
-                <div className="mt-4 rounded-xl border border-[#B45309]/40 bg-[#B45309]/10 p-4">
+                <div className="mt-4 rounded-xl border border-[#B45309]/40 bg-[#B45309]/10 shadow-card p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#B45309]">
                     Payment gateway notice
                   </p>
@@ -523,7 +542,7 @@ export default function CheckoutFlow() {
               )}
 
               {session.status === "submitted" && (
-                <div className="mt-4 rounded-xl border border-[#15803D]/35 bg-[#15803D]/10 p-4">
+                <div className="mt-4 rounded-xl border border-[#15803D]/35 bg-[#15803D]/10 shadow-card p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#15803D]">
                     Payment noted
                   </p>
@@ -537,7 +556,7 @@ export default function CheckoutFlow() {
                 </div>
               )}
 
-              <div className="mt-5 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] p-4">
+              <div className="mt-5 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] shadow-card p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
                   Amount due
                 </p>
@@ -547,6 +566,11 @@ export default function CheckoutFlow() {
                     {session.instructions.billingCurrency}
                   </span>
                 </p>
+                {region.currency !== "USD" && (
+                  <p className="mt-1 text-xs font-semibold text-[#2e3338]">
+                    ≈ {formatMoney(session.total)}
+                  </p>
+                )}
                 {instructions?.method === "crypto" && (
                   <p className="mt-1 text-xs leading-relaxed text-[#5c5e66]">
                     bachs converts this to {instructions.currency} on the{" "}
@@ -578,7 +602,7 @@ export default function CheckoutFlow() {
                   <ArrowIcon className="h-4 w-4" />
                 </a>
               ) : (
-                <p className="mt-4 rounded-xl border border-[#B45309]/40 bg-[#B45309]/10 px-4 py-3 text-xs leading-relaxed text-[#4e5058]">
+                <p className="mt-4 rounded-xl border border-[#B45309]/40 bg-[#B45309]/10 shadow-card px-4 py-3 text-xs leading-relaxed text-[#4e5058]">
                   The bachs checkout link is unavailable for this order yet.
                   Send the amount above using the reference {session.reference}.
                 </p>
@@ -656,7 +680,7 @@ export default function CheckoutFlow() {
           )}
         </div>
 
-        <aside className="min-w-0 rounded-2xl border border-[#5865F2]/25 bg-[#eaf0f8] p-5 sm:p-6 lg:sticky lg:top-24">
+        <aside className="min-w-0 rounded-2xl border border-[#5865F2]/25 bg-[#eaf0f8] shadow-card p-5 sm:p-6 lg:sticky lg:top-24">
           <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
             Order summary
           </h2>
@@ -672,11 +696,11 @@ export default function CheckoutFlow() {
                     {item.name}
                   </span>
                   <span className="block text-xs text-[#5c5e66]">
-                    {item.quantity} × {money.format(item.price)}
+                    {item.quantity} × {formatMoney(item.price)}
                   </span>
                 </span>
                 <span className="shrink-0 font-semibold text-[#2e3338]">
-                  {money.format(item.price * item.quantity)}
+                  {formatMoney(item.price * item.quantity)}
                 </span>
               </li>
             ))}
@@ -686,26 +710,40 @@ export default function CheckoutFlow() {
             <div className="flex items-center justify-between gap-3">
               <dt className="text-[#5c5e66]">Subtotal</dt>
               <dd className="font-semibold text-[#2e3338]">
-                {money.format(subtotal)}
+                {formatMoney(subtotal)}
               </dd>
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="text-[#5c5e66]">Shipping</dt>
               <dd className="font-semibold text-[#2e3338]">
-                {shipping === 0 ? "Free" : money.format(shipping)}
+                {shipping === 0 ? "Free" : formatMoney(shipping)}
               </dd>
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-[#d2dbe8] pt-3">
               <dt className="text-base font-bold text-[#2e3338]">Total</dt>
-              <dd className="text-xl font-bold tracking-tight text-[#2e3338]">
-                {money.format(total)}
+              <dd className="text-right">
+                <span className="block text-xl font-bold tracking-tight text-[#2e3338]">
+                  {formatMoney(total)}
+                </span>
+                {region.currency !== "USD" && (
+                  <span className="mt-0.5 block text-[11px] text-[#80848e]">
+                    {formatBase(total)} charged in USD
+                  </span>
+                )}
               </dd>
             </div>
           </dl>
 
           <p className="mt-4 text-[11px] leading-relaxed text-[#80848e]">
+            {region.currency !== "USD"
+              ? `${formatBase(total)} is charged at checkout. `
+              : ""}
             Taxes are calculated and shown on your invoice. Every machine
             includes a 3-year warranty and lifetime labour coverage.
+          </p>
+
+          <p className="mt-2 text-[11px] leading-relaxed text-[#80848e]">
+            {region.paymentNote} Local time {clock.label} ({region.timeZone}).
           </p>
         </aside>
       </div>

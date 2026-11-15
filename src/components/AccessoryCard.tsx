@@ -1,11 +1,8 @@
 import AccessoryArtwork from "@/components/AccessoryArtwork";
 import { CartIcon } from "@/components/AccessoryIcons";
 import { CheckIcon } from "@/components/BuildIcons";
-import {
-  formatAccessoryPrice,
-  type Accessory,
-  type AccessoryCategory,
-} from "@/data/accessories";
+import { useRegion } from "@/components/RegionProvider";
+import { type Accessory, type AccessoryCategory } from "@/data/accessories";
 
 type AccessoryCardProps = {
   category: AccessoryCategory;
@@ -20,13 +17,14 @@ export default function AccessoryCard({
   added,
   onToggle,
 }: AccessoryCardProps) {
+  const { formatMoney } = useRegion();
   const accent = category.accent;
   const badgeColor = product.badge === "Sale" ? "#B91C1C" : accent;
 
   return (
     <article
       data-accessory-card
-      className="group flex h-full w-[82%] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] transition-colors hover:border-[#5865F2]/60 sm:w-[47%] lg:w-[31.5%] xl:w-[24%]"
+      className="group flex h-full w-[82%] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card transition-colors hover:border-[#5865F2]/60 sm:w-[47%] lg:w-[31.5%] xl:w-[24%] hover:shadow-card-hover"
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-[#dce3ee]">
         <div
@@ -102,7 +100,7 @@ export default function AccessoryCard({
         <div className="mt-auto flex flex-wrap items-end justify-between gap-x-3 gap-y-1 pt-2">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="text-lg font-bold" style={{ color: accent }}>
-              {formatAccessoryPrice(product.price)}
+              {formatMoney(product.price)}
             </span>
             <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#80848e]">
               Free ship

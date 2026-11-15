@@ -1,12 +1,13 @@
 "use client";
 
-import { formatPrice, type BuildPart } from "@/data/customBuild";
+import { type BuildPart } from "@/data/customBuild";
 import {
   ArrowIcon,
   CheckIcon,
   ComponentIcon,
   XIcon,
 } from "@/components/BuildIcons";
+import { useRegion } from "@/components/RegionProvider";
 
 type BuildSummaryProps = {
   projectName: string;
@@ -40,6 +41,7 @@ export default function BuildSummary({
   onRemovePart,
   onReset,
 }: BuildSummaryProps) {
+  const { formatMoney } = useRegion();
   const selectedCount = selectedParts.length;
   const remaining = partsCount - selectedCount;
   const progress =
@@ -51,7 +53,7 @@ export default function BuildSummary({
       style={{ animationDelay: "160ms" }}
       className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto [scrollbar-width:thin]"
     >
-      <div className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-4 sm:p-5">
+      <div className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#80848e]">
             Build Summary
@@ -117,7 +119,7 @@ export default function BuildSummary({
         </p>
       </div>
 
-      <div className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-4 sm:p-5">
+      <div className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#80848e]">
             Your Components
@@ -132,7 +134,7 @@ export default function BuildSummary({
             {selectedParts.map((part) => (
               <li
                 key={part.id}
-                className="rounded-xl border border-[#dce3ee] bg-[#f8fafe] p-3"
+                className="rounded-xl border border-[#dce3ee] bg-[#f8fafe] shadow-card p-3"
               >
                 <div className="flex items-start gap-3">
                   <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#d2dbe8] bg-gradient-to-br from-[#dce3ee] via-[#eaf0f8] to-[#d2dbe8]">
@@ -154,7 +156,7 @@ export default function BuildSummary({
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5">
                         <span className="text-xs font-bold text-[#5865F2]">
-                          {formatPrice(part.price)}
+                          {formatMoney(part.price)}
                         </span>
                         <button
                           type="button"
@@ -200,7 +202,7 @@ export default function BuildSummary({
         )}
       </div>
 
-      <div className="hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-4 sm:p-5 lg:block">
+      <div className="hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-4 sm:p-5 lg:block">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#80848e]">
           Build Notes
         </h2>
@@ -228,7 +230,7 @@ export default function BuildSummary({
               Estimated total
             </p>
             <p className="mt-1 text-2xl font-bold tracking-tight text-[#2e3338]">
-              {formatPrice(total)}
+              {formatMoney(total)}
             </p>
           </div>
           <p className="pb-1 text-[11px] text-[#5c5e66]">

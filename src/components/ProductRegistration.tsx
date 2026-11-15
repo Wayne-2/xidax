@@ -134,7 +134,7 @@ export default function ProductRegistration() {
   return (
     <section
       id="registered-products"
-      className="mt-6 scroll-mt-28 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5 sm:p-6"
+      className="mt-6 scroll-mt-28 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-5 sm:p-6"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -154,7 +154,7 @@ export default function ProductRegistration() {
       </div>
 
       {issuedProduct && (
-        <div className="mt-5 rounded-xl border border-[#16A34A]/40 bg-[#16A34A]/10 p-4">
+        <div className="mt-5 rounded-xl border border-[#16A34A]/40 bg-[#16A34A]/10 shadow-card p-4">
           <p className="flex items-center gap-2 text-sm font-semibold text-[#15803D]">
             <CheckIcon className="h-4 w-4" />
             {issuedProduct.name} is registered
@@ -197,7 +197,7 @@ export default function ProductRegistration() {
       <form
         onSubmit={handleSubmit}
         noValidate
-        className="mt-5 rounded-xl border border-[#dce3ee] bg-[#f8fafe] p-4 sm:p-5"
+        className="mt-5 rounded-xl border border-[#dce3ee] bg-[#f8fafe] shadow-card p-4 sm:p-5"
       >
         <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-[#80848e]">
           Register a machine
@@ -336,7 +336,7 @@ export default function ProductRegistration() {
           {products.map((product) => (
             <li
               key={product.id}
-              className="rounded-xl border border-[#dce3ee] bg-[#f8fafe] p-4"
+              className="rounded-xl border border-[#dce3ee] bg-[#f8fafe] shadow-card p-4"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-start gap-3">

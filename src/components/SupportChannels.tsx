@@ -19,7 +19,7 @@ export default function SupportChannels() {
             key={channel.id}
             data-reveal="up"
             style={{ animationDelay: `${index * 120}ms` }}
-            className="flex flex-col rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-6 transition-colors hover:border-[#5865F2]/50"
+            className="flex flex-col rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-6 transition-colors hover:border-[#5865F2]/50 hover:shadow-card-hover"
           >
             <span
               className="text-[11px] font-bold uppercase tracking-[0.25em]"

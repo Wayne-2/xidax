@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRef } from "react";
 import CountUp from "@/components/CountUp";
+import { useRegion } from "@/components/RegionProvider";
 
 const builds = [
   {
@@ -13,8 +14,8 @@ const builds = [
     reviews: 128,
     description:
       "Intel Core i7-14700F · GeForce RTX 5070 12GB · 32GB DDR5 · 1TB NVMe SSD",
-    price: "$1,899.99",
-    salePrice: "$1,649.99",
+    price: 1899.99,
+    salePrice: 1649.99,
   },
   {
     title: "Geforce Legendary AMD",
@@ -23,8 +24,8 @@ const builds = [
     reviews: 96,
     description:
       "AMD Ryzen 7 9800X3D · Radeon RX 9070 XT 16GB · 32GB DDR5 · 2TB NVMe SSD",
-    price: "$2,299.99",
-    salePrice: "$1,999.99",
+    price: 2299.99,
+    salePrice: 1999.99,
   },
 ];
 
@@ -110,6 +111,7 @@ function StarRating({ rating, reviews }: { rating: number; reviews: number }) {
 
 export default function Catalogue() {
   const trackRef = useRef<HTMLDivElement>(null);
+  const { formatMoney } = useRegion();
 
   const scrollCarousel = (direction: number) => {
     const track = trackRef.current;
@@ -187,7 +189,7 @@ export default function Catalogue() {
               data-card
               data-reveal="blur"
               style={{ animationDelay: `${index * 120}ms` }}
-              className="group flex w-[85%] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] transition-colors hover:border-[#5865F2]/60 sm:w-[47%] lg:w-[31.5%]"
+              className="group flex w-[85%] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card transition-colors hover:border-[#5865F2]/60 sm:w-[47%] lg:w-[31.5%] hover:shadow-card-hover"
             >
               <div className="relative aspect-[4/3] overflow-hidden bg-[#dce3ee]">
                 <Image
@@ -216,10 +218,10 @@ export default function Catalogue() {
 
                 <div className="mt-auto flex items-end gap-2 pt-1">
                   <span className="text-lg font-bold text-[#5865F2]">
-                    {build.salePrice}
+                    {formatMoney(build.salePrice)}
                   </span>
                   <span className="pb-0.5 text-sm text-[#80848e] line-through">
-                    {build.price}
+                    {formatMoney(build.price)}
                   </span>
                 </div>
 
@@ -246,7 +248,7 @@ export default function Catalogue() {
             data-card
             data-reveal="blur"
             style={{ animationDelay: "240ms" }}
-            className="group relative flex w-[85%] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-6 transition-colors hover:border-[#5865F2]/60 sm:w-[47%] lg:w-[31.5%]"
+            className="group relative flex w-[85%] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-6 transition-colors hover:border-[#5865F2]/60 sm:w-[47%] lg:w-[31.5%] hover:shadow-card-hover"
           >
             <div
               className="absolute inset-0"

@@ -3,6 +3,7 @@ import Link from "next/link";
 import LaptopCatalogue from "@/components/LaptopCatalogue";
 import RevealObserver from "@/components/RevealObserver";
 import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
+import Money from "@/components/Money";
 import {
   featuredLaptopId,
   laptopCategories,
@@ -86,7 +87,7 @@ export default function LaptopsPage() {
                   {laptopCategories.length} categories
                 </span>
                 <span className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-xs font-semibold text-[#5c5e66]">
-                  Free shipping over $99
+                  Free shipping over <Money usd={99} />
                 </span>
               </div>
             </div>
@@ -94,7 +95,7 @@ export default function LaptopsPage() {
             <div
               data-reveal="up"
               style={{ animationDelay: "120ms" }}
-              className="rounded-2xl border border-[#d2dbe8] bg-[#eaf0f8] p-5 sm:p-6"
+              className="rounded-2xl border border-[#d2dbe8] bg-[#eaf0f8] shadow-card p-5 sm:p-6"
             >
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#5865F2]">
                 Every laptop ships with
@@ -137,7 +138,7 @@ export default function LaptopsPage() {
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <div
             data-reveal="up"
-            className="flex flex-col gap-6 rounded-2xl border border-[#d2dbe8] bg-[#f8fafe] p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between"
+            className="flex flex-col gap-6 rounded-2xl border border-[#d2dbe8] bg-[#f8fafe] shadow-card p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between"
           >
             <div className="max-w-xl">
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#5865F2]">
