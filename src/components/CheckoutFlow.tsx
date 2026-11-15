@@ -522,6 +522,21 @@ export default function CheckoutFlow() {
                 </div>
               )}
 
+              {session.status === "submitted" && (
+                <div className="mt-4 rounded-xl border border-[#15803D]/35 bg-[#15803D]/10 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#15803D]">
+                    Payment noted
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-[#4e5058]">
+                    We have your note for order {session.reference}. We release
+                    the build once {instructions?.method === "crypto"
+                      ? "the network confirms"
+                      : "the bank transfer clears"}
+                    , and we email the receipt to {session.details.email}.
+                  </p>
+                </div>
+              )}
+
               <div className="mt-5 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
                   Amount due
@@ -598,20 +613,31 @@ export default function CheckoutFlow() {
               )}
 
               <div className="mt-6 flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setSubmitting(true);
-                    await submitPayment(session.id);
-                    setSession({ ...session, status: "submitted" });
-                    setSubmitting(false);
-                  }}
-                  disabled={submitting}
-                  className="inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:opacity-70"
-                >
-                  <CheckIcon className="h-4 w-4" />
-                  I have sent the payment
-                </button>
+                {session.status === "submitted" ? (
+                  <span className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#15803D]/35 bg-[#15803D]/10 px-6 text-sm font-semibold text-[#15803D]">
+                    <CheckIcon className="h-4 w-4" />
+                    Payment sent
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setSubmitting(true);
+
+                      try {
+                        await submitPayment(session.id);
+                        setSession({ ...session, status: "submitted" });
+                      } finally {
+                        setSubmitting(false);
+                      }
+                    }}
+                    disabled={submitting}
+                    className="inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:opacity-70"
+                  >
+                    <CheckIcon className="h-4 w-4" />
+                    I have sent the payment
+                  </button>
+                )}
                 <Link
                   href="/profile"
                   className="inline-flex h-12 items-center justify-center rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-semibold text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
