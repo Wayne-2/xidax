@@ -104,7 +104,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`Request to ${path} failed (${response.status}).`);
+    const payload = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+
+    throw new Error(
+      payload?.error ?? `Request to ${path} failed (${response.status}).`
+    );
   }
 
   return (await response.json()) as T;

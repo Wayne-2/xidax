@@ -27,6 +27,7 @@ import {
 } from "./types";
 
 const SESSION_TTL_SECONDS = 60 * 60 * 48;
+const supportEmail = "support@genericpcs.com";
 
 const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS orders (
@@ -99,6 +100,37 @@ function isValidRequest(payload: CheckoutRequest) {
       (payload.method === "crypto" || payload.method === "wire") &&
       readNumber(payload.total) > 0
   );
+}
+
+function gatewayFailure(error: unknown): { message: string; status: number } {
+  const detail = error instanceof Error ? error.message : String(error);
+
+  if (detail.includes("EMAIL_NOT_DELIVERABLE") || detail.includes("cannot receive mail")) {
+    return {
+      message:
+        "That email address cannot receive mail, so we cannot issue a receipt or a payment notice. Use another address.",
+      status: 400,
+    };
+  }
+
+  if (detail.includes("DEPOSIT_LIMIT_EXCEEDED")) {
+    const requested = detail.match(/"requested_amount":"?([\d.]+)"?/)?.[1];
+    const limit = detail.match(/"max_allowed_amount":"?([\d.]+)"?/)?.[1];
+
+    return {
+      message:
+        requested && limit
+          ? `This order of $${requested} is above the $${limit} limit for a single payment. Split it into two orders or email ${supportEmail} to raise the limit.`
+          : `This order is above the limit for a single payment. Split it into two orders or email ${supportEmail} to raise the limit.`,
+      status: 400,
+    };
+  }
+
+  return {
+    message:
+      "The payment gateway could not start this checkout. Please try again in a moment.",
+    status: 502,
+  };
 }
 
 async function persistOrder(env: Env, session: CheckoutSession) {
@@ -178,25 +210,29 @@ async function handleCheckout(env: Env, request: Request) {
     instructions = created.instructions;
     warning = created.warning;
   } catch (error) {
-    if (!(error instanceof GatewayAuthError)) {
-      throw error;
+    if (error instanceof GatewayAuthError) {
+      const fallback =
+        payload.method === "crypto"
+          ? await createCryptoInstructions(
+              { ...env, BACHS_API_KEY: undefined, BACHS_API_BASE: undefined },
+              payload,
+              reference
+            )
+          : await createWireInstructions(
+              { ...env, BACHS_API_KEY: undefined, BACHS_API_BASE: undefined },
+              payload,
+              reference
+            );
+
+      instructions = fallback.instructions;
+      warning = `${fallback.warning ?? "Payment gateway unavailable."} (${error.message})`;
+    } else {
+      console.error("checkout gateway failure", error);
+
+      const failure = gatewayFailure(error);
+
+      return json({ error: failure.message }, failure.status);
     }
-
-    const fallback =
-      payload.method === "crypto"
-        ? await createCryptoInstructions(
-            { ...env, BACHS_API_KEY: undefined, BACHS_API_BASE: undefined },
-            payload,
-            reference
-          )
-        : await createWireInstructions(
-            { ...env, BACHS_API_KEY: undefined, BACHS_API_BASE: undefined },
-            payload,
-            reference
-          );
-
-    instructions = fallback.instructions;
-    warning = `${fallback.warning ?? "Payment gateway unavailable."} (${error.message})`;
   }
 
   const session = buildSession(payload, instructions, reference, warning);

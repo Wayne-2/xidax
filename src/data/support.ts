@@ -18,8 +18,8 @@ export type SupportDay = {
 
 export const supportPhone = "+234-907649842";
 export const supportPhoneHref = "tel:+234907649842";
-export const supportEmail = "support@pcmart.com";
-export const ownersEmail = "owners@pcmart.com";
+export const supportEmail = "support@genericpcs.com";
+export const ownersEmail = "owners@genericpcs.com";
 
 export const supportChannels: SupportChannel[] = [
   {

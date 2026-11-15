@@ -177,8 +177,13 @@ export default function CheckoutFlow() {
       setSession(created);
       setNow(Date.now());
       setStep(3);
-    } catch {
-      setErrors({ form: "We could not start the payment. Try again." });
+    } catch (error) {
+      setErrors({
+        form:
+          error instanceof Error && error.message
+            ? error.message
+            : "We could not start the payment. Try again.",
+      });
     } finally {
       setSubmitting(false);
     }
