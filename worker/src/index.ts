@@ -33,6 +33,7 @@ const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS orders (
      id TEXT PRIMARY KEY,
      reference TEXT NOT NULL,
+     checkout_id TEXT,
      email TEXT NOT NULL,
      name TEXT NOT NULL,
      phone TEXT,
@@ -80,6 +81,12 @@ async function ensureSchema(env: Env) {
 
   for (const statement of SCHEMA_STATEMENTS) {
     await env.DB.prepare(statement).run();
+  }
+
+  const columns = await env.DB.prepare("PRAGMA table_info(orders)").all();
+
+  if (!columns.results.some((column) => column.name === "checkout_id")) {
+    await env.DB.prepare("ALTER TABLE orders ADD COLUMN checkout_id TEXT").run();
   }
 
   schemaReady = true;
@@ -138,12 +145,13 @@ async function persistOrder(env: Env, session: CheckoutSession) {
 
   statements.push(
     env.DB.prepare(
-      `INSERT INTO orders (id, reference, email, name, phone, country, postal_code, method, network, subtotal, shipping, total, currency, status, created_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)`
+      `INSERT INTO orders (id, reference, checkout_id, email, name, phone, country, postal_code, method, network, subtotal, shipping, total, currency, status, created_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)`
     )
       .bind(
         session.id,
         session.reference,
+        session.instructions.checkoutId || null,
         session.details.email,
         session.details.name,
         session.details.phone,
@@ -181,6 +189,18 @@ async function persistOrder(env: Env, session: CheckoutSession) {
   await env.DB.batch(statements);
 }
 
+function randomReference() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(10));
+  let code = "";
+
+  for (const byte of bytes) {
+    code += alphabet[byte % alphabet.length];
+  }
+
+  return `PCM-${code}`;
+}
+
 async function handleCheckout(env: Env, request: Request) {
   const payload = (await request.json()) as CheckoutRequest;
 
@@ -196,7 +216,7 @@ async function handleCheckout(env: Env, request: Request) {
     }
   }
 
-  const reference = `PCM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  const reference = randomReference();
 
   let warning: string | undefined;
   let instructions: CheckoutSession["instructions"];
@@ -375,31 +395,46 @@ async function handleWebhook(env: Env, request: Request) {
   };
 
   const status = payload.status ?? "paid";
-  const sessionId = payload.id;
 
-  if (sessionId) {
-    const stored = await env.SESSIONS.get(sessionId, "json");
+  const order = (payload.id
+    ? await env.DB.prepare(
+        "SELECT id, reference FROM orders WHERE checkout_id = ?1 LIMIT 1"
+      )
+        .bind(payload.id)
+        .first()
+    : payload.reference
+      ? await env.DB.prepare(
+          "SELECT id, reference FROM orders WHERE reference = ?1 LIMIT 1"
+        )
+          .bind(payload.reference)
+          .first()
+      : null) as { id: string; reference: string } | null;
 
-    if (stored) {
-      const session = stored as CheckoutSession;
-      const updated: CheckoutSession = { ...session, status: status as CheckoutSession["status"] };
-
-      await env.SESSIONS.put(updated.id, JSON.stringify(updated), {
-        expirationTtl: SESSION_TTL_SECONDS,
-      });
-      await env.DB.prepare("UPDATE orders SET status = ?1 WHERE id = ?2")
-        .bind(updated.status, updated.id)
-        .run();
-    }
+  if (!order) {
+    return json({ ok: true, matched: false });
   }
 
-  if (payload.reference) {
-    await env.DB.prepare("UPDATE orders SET status = ?1 WHERE reference = ?2")
-      .bind(status, payload.reference)
-      .run();
+  const stored = (await env.SESSIONS.get(order.id, "json")) as
+    | CheckoutSession
+    | null;
+
+  if (stored) {
+    const session = stored as CheckoutSession;
+    const updated: CheckoutSession = {
+      ...session,
+      status: status as CheckoutSession["status"],
+    };
+
+    await env.SESSIONS.put(updated.id, JSON.stringify(updated), {
+      expirationTtl: SESSION_TTL_SECONDS,
+    });
   }
 
-  return json({ ok: true });
+  await env.DB.prepare("UPDATE orders SET status = ?1 WHERE id = ?2")
+    .bind(status, order.id)
+    .run();
+
+  return json({ ok: true, matched: true });
 }
 
 async function handleOrders(env: Env, url: URL) {

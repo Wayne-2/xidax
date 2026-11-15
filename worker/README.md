@@ -108,7 +108,14 @@ generic failure:
 
 `BACHS_WEBHOOK_SECRET` turns on HMAC verification for
 `POST /api/webhooks/bachs`, which flips an order to `paid` when bachs settles
-it.
+it. Set it with `npx wrangler secret put BACHS_WEBHOOK_SECRET` and use the same
+value in the bachs dashboard — secrets are write-only, so the worker cannot
+read the value back.
+
+Without that secret the endpoint still refuses to guess: a webhook only changes
+an order when its payload matches an order we created, either by the bachs
+checkout id (`orders.checkout_id`) or by the order reference, and unknown ids
+are ignored (`{"ok": true, "matched": false}`).
 
 ## Frontend
 
