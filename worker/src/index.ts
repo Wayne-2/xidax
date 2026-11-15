@@ -23,6 +23,7 @@ import {
   type CheckoutRequest,
   type CheckoutSession,
   type Env,
+  type PaymentStatus,
   type RegisteredProductPayload,
 } from "./types";
 
@@ -361,52 +362,146 @@ async function handleRegistration(env: Env, request: Request) {
   return json({ ok: true, labelNumber, trackingNumber }, 201);
 }
 
-async function handleWebhook(env: Env, request: Request) {
-  const raw = await request.text();
+type BachsWebhookEvent = {
+  id?: string;
+  type?: string;
+  created_at?: string;
+  reference?: string | null;
+  data?: {
+    checkout_id?: string | null;
+    reference?: string | null;
+    status?: string | null;
+    payment_status?: string | null;
+    amount?: string | null;
+    currency?: string | null;
+  };
+};
+
+const WEBHOOK_TOLERANCE_SECONDS = 300;
+
+async function hmacHex(secret: string, message: string) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const digest = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(message)
+  );
+
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function verifyBachsWebhook(env: Env, request: Request, raw: string) {
   const secret = env.BACHS_WEBHOOK_SECRET;
 
-  if (secret) {
-    const signature = request.headers.get("x-bachs-signature") ?? "";
-    const key = await crypto.subtle.importKey(
-      "raw",
-      new TextEncoder().encode(secret),
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign"]
-    );
-    const digest = await crypto.subtle.sign(
-      "HMAC",
-      key,
-      new TextEncoder().encode(raw)
-    );
-    const expected = Array.from(new Uint8Array(digest))
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("");
+  if (!secret) {
+    return true;
+  }
 
-    if (signature !== expected) {
-      return json({ error: "Invalid signature." }, 401);
+  const candidates: string[] = [];
+  let timestamp = request.headers.get("x-bachs-timestamp") ?? "";
+
+  const legacy = request.headers.get("x-bachs-signature");
+
+  if (legacy?.trim()) {
+    candidates.push(legacy.trim());
+  }
+
+  const v2 = request.headers.get("x-bachs-signature-v2") ?? "";
+
+  for (const part of v2.split(",")) {
+    const [key, ...rest] = part.split("=");
+    const value = rest.join("=").trim();
+
+    if (key?.trim() === "v1" && value) {
+      candidates.push(value);
+    }
+
+    if (key?.trim() === "t" && value && !timestamp) {
+      timestamp = value;
     }
   }
 
-  const payload = JSON.parse(raw) as {
-    id?: string;
-    reference?: string;
-    status?: string;
-  };
+  if (!timestamp || candidates.length === 0) {
+    return false;
+  }
 
-  const status = payload.status ?? "paid";
+  const seconds = Number(timestamp);
 
-  const order = (payload.id
+  if (!Number.isFinite(seconds)) {
+    return false;
+  }
+
+  if (Math.abs(Math.floor(Date.now() / 1000) - seconds) > WEBHOOK_TOLERANCE_SECONDS) {
+    return false;
+  }
+
+  const expected = await hmacHex(secret, `${timestamp}.${raw}`);
+
+  return candidates.some((candidate) => candidate.toLowerCase() === expected);
+}
+
+function statusFromBachsEvent(event: BachsWebhookEvent): PaymentStatus | null {
+  const type = (event.type ?? "").toLowerCase();
+  const paymentStatus = (event.data?.payment_status ?? "").toLowerCase();
+  const status = (event.data?.status ?? "").toLowerCase();
+
+  if (
+    type === "collection.succeeded" ||
+    paymentStatus === "paid" ||
+    status === "succeeded" ||
+    status === "paid"
+  ) {
+    return "paid";
+  }
+
+  if (
+    type === "collection.failed" ||
+    paymentStatus === "failed" ||
+    status === "failed"
+  ) {
+    return "failed";
+  }
+
+  return null;
+}
+
+async function handleWebhook(env: Env, request: Request) {
+  const raw = await request.text();
+
+  if (!(await verifyBachsWebhook(env, request, raw))) {
+    return json({ error: "Invalid signature." }, 401);
+  }
+
+  let event: BachsWebhookEvent;
+
+  try {
+    event = JSON.parse(raw) as BachsWebhookEvent;
+  } catch {
+    return json({ error: "Invalid payload." }, 400);
+  }
+
+  const checkoutId = event.data?.checkout_id ?? undefined;
+  const reference = event.data?.reference ?? event.reference ?? undefined;
+
+  const order = (checkoutId
     ? await env.DB.prepare(
         "SELECT id, reference FROM orders WHERE checkout_id = ?1 LIMIT 1"
       )
-        .bind(payload.id)
+        .bind(checkoutId)
         .first()
-    : payload.reference
+    : reference
       ? await env.DB.prepare(
           "SELECT id, reference FROM orders WHERE reference = ?1 LIMIT 1"
         )
-          .bind(payload.reference)
+          .bind(reference)
           .first()
       : null) as { id: string; reference: string } | null;
 
@@ -414,27 +509,36 @@ async function handleWebhook(env: Env, request: Request) {
     return json({ ok: true, matched: false });
   }
 
+  const status = statusFromBachsEvent(event);
+
+  if (!status) {
+    return json({ ok: true, matched: true, status: "ignored" });
+  }
+
   const stored = (await env.SESSIONS.get(order.id, "json")) as
     | CheckoutSession
     | null;
 
   if (stored) {
-    const session = stored as CheckoutSession;
-    const updated: CheckoutSession = {
-      ...session,
-      status: status as CheckoutSession["status"],
-    };
+    const updated: CheckoutSession = { ...stored, status };
 
     await env.SESSIONS.put(updated.id, JSON.stringify(updated), {
       expirationTtl: SESSION_TTL_SECONDS,
     });
   }
 
-  await env.DB.prepare("UPDATE orders SET status = ?1 WHERE id = ?2")
-    .bind(status, order.id)
-    .run();
+  await env.DB.batch([
+    env.DB.prepare("UPDATE orders SET status = ?1 WHERE id = ?2").bind(
+      status,
+      order.id
+    ),
+    env.DB.prepare("UPDATE user_orders SET status = ?1 WHERE id = ?2").bind(
+      status,
+      order.id
+    ),
+  ]);
 
-  return json({ ok: true, matched: true });
+  return json({ ok: true, matched: true, status });
 }
 
 async function handleOrders(env: Env, url: URL) {

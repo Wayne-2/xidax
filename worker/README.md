@@ -106,16 +106,31 @@ generic failure:
   limit; the response names both the order total and the limit. The sandbox
   account is capped at $5,000 per payment, so carts above that need splitting.
 
-`BACHS_WEBHOOK_SECRET` turns on HMAC verification for
-`POST /api/webhooks/bachs`, which flips an order to `paid` when bachs settles
-it. Set it with `npx wrangler secret put BACHS_WEBHOOK_SECRET` and use the same
-value in the bachs dashboard — secrets are write-only, so the worker cannot
-read the value back.
+### Webhooks
 
-Without that secret the endpoint still refuses to guess: a webhook only changes
-an order when its payload matches an order we created, either by the bachs
-checkout id (`orders.checkout_id`) or by the order reference, and unknown ids
-are ignored (`{"ok": true, "matched": false}`).
+`POST /api/webhooks/bachs` settles an order when bachs reports the payment.
+The worker follows bachs's signing scheme:
+
+| Header | Value |
+| --- | --- |
+| `X-Bachs-Timestamp` | Unix seconds |
+| `X-Bachs-Signature` | HMAC-SHA256 hex of `"{timestamp}.{raw_body}"` |
+| `X-Bachs-Signature-V2` | `t={timestamp},v1={signature}` — repeats `v1=` per live secret |
+
+Set the shared secret with `npx wrangler secret put BACHS_WEBHOOK_SECRET` and
+paste the same value into the bachs dashboard. Secrets are write-only, so the
+worker cannot read the value back — that is why it has to be set from the CLI.
+
+Verification accepts either signature header, rejects deliveries more than 300
+seconds old or in the future, and — while no secret is configured — still
+refuses to guess: a webhook only changes an order when its payload matches an
+order we created, by the bachs checkout id (`orders.checkout_id`) or by the
+order reference. Unknown ids are ignored (`{"ok": true, "matched": false}`).
+
+Handled events: `checkout.completed` and `collection.succeeded` settle the
+order (`paid`), `collection.failed` marks it `failed`. Both the live session in
+KV and the order rows in D1 (including the customer's order history) are
+updated.
 
 ## Frontend
 
