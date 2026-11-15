@@ -10,6 +10,7 @@ export type StoredUser = {
   tier: string;
   memberSince: string;
   bachsCustomerId: string | null;
+  emailVerified: boolean;
   createdAt: string;
 };
 
@@ -87,10 +88,10 @@ export function readToken(request: Request) {
 export async function findUserByToken(env: Env, token: string) {
   const row = await env.DB.prepare(
     `SELECT u.id, u.email, u.name, u.phone, u.country, u.postal_code, u.tier,
-            u.bachs_customer_id, u.created_at, s.expires_at
+            u.bachs_customer_id, u.email_verified, u.created_at, s.expires_at
        FROM user_sessions s
        JOIN users u ON u.id = s.user_id
-      WHERE s.token = ?1`
+     WHERE s.token = ?1`
   )
     .bind(token)
     .first<{
@@ -102,6 +103,7 @@ export async function findUserByToken(env: Env, token: string) {
       postal_code: string | null;
       tier: string | null;
       bachs_customer_id: string | null;
+      email_verified: number;
       created_at: string;
       expires_at: string;
     }>();
@@ -127,6 +129,7 @@ export function toUser(row: {
   postal_code: string | null;
   tier: string | null;
   bachs_customer_id: string | null;
+  email_verified: number;
   created_at: string;
 }): StoredUser {
   return {
@@ -139,6 +142,7 @@ export function toUser(row: {
     tier: row.tier ?? "Member",
     memberSince: row.created_at.slice(0, 4),
     bachsCustomerId: row.bachs_customer_id ?? null,
+    emailVerified: row.email_verified === 1,
     createdAt: row.created_at,
   };
 }

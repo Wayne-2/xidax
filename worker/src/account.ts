@@ -94,11 +94,12 @@ export async function handleRegister(request: Request, env: Env) {
     });
     bachsCustomerId = customer.id;
   } catch {
+    // bachs customer resolution failure does not prevent registration
     bachsCustomerId = null;
   }
 
   await env.DB.prepare(
-    `INSERT INTO users (id, email, name, phone, country, postal_code, password_hash, password_salt, tier, bachs_customer_id, created_at)
+    `INSERT INTO users (id, email, name, phone, country, postal_code, password_hash, password_salt, tier, bachs_customer_id, email_verified, created_at)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`
   )
     .bind(
@@ -112,6 +113,7 @@ export async function handleRegister(request: Request, env: Env) {
       salt,
       "Member",
       bachsCustomerId,
+      0,
       createdAt
     )
     .run();
@@ -119,6 +121,33 @@ export async function handleRegister(request: Request, env: Env) {
   await ensureSettings(env, userId);
 
   const session = await createSession(env, userId);
+
+  // Send verification email via Resend
+  try {
+    const verificationUrl = `https://generic-pcs-web.pcmarketweb.workers.dev/auth/verify?token=${session.token}&email=${encodeURIComponent(
+      email
+    )}`;
+
+    const emailResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: "onboarding@generic-pcs.com",
+        to: [email],
+        subject: "Verify your email address",
+        html: `<p>Click <a href="${verificationUrl}">here</a> to verify your email address.</p><p>This link will expire in 24 hours.</p>`,
+      }),
+    });
+
+    if (!emailResponse.ok) {
+      const err = await emailResponse.text();
+      throw new Error(err || "Failed to send verification email");
+    }
+  } catch {
+    // Verification email failure does not prevent account creation
+  }
 
   return json(
     {
@@ -152,7 +181,7 @@ export async function handleLogin(request: Request, env: Env) {
   }
 
   const row = await env.DB.prepare(
-    "SELECT id, email, name, phone, country, postal_code, tier, bachs_customer_id, created_at, password_hash, password_salt FROM users WHERE email = ?1"
+    "SELECT id, email, name, phone, country, postal_code, tier, bachs_customer_id, email_verified, created_at, password_hash, password_salt FROM users WHERE email = ?1"
   )
     .bind(email)
     .first<{
@@ -164,6 +193,7 @@ export async function handleLogin(request: Request, env: Env) {
       postal_code: string | null;
       tier: string | null;
       bachs_customer_id: string | null;
+      email_verified: number;
       created_at: string;
       password_hash: string;
       password_salt: string;
@@ -247,7 +277,7 @@ export async function handleUpdateMe(request: Request, env: Env) {
     .run();
 
   const row = await env.DB.prepare(
-    "SELECT id, email, name, phone, country, postal_code, tier, bachs_customer_id, created_at FROM users WHERE id = ?1"
+    "SELECT id, email, name, phone, country, postal_code, tier, bachs_customer_id, email_verified, created_at FROM users WHERE id = ?1"
   )
     .bind(user.id)
     .first<{
@@ -259,6 +289,7 @@ export async function handleUpdateMe(request: Request, env: Env) {
       postal_code: string | null;
       tier: string | null;
       bachs_customer_id: string | null;
+      email_verified: number;
       created_at: string;
     }>();
 

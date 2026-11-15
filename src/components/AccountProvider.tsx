@@ -8,6 +8,8 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useToast } from "@/components/ToastProvider";
+import { friendlyError } from "@/lib/errors";
 import {
   createAccountProduct,
   deleteAccountProduct,
@@ -79,6 +81,7 @@ export function AccountProvider({
   const [orders, setOrders] = useState<AccountOrderPayload[]>([]);
   const [products, setProducts] = useState<AccountProductPayload[]>([]);
   const [token, setToken] = useState<string | null>(null);
+  const toast = useToast();
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -101,6 +104,17 @@ export function AccountProvider({
       }
 
       const account = await fetchAccount(activeToken);
+
+      if (account.user.emailVerified === false) {
+        window.localStorage.removeItem(TOKEN_KEY);
+        setToken(null);
+        setUser(null);
+        setSettings(defaultSettings);
+        setOrders([]);
+        setProducts([]);
+        setError("Please verify your email address to continue.");
+        return;
+      }
 
       setUser(account.user);
       setSettings(account.settings);
@@ -150,10 +164,7 @@ export function AccountProvider({
 
         return null;
       } catch (requestError) {
-        const message =
-          requestError instanceof Error
-            ? requestError.message
-            : "We could not sign you in.";
+        const message = friendlyError(requestError, "We could not sign you in.");
 
         setError(message);
 
@@ -186,10 +197,7 @@ export function AccountProvider({
 
         return null;
       } catch (requestError) {
-        const message =
-          requestError instanceof Error
-            ? requestError.message
-            : "We could not create that account.";
+        const message = friendlyError(requestError, "We could not create that account.");
 
         setError(message);
 
@@ -205,7 +213,13 @@ export function AccountProvider({
     const active = token ?? readToken();
 
     if (active) {
-      await logoutAccount(active).catch(() => null);
+      try {
+        await logoutAccount(active);
+      } catch {
+        toast.error(
+          "We could not sign you out on the server, but this device is signed out."
+        );
+      }
     }
 
     window.localStorage.removeItem(TOKEN_KEY);
@@ -214,7 +228,7 @@ export function AccountProvider({
     setOrders([]);
     setProducts([]);
     setSettings(defaultSettings);
-  }, [token, readToken]);
+  }, [token, readToken, toast]);
 
   const updateProfile = useCallback(
     async (patch: Partial<AccountUserPayload>) => {
@@ -274,7 +288,7 @@ export function AccountProvider({
 
       if (!active) return;
 
-      await deleteAccountProduct(active, id).catch(() => null);
+      await deleteAccountProduct(active, id);
       setProducts((current) => current.filter((product) => product.id !== id));
     },
     [token, readToken]

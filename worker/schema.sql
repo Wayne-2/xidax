@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_salt TEXT NOT NULL,
   tier TEXT NOT NULL DEFAULT 'Member',
   bachs_customer_id TEXT,
+  email_verified INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
 
