@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { CheckIcon } from "@/components/BuildIcons";
 import { MailIcon, SendIcon } from "@/components/SupportIcons";
+import { useAsyncAction } from "@/hooks/useAsyncAction";
+import { useToast } from "@/components/ToastProvider";
+import { sendMessage } from "@/lib/api";
 import { ownersEmail } from "@/data/support";
 
 type Field = "name" | "email" | "subject" | "message";
@@ -18,17 +21,22 @@ export default function DirectEmailForm() {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState<Errors>({});
-  const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toast = useToast();
 
-  useEffect(() => {
-    return () => {
-      if (timer.current) {
-        clearTimeout(timer.current);
-      }
-    };
-  }, []);
+  const { run: submit, pending: sending, error: submitError } = useAsyncAction(
+    async (payload: {
+      name: string;
+      email: string;
+      subject: string;
+      message: string;
+    }) => {
+      await sendMessage(payload);
+      setSent(true);
+      toast.success("Message sent. We reply within one business day.");
+    },
+    { fallback: "We could not send that message. Please try again." }
+  );
 
   function validate(): Errors {
     const next: Errors = {};
@@ -62,12 +70,12 @@ export default function DirectEmailForm() {
       return;
     }
 
-    setSending(true);
-
-    timer.current = setTimeout(() => {
-      setSending(false);
-      setSent(true);
-    }, 700);
+    void submit({
+      name: name.trim(),
+      email: email.trim(),
+      subject: subject.trim(),
+      message: message.trim(),
+    });
   }
 
   if (sent) {
@@ -223,6 +231,15 @@ export default function DirectEmailForm() {
           </p>
         )}
       </div>
+
+      {submitError && (
+        <p
+          role="alert"
+          className="mt-5 rounded-xl border border-[#DC2626]/30 bg-[#fdf2f2] px-3.5 py-2.5 text-xs leading-relaxed text-[#B91C1C]"
+        >
+          {submitError}
+        </p>
+      )}
 
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs leading-relaxed text-[#80848e]">

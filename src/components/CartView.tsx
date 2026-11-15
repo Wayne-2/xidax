@@ -7,6 +7,7 @@ import AccessoryArtwork from "@/components/AccessoryArtwork";
 import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
 import { useCart } from "@/components/CartProvider";
 import { useRegion } from "@/components/RegionProvider";
+import { useToast } from "@/components/ToastProvider";
 import LaptopArtwork from "@/components/LaptopArtwork";
 import {
   cartItemFromAccessory,
@@ -90,6 +91,7 @@ export default function CartView() {
   const { items, count, subtotal, ready, add, remove, setQuantity, clear } =
     useCart();
   const { formatMoney, formatBase, region, clock } = useRegion();
+  const toast = useToast();
   const [promoInput, setPromoInput] = useState("");
   const [promo, setPromo] = useState<{ code: string; rate: number } | null>(
     null
@@ -147,6 +149,7 @@ export default function CartView() {
     setPromo({ code, rate });
     setPromoError("");
     setPromoInput("");
+    toast.success(`${code} applied. Nice.`);
   }
 
   return (

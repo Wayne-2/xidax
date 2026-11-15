@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import "@fontsource-variable/oxanium";
 import { AccountProvider } from "@/components/AccountProvider";
 import { CartProvider } from "@/components/CartProvider";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import OfflineBanner from "@/components/OfflineBanner";
 import { RegionProvider } from "@/components/RegionProvider";
+import { ToastProvider } from "@/components/ToastProvider";
 import ScrollEffects from "@/components/ScrollEffects";
 import SiteBackground from "@/components/SiteBackground";
 import "./globals.css";
@@ -25,11 +28,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </noscript>
         <ScrollEffects />
         <SiteBackground />
-        <AccountProvider>
-          <RegionProvider>
-            <CartProvider>{children}</CartProvider>
-          </RegionProvider>
-        </AccountProvider>
+        <ErrorBoundary>
+          <ToastProvider>
+            <AccountProvider>
+              <RegionProvider>
+                <CartProvider>
+                  <OfflineBanner />
+                  {children}
+                </CartProvider>
+              </RegionProvider>
+            </AccountProvider>
+          </ToastProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

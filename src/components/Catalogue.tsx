@@ -5,9 +5,12 @@ import Link from "next/link";
 import { useRef } from "react";
 import CountUp from "@/components/CountUp";
 import { useRegion } from "@/components/RegionProvider";
+import { useCart } from "@/components/CartProvider";
+import { useToast } from "@/components/ToastProvider";
 
 const builds = [
   {
+    id: "x-6-geforce-rtx-5070",
     title: "X-6 GeForce RTX 5070 + i7 14700F TENRAI",
     image: "/display_section.png",
     rating: 4.8,
@@ -18,6 +21,7 @@ const builds = [
     salePrice: 1649.99,
   },
   {
+    id: "geforce-legendary-amd",
     title: "Geforce Legendary AMD",
     image: "/display_section2.png",
     rating: 4.9,
@@ -112,6 +116,8 @@ function StarRating({ rating, reviews }: { rating: number; reviews: number }) {
 export default function Catalogue() {
   const trackRef = useRef<HTMLDivElement>(null);
   const { formatMoney } = useRegion();
+  const { add, items } = useCart();
+  const toast = useToast();
 
   const scrollCarousel = (direction: number) => {
     const track = trackRef.current;
@@ -228,16 +234,34 @@ export default function Catalogue() {
                 <div className="mt-1 flex gap-2">
                   <button
                     type="button"
+                    onClick={() => {
+                      add({
+                        id: `prebuild-${build.id}`,
+                        kind: "prebuild",
+                        productId: build.id,
+                        name: build.title,
+                        meta: build.description,
+                        category: "Prebuilt",
+                        artCategory: "",
+                        price: build.salePrice,
+                        quantity: 1,
+                        href: "/prebuilds",
+                        accent: "#5865F2",
+                      });
+                      toast.success(`${build.title} added to your cart.`);
+                    }}
                     className="inline-flex h-11 flex-1 items-center justify-center rounded-lg bg-[#5865F2] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
                   >
-                    Add to cart
+                    {items.some((item) => item.productId === build.id)
+                      ? "In your cart"
+                      : "Add to cart"}
                   </button>
-                  <button
-                    type="button"
+                  <Link
+                    href="/custom-builds"
                     className="inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-[#d2dbe8] px-4 text-sm font-medium text-[#5c5e66] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
                   >
                     Customize
-                  </button>
+                  </Link>
                 </div>
               </div>
             </article>

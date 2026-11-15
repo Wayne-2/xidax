@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useToast } from "@/components/ToastProvider";
 import { CloseIcon, SendIcon } from "@/components/SupportIcons";
 
 type Message = {
@@ -24,6 +25,7 @@ export default function LiveChatPanel({ open, onClose }: LiveChatPanelProps) {
   ]);
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
+  const toast = useToast();
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -67,7 +69,10 @@ export default function LiveChatPanel({ open, onClose }: LiveChatPanelProps) {
     event.preventDefault();
     const text = draft.trim();
 
-    if (!text) return;
+    if (!text) {
+      toast.info("Write a message first.");
+      return;
+    }
 
     counter.current += 1;
     setMessages((current) => [...current, { id: counter.current, from: "user", text }]);

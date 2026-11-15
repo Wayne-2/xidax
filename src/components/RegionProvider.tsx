@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { useAccount } from "@/components/AccountProvider";
+import { useToast } from "@/components/ToastProvider";
 import {
   defaultRegion,
   findRegion,
@@ -78,6 +79,7 @@ function guessCountry() {
 
 export function RegionProvider({ children }: { children: React.ReactNode }) {
   const { user, updateProfile } = useAccount();
+  const toast = useToast();
   const [guestCountry, setGuestCountry] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -123,14 +125,18 @@ export function RegionProvider({ children }: { children: React.ReactNode }) {
         }
 
         updateProfile({ country: next })
-          .catch(() => null)
+          .catch(() => {
+            toast.error(
+              "We could not save your country. It will apply again next time."
+            );
+          })
           .finally(() => setPending(null));
       } else {
         setGuestCountry(next);
         setPending(null);
       }
     },
-    [user, updateProfile]
+    [user, updateProfile, toast]
   );
 
   const country = pending ?? user?.country ?? guestCountry ?? defaultRegion.country;

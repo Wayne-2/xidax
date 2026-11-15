@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { CheckIcon } from "@/components/BuildIcons";
 import { useAccount } from "@/components/AccountProvider";
+import { useToast } from "@/components/ToastProvider";
+import { useAsyncAction } from "@/hooks/useAsyncAction";
 import type { AccountProductPayload } from "@/lib/api";
 
 function DesktopIcon({ className = "h-4 w-4" }: { className?: string }) {
@@ -87,11 +89,19 @@ export default function ProductRegistration() {
     useState<AccountProductPayload | null>(null);
 
   const [copied, setCopied] = useState<string | null>(null);
+  const toast = useToast();
+
+  const { run: runAsync, pending } = useAsyncAction(
+    async (task: () => Promise<void>) => {
+      await task();
+    },
+    { fallback: "That did not work. Please try again." }
+  );
 
   const fieldClass =
     "h-11 w-full rounded-xl border bg-[#f8fafe] px-3.5 text-sm text-[#2e3338] outline-none transition-colors placeholder:text-[#80848e]";
 
-  async function handleSubmit(event: React.FormEvent) {
+  function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     const next: Record<string, string> = {};
 
@@ -103,22 +113,26 @@ export default function ProductRegistration() {
 
     if (Object.keys(next).length > 0) return;
 
-    const result = await addProduct({
-      kind,
-      name: name.trim(),
-      orderNumber: orderNumber.trim().toUpperCase(),
-      purchasedOn,
+    void runAsync(async () => {
+      const result = await addProduct({
+        kind,
+        name: name.trim(),
+        orderNumber: orderNumber.trim().toUpperCase(),
+        purchasedOn,
+      });
+
+      if (typeof result === "string") {
+        setErrors({ form: result });
+        toast.error(result);
+        return;
+      }
+
+      setIssuedProduct(result);
+      setName("");
+      setOrderNumber("");
+      setPurchasedOn("");
+      toast.success(`${result.name} is registered. Keep the label number safe.`);
     });
-
-    if (typeof result === "string") {
-      setErrors({ form: result });
-      return;
-    }
-
-    setIssuedProduct(result);
-    setName("");
-    setOrderNumber("");
-    setPurchasedOn("");
   }
 
   async function copyValue(value: string) {
@@ -128,6 +142,7 @@ export default function ProductRegistration() {
       window.setTimeout(() => setCopied(null), 1800);
     } catch {
       setCopied(null);
+      toast.error("We could not copy that. Select the number and copy it manually.");
     }
   }
 
@@ -325,9 +340,10 @@ export default function ProductRegistration() {
 
         <button
           type="submit"
-          className="mt-5 inline-flex h-11 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
+          disabled={pending}
+          className="mt-5 inline-flex h-11 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:opacity-70"
         >
-          Issue label &amp; tracking number
+          {pending ? "Issuing…" : "Issue label & tracking number"}
         </button>
       </form>
 
@@ -361,7 +377,12 @@ export default function ProductRegistration() {
 
                 <button
                   type="button"
-                  onClick={() => removeProduct(product.id)}
+                  onClick={() => {
+                    void runAsync(async () => {
+                      await removeProduct(product.id);
+                      toast.success(`${product.name} was removed.`);
+                    });
+                  }}
                   aria-label={`Remove ${product.name} from registered products`}
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#80848e] transition-colors hover:bg-[#DC2626]/10 hover:text-[#B91C1C]"
                 >

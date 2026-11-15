@@ -7,6 +7,8 @@ import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
 import { useAccount } from "@/components/AccountProvider";
 import { useCart } from "@/components/CartProvider";
 import { useRegion } from "@/components/RegionProvider";
+import { useToast } from "@/components/ToastProvider";
+import { useAsyncAction } from "@/hooks/useAsyncAction";
 import {
   createCheckoutSession,
   remotePaymentsEnabled,
@@ -62,6 +64,7 @@ export default function CheckoutFlow() {
   const { user } = useAccount();
   const { region, formatMoney, formatBase, clock, setCountry: setRegionCountry } =
     useRegion();
+  const toast = useToast();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState("");
@@ -72,7 +75,6 @@ export default function CheckoutFlow() {
   const [method, setMethod] = useState<PaymentMethod | null>(null);
   const [network, setNetwork] = useState<CryptoNetwork>("usdt");
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [submitting, setSubmitting] = useState(false);
   const [session, setSession] = useState<CheckoutSession | null>(null);
   const [now, setNow] = useState(0);
 
@@ -158,10 +160,12 @@ export default function CheckoutFlow() {
     return Object.keys(next).length === 0;
   }
 
-  async function startPayment() {
-    setSubmitting(true);
-
-    try {
+  const {
+    run: startPayment,
+    pending: startingPayment,
+    error: paymentError,
+  } = useAsyncAction(
+    async () => {
       const created = await createCheckoutSession({
         lines,
         details: { name, email, phone, country: countryValue, postalCode },
@@ -176,17 +180,26 @@ export default function CheckoutFlow() {
       setSession(created);
       setNow(Date.now());
       setStep(3);
-    } catch (error) {
-      setErrors({
-        form:
-          error instanceof Error && error.message
-            ? error.message
-            : "We could not start the payment. Try again.",
-      });
-    } finally {
-      setSubmitting(false);
+    },
+    {
+      silent: true,
+      fallback: "We could not start the payment. Try again.",
     }
-  }
+  );
+
+  const { run: confirmPayment, pending: confirmingPayment } = useAsyncAction(
+    async (sessionId: string) => {
+      await submitPayment(sessionId);
+      setSession((current) =>
+        current ? { ...current, status: "submitted" } : current
+      );
+      toast.success("Thanks — we have your note. We release the build once it clears.");
+    },
+    {
+      fallback: "We could not record that. Try again in a moment.",
+      retry: true,
+    }
+  );
 
   const fieldClass =
     "h-11 w-full rounded-xl border bg-[#f8fafe] px-3.5 text-sm text-[#2e3338] outline-none transition-colors placeholder:text-[#80848e]";
@@ -480,19 +493,28 @@ export default function CheckoutFlow() {
                 </div>
               )}
 
-              {errors.form && (
-                <p className="mt-4 text-xs text-[#B91C1C]">{errors.form}</p>
+              {(errors.form || paymentError) && (
+                <p
+                  role="alert"
+                  className="mt-4 rounded-xl border border-[#DC2626]/30 bg-[#fdf2f2] px-3.5 py-2.5 text-xs leading-relaxed text-[#B91C1C]"
+                >
+                  {errors.form ?? paymentError}
+                </p>
               )}
 
               <div className="mt-6 flex flex-wrap items-center gap-3">
                 <button
                   type="button"
-                  onClick={startPayment}
-                  disabled={submitting}
+                  onClick={() => {
+                    void startPayment();
+                  }}
+                  disabled={startingPayment}
                   className="inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:opacity-70"
                 >
-                  {submitting ? "Preparing instructions…" : "Get payment details"}
-                  {!submitting && <ArrowIcon className="h-4 w-4" />}
+                  {startingPayment
+                    ? "Preparing instructions…"
+                    : "Get payment details"}
+                  {!startingPayment && <ArrowIcon className="h-4 w-4" />}
                 </button>
                 <button
                   type="button"
@@ -652,21 +674,16 @@ export default function CheckoutFlow() {
                 ) : (
                   <button
                     type="button"
-                    onClick={async () => {
-                      setSubmitting(true);
-
-                      try {
-                        await submitPayment(session.id);
-                        setSession({ ...session, status: "submitted" });
-                      } finally {
-                        setSubmitting(false);
-                      }
+                    onClick={() => {
+                      void confirmPayment(session.id);
                     }}
-                    disabled={submitting}
+                    disabled={confirmingPayment}
                     className="inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:opacity-70"
                   >
                     <CheckIcon className="h-4 w-4" />
-                    I have sent the payment
+                    {confirmingPayment
+                      ? "Recording…"
+                      : "I have sent the payment"}
                   </button>
                 )}
                 <Link
