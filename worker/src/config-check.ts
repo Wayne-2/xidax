@@ -3,6 +3,11 @@ import { ensureInitialized, parseFirebaseConfig } from "./auth";
 
 export type ConfigCheckResult = {
   ok: boolean;
+  database: {
+    configured: boolean;
+    otpTableReady: boolean;
+    error: string | null;
+  };
   firebase: {
     configured: boolean;
     projectId: string | null;
@@ -37,6 +42,11 @@ export async function runConfigCheck(env: Env): Promise<ConfigCheckResult> {
 
   const result: ConfigCheckResult = {
     ok: false,
+    database: {
+      configured: Boolean(env.DB),
+      otpTableReady: false,
+      error: null,
+    },
     firebase: {
       configured: false,
       projectId: null,
@@ -51,6 +61,22 @@ export async function runConfigCheck(env: Env): Promise<ConfigCheckResult> {
     },
     origins,
   };
+
+  try {
+    await env.DB.prepare(
+      "SELECT uid FROM email_otps LIMIT 1"
+    ).first();
+    result.database.otpTableReady = true;
+  } catch (error) {
+    result.database.error =
+      error instanceof Error
+        ? error.message
+        : "D1 email_otps table is not available. Run migration 0001.";
+  }
+
+  if (!result.database.configured || !result.database.otpTableReady) {
+    return result;
+  }
 
   if (!env.FIREBASE_CONFIG) {
     result.firebase.error = "FIREBASE_CONFIG is not set.";
@@ -96,6 +122,8 @@ export async function runConfigCheck(env: Env): Promise<ConfigCheckResult> {
   }
 
   result.ok =
+    result.database.configured &&
+    result.database.otpTableReady &&
     result.firebase.reachable &&
     result.firebase.serviceAccountPresent &&
     result.resend.configured &&

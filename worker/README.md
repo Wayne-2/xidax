@@ -8,12 +8,13 @@ Frontend (Next.js)  ──Firebase ID token──▶  Cloudflare Worker
                                                 │
                         ┌───────────────────────┼───────────────────────┐
                         ▼                       ▼                       ▼
-                Firebase Auth            Firestore (OTP records)      Resend (email)
+                Firebase Auth            D1 (OTP + app data)         Resend (email)
 ```
 
 Firebase remains the identity provider. The Worker owns OTP generation,
-storage, verification and email delivery. Firestore holds the temporary OTP
-records.
+storage, verification and email delivery. Cloudflare D1 holds the temporary
+OTP records and all application data. Using D1 keeps the Worker free of the
+Firestore client, whose gRPC transport is not compatible with Workers.
 
 ---
 
@@ -23,16 +24,16 @@ records.
 |---|---|---|
 | Password storage | Firebase Auth | Never handled by our code |
 | Email verification | This system | 6 digit OTP, not Firebase's link |
-| OTP storage | Firestore `email_otps` | Hash + pepper, plaintext never stored |
+| OTP storage | Cloudflare D1 `email_otps` | Hash + pepper, plaintext never stored |
 | OTP delivery | Resend | `hello@genericpcs.com` |
-| Session tokens | Firestore `user_sessions` | Opaque 32 byte random tokens |
+| Session tokens | D1 `user_sessions` | Opaque 32 byte random tokens |
 | Media storage | Cloudflare | Unchanged, served from `public/` |
 
 ### OTP lifecycle
 
 1. `POST /api/auth/send-otp` — verifies the Firebase ID token, confirms the
    account exists and is not yet verified, generates a six digit code, hashes
-   it with the server pepper, stores it in Firestore with a five minute
+   it with the server pepper, stores it in D1 with a five minute
    expiry, and emails it through Resend.
 2. The user enters the code on `/verify-otp`.
 3. `POST /api/auth/verify-otp` — verifies the ID token, re-hashes the
@@ -56,7 +57,7 @@ records.
 | Attempt limit | 5 incorrect submissions, then the record is destroyed |
 | Resend cooldown | 60 seconds per user |
 | Replay protection | The record is deleted on successful verification |
-| Concurrency | Attempt counter uses `FieldValue.increment` so parallel failures cannot skip the cap |
+| Concurrency | Atomic SQL `UPDATE ... WHERE attempts < 5` so parallel failures cannot skip the cap |
 | Timing | Constant time hash comparison |
 | CORS | Explicit allowlist, never `*`, unknown origins rejected with 403 |
 | Enumeration | Responses are generic and never confirm whether an email exists |
@@ -64,9 +65,9 @@ records.
 
 ### Rate limiting
 
-Cooldown and attempt limits are stored in Firestore, not in memory, because
-Workers are stateless and distributed. Per IP rate limiting should be layered
-on at the Cloudflare edge (WAF rule or Rate Limiting binding) if required.
+Cooldown and attempt limits are stored in D1, not in memory, because Workers
+are stateless and distributed. Per IP rate limiting should be layered on at
+the Cloudflare edge (WAF rule or Rate Limiting binding) if required.
 
 ---
 
@@ -146,21 +147,19 @@ Firebase Console → **Authentication** → **Sign-in method**:
 - **Email/Password** → enable
 - Turn **off** "Email link (passwordless sign-in)" — this system replaces it
 
-### 4.4 Firestore
+### 4.4 Cloudflare D1
 
-Create a Firestore database if one does not exist. The `email_otps`
-collection is created automatically on first write. Recommended rules: deny all
-client access, since every read and write goes through the Worker.
+All application data lives in D1. The schema is defined in `schema.sql` and
+the OTP migration in `migrations/0001_firebase_otp.sql`.
 
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
+```bash
+# Create the database if it does not exist
+cd worker
+npx wrangler d1 create generic-pcs
+
+# Apply the base schema, then the Firebase/OTP migration
+npx wrangler d1 execute generic-pcs --config wrangler.toml --remote --file=schema.sql
+npx wrangler d1 execute generic-pcs --config wrangler.toml --remote --file=migrations/0001_firebase_otp.sql
 ```
 
 ---
@@ -467,7 +466,7 @@ Coverage:
 | `Email service is not configured` | `RESEND_API_KEY` missing | `wrangler secret put RESEND_API_KEY` |
 | `Origin not allowed` | Origin missing from the allowlist | Add it to `ALLOWED_ORIGINS` |
 | `Origin not allowed` on localhost | Localhost port not matched | Use `http://localhost:<port>` exactly |
-| Firestore permission denied | Client rules allow access | Lock the rules down; the Worker uses the Admin SDK |
+| `no such table: email_otps` | Migration not applied | Run `migrations/0001_firebase_otp.sql` |
 
 ---
 
@@ -475,7 +474,7 @@ Coverage:
 
 | File | Purpose |
 |---|---|
-| `worker/src/auth.ts` | Firebase Admin setup, OTP primitives, Firestore OTP storage |
+| `worker/src/auth.ts` | Firebase Admin setup, OTP primitives, D1 OTP storage |
 | `worker/src/email.ts` | Resend delivery and the HTML template |
 | `worker/src/cors.ts` | Origin allowlist and CORS headers |
 | `worker/src/config-check.ts` | Configuration diagnostics |

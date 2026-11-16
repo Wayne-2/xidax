@@ -103,6 +103,8 @@ export type RegisteredProductPayload = {
  * (see `ensureInitialized` in ./auth).
  */
 export type Env = {
+  /** Cloudflare D1 database used for users, sessions and OTP records. */
+  DB: D1Database;
   /** JSON blob with the Firebase project config plus a service account key. */
   FIREBASE_CONFIG?: string;
   /** Secret pepper used when hashing email OTPs. */

@@ -10,16 +10,10 @@ import {
   type Auth,
 } from "firebase-admin/auth";
 import type { UserRecord as AdminUser } from "firebase-admin/auth";
-import {
-  getFirestore as getAdminFirestore,
-  type Firestore,
-  Timestamp,
-  FieldValue,
-} from "firebase-admin/firestore";
+
 
 let app: App | null = null;
 let auth: Auth | null = null;
-let firestore: Firestore | null = null;
 
 export type FirebaseUser = AdminUser;
 
@@ -53,13 +47,6 @@ export function getAuth(): Auth {
     throw new Error("Firebase Auth is not initialised.");
   }
   return auth;
-}
-
-export function getFirestore(): Firestore {
-  if (!firestore) {
-    throw new Error("Firebase Firestore is not initialised.");
-  }
-  return firestore;
 }
 
 /**
@@ -139,8 +126,8 @@ export function parseFirebaseConfig(raw: string): {
 
 /** Initialises the Firebase Admin SDK once per isolate. */
 export async function ensureInitialized(env: Env) {
-  if (auth && firestore) {
-    return { auth, firestore };
+  if (auth) {
+    return { auth };
   }
 
   const raw = env.FIREBASE_CONFIG;
@@ -174,9 +161,8 @@ export async function ensureInitialized(env: Env) {
   }
 
   auth = getFirebaseAuth(app);
-  firestore = getAdminFirestore(app);
 
-  return { auth, firestore };
+  return { auth };
 }
 
 /* ------------------------------------------------------------------ */
@@ -205,15 +191,61 @@ export function readToken(request: Request) {
 }
 
 export async function findUserByToken(env: Env, token: string) {
-  const { firestore: db } = await ensureInitialized(env);
-  const doc = await db.collection("users").doc(token).get();
+  const db = requireDb(env);
 
-  if (!doc.exists) return null;
+  const row = await db
+    .prepare(
+      `SELECT u.id, u.email, u.name, u.phone, u.country, u.postal_code, u.tier,
+              u.bachs_customer_id, u.email_verified, u.created_at
+         FROM user_sessions s
+         JOIN users u ON u.id = s.user_id
+        WHERE s.token = ?1 AND s.expires_at > ?2`
+    )
+    .bind(token, new Date().toISOString())
+    .first<{
+      id: string;
+      email: string;
+      name: string;
+      phone: string | null;
+      country: string | null;
+      postal_code: string | null;
+      tier: string | null;
+      bachs_customer_id: string | null;
+      email_verified: number;
+      created_at: string;
+    }>();
 
-  const data = doc.data() as StoredUser | null;
-  if (!data) return null;
+  if (!row) return null;
 
-  return data;
+  return rowToStoredUser(row);
+}
+
+/** Maps a database row onto the shared StoredUser shape. */
+export function rowToStoredUser(row: {
+  id: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  country: string | null;
+  postal_code: string | null;
+  tier: string | null;
+  bachs_customer_id: string | null;
+  email_verified: number;
+  created_at: string;
+}): StoredUser {
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    phone: row.phone ?? "",
+    country: row.country ?? "",
+    postalCode: row.postal_code ?? "",
+    tier: row.tier ?? "Member",
+    memberSince: row.created_at ? row.created_at.slice(0, 4) : "2024",
+    bachsCustomerId: row.bachs_customer_id ?? null,
+    emailVerified: row.email_verified === 1,
+    createdAt: row.created_at,
+  };
 }
 
 export function toUser(row: StoredUser): StoredUser {
@@ -232,47 +264,60 @@ export function toUser(row: StoredUser): StoredUser {
   };
 }
 
-export async function createSession(_env: Env, userId: string) {
+export async function createSession(env: Env, userId: string) {
+  const db = requireDb(env);
   const token = randomToken(32);
-  return {
-    token,
-    expiresAt: new Date(
-      Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000
-    ).toISOString(),
-  };
+  const createdAt = new Date().toISOString();
+  const expiresAt = new Date(
+    Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+
+  await db
+    .prepare(
+      `INSERT INTO user_sessions (token, user_id, created_at, expires_at)
+       VALUES (?1, ?2, ?3, ?4)`
+    )
+    .bind(token, userId, createdAt, expiresAt)
+    .run();
+
+  return { token, expiresAt };
 }
 
 export async function ensureSettings(env: Env, userId: string) {
-  const { firestore: db } = await ensureInitialized(env);
+  const db = requireDb(env);
 
-  const docRef = db.collection("user_settings").doc(userId);
-  const snap = await docRef.get();
-
-  if (snap.exists) {
-    const data = snap.data() as {
-      order_updates: boolean;
-      drop_notifications: boolean;
-      marketing_emails: boolean;
+  const row = await db
+    .prepare(
+      `SELECT order_updates, drop_notifications, marketing_emails, language, currency
+         FROM user_settings WHERE user_id = ?1`
+    )
+    .bind(userId)
+    .first<{
+      order_updates: number;
+      drop_notifications: number;
+      marketing_emails: number;
       language: string;
       currency: string;
-    };
+    }>();
 
+  if (row) {
     return {
-      orderUpdates: data.order_updates ?? true,
-      dropNotifications: data.drop_notifications ?? true,
-      marketingEmails: data.marketing_emails ?? false,
-      language: data.language ?? "English (Nigeria)",
-      currency: data.currency ?? "USD ($)",
+      orderUpdates: row.order_updates === 1,
+      dropNotifications: row.drop_notifications === 1,
+      marketingEmails: row.marketing_emails === 1,
+      language: row.language ?? "English (Nigeria)",
+      currency: row.currency ?? "USD ($)",
     };
   }
 
-  await docRef.set({
-    order_updates: true,
-    drop_notifications: true,
-    marketing_emails: false,
-    language: "English (Nigeria)",
-    currency: "USD ($)",
-  });
+  await db
+    .prepare(
+      `INSERT OR IGNORE INTO user_settings
+         (user_id, order_updates, drop_notifications, marketing_emails, language, currency)
+       VALUES (?1, 1, 1, 0, 'English (Nigeria)', 'USD ($)')`
+    )
+    .bind(userId)
+    .run();
 
   return {
     orderUpdates: true,
@@ -331,14 +376,16 @@ function otpPepper(env: Env): string {
   const pepper = env.OTP_SECRET;
 
   if (!pepper || pepper.length < 16) {
-    throw new Error("OTP_SECRET must be set to a value of at least 16 characters.");
+    throw new Error(
+      "OTP_SECRET must be set to a value of at least 16 characters."
+    );
   }
 
   return pepper;
 }
 
 /* ------------------------------------------------------------------ */
-/* OTP storage (Firebase Firestore)                                      */
+/* OTP storage (Cloudflare D1)                                          */
 /* ------------------------------------------------------------------ */
 
 export type OtpVerificationResult =
@@ -354,32 +401,40 @@ export type OtpVerificationResult =
       attemptsRemaining?: number;
     };
 
+function requireDb(env: Env): D1Database {
+  const db = env.DB;
+
+  if (!db) {
+    throw new Error("D1 database binding DB is not configured.");
+  }
+
+  return db;
+}
+
 export async function storeOTP(
   env: Env,
   uid: string,
   email: string,
   otp: string
 ): Promise<void> {
-  const { firestore: db } = await ensureInitialized(env);
-
-  const now = Timestamp.now();
-  const expiresAt = Timestamp.fromMillis(Date.now() + OTP_TTL_MS);
+  const db = requireDb(env);
+  const now = Math.floor(Date.now() / 1000);
+  const expiresAt = now + Math.floor(OTP_TTL_MS / 1000);
 
   await db
-    .collection("email_otps")
-    .doc(uid)
-    .set(
-      {
-        uid,
-        email,
-        otp_hash: await hashOTP(otp, otpPepper(env)),
-        expires_at: expiresAt,
-        attempts: 0,
-        last_sent_at: now,
-        created_at: now,
-      },
-      { merge: true }
-    );
+    .prepare(
+      `INSERT INTO email_otps (uid, email, otp_hash, expires_at, attempts, last_sent_at, created_at)
+       VALUES (?1, ?2, ?3, ?4, 0, ?5, ?5)
+       ON CONFLICT(uid) DO UPDATE SET
+         email = excluded.email,
+         otp_hash = excluded.otp_hash,
+         expires_at = excluded.expires_at,
+         attempts = 0,
+         last_sent_at = excluded.last_sent_at,
+         created_at = excluded.created_at`
+    )
+    .bind(uid, email, await hashOTP(otp, otpPepper(env)), expiresAt, now)
+    .run();
 }
 
 export async function verifyOTP(
@@ -387,59 +442,70 @@ export async function verifyOTP(
   uid: string,
   submittedOTP: string
 ): Promise<OtpVerificationResult> {
-  const { firestore: db } = await ensureInitialized(env);
-  const docRef = db.collection("email_otps").doc(uid);
-  const doc = await docRef.get();
+  const db = requireDb(env);
 
-  if (!doc.exists) {
+  const row = await db
+    .prepare(
+      `SELECT otp_hash, expires_at, attempts FROM email_otps WHERE uid = ?1`
+    )
+    .bind(uid)
+    .first<{ otp_hash: string; expires_at: number; attempts: number }>();
+
+  if (!row) {
     return { valid: false, reason: "not_found" };
   }
 
-  const data = doc.data();
-  if (!data) {
-    return { valid: false, reason: "not_found" };
-  }
-
-  const attempts = typeof data.attempts === "number" ? data.attempts : 0;
+  const attempts = row.attempts ?? 0;
 
   if (attempts >= OTP_MAX_ATTEMPTS) {
-    await docRef.delete();
+    await db.prepare("DELETE FROM email_otps WHERE uid = ?1").bind(uid).run();
     return { valid: false, reason: "max_attempts" };
   }
 
-  const expiresAt = data.expires_at as Timestamp | undefined;
-  const expiryMillis =
-    expiresAt && typeof expiresAt.toMillis === "function"
-      ? expiresAt.toMillis()
-      : (data.expires_at as number | undefined) ?? 0;
+  const now = Math.floor(Date.now() / 1000);
 
-  if (expiryMillis < Date.now()) {
-    await docRef.delete();
+  if (row.expires_at < now) {
+    await db.prepare("DELETE FROM email_otps WHERE uid = ?1").bind(uid).run();
     return { valid: false, reason: "expired" };
   }
 
-  const storedHash = typeof data.otp_hash === "string" ? data.otp_hash : "";
   const submittedHash = await hashOTP(submittedOTP, otpPepper(env));
 
-  if (!safeCompare(storedHash, submittedHash)) {
-    // Atomic increment so parallel failures cannot skip the attempt cap.
-    await docRef.update({ attempts: FieldValue.increment(1) });
+  if (!safeCompare(row.otp_hash ?? "", submittedHash)) {
+    // Atomic increment. The guard on attempts means parallel requests
+    // cannot push the counter past the maximum.
+    await db
+      .prepare(
+        `UPDATE email_otps SET attempts = attempts + 1
+         WHERE uid = ?1 AND attempts < ?2`
+      )
+      .bind(uid, OTP_MAX_ATTEMPTS)
+      .run();
+
+    const after = await db
+      .prepare("SELECT attempts FROM email_otps WHERE uid = ?1")
+      .bind(uid)
+      .first<{ attempts: number }>();
+
     return {
       valid: false,
       reason: "invalid_otp",
-      attemptsRemaining: Math.max(0, OTP_MAX_ATTEMPTS - (attempts + 1)),
+      attemptsRemaining: Math.max(
+        0,
+        OTP_MAX_ATTEMPTS - (after?.attempts ?? attempts + 1)
+      ),
     };
   }
 
-  // Consume the OTP. Deleting before confirming prevents replay.
-  await docRef.delete();
+  // Consume the code. Deleting before confirming prevents replay.
+  await db.prepare("DELETE FROM email_otps WHERE uid = ?1").bind(uid).run();
 
   return { valid: true };
 }
 
 export async function invalidateOTP(env: Env, uid: string): Promise<void> {
-  const { firestore: db } = await ensureInitialized(env);
-  await db.collection("email_otps").doc(uid).delete();
+  const db = requireDb(env);
+  await db.prepare("DELETE FROM email_otps WHERE uid = ?1").bind(uid).run();
 }
 
 export type OtpStatus = {
@@ -451,10 +517,16 @@ export type OtpStatus = {
 };
 
 export async function checkOTPStatus(env: Env, uid: string): Promise<OtpStatus> {
-  const { firestore: db } = await ensureInitialized(env);
-  const doc = await db.collection("email_otps").doc(uid).get();
+  const db = requireDb(env);
 
-  if (!doc.exists) {
+  const row = await db
+    .prepare(
+      `SELECT expires_at, attempts, last_sent_at FROM email_otps WHERE uid = ?1`
+    )
+    .bind(uid)
+    .first<{ expires_at: number; attempts: number; last_sent_at: number }>();
+
+  if (!row) {
     return {
       hasPendingOTP: false,
       expiresIn: 0,
@@ -464,35 +536,31 @@ export async function checkOTPStatus(env: Env, uid: string): Promise<OtpStatus> 
     };
   }
 
-  const data = doc.data();
-  const expiresAt = data?.expires_at as Timestamp | undefined;
-  const expiryMillis =
-    expiresAt && typeof expiresAt.toMillis === "function"
-      ? expiresAt.toMillis()
-      : (data?.expires_at as number | undefined) ?? 0;
-
-  const lastSentAt = data?.last_sent_at as
-    | Timestamp
-    | undefined;
-  const lastSentMillis =
-    lastSentAt && typeof lastSentAt.toMillis === "function"
-      ? lastSentAt.toMillis()
-      : (lastSentAt as number | undefined) ?? 0;
-
-  const elapsedSeconds = lastSentMillis
-    ? Math.floor((Date.now() - lastSentMillis) / 1000)
+  const now = Math.floor(Date.now() / 1000);
+  const elapsedSeconds = row.last_sent_at
+    ? now - row.last_sent_at
     : OTP_RESEND_COOLDOWN_SECONDS;
 
   return {
     hasPendingOTP: true,
-    expiresIn: Math.max(0, expiryMillis - Date.now()),
-    attempts: typeof data?.attempts === "number" ? data.attempts : 0,
-    lastSentAt: lastSentMillis ? new Date(lastSentMillis).toISOString() : null,
-    cooldownSeconds: Math.max(
-      0,
-      OTP_RESEND_COOLDOWN_SECONDS - elapsedSeconds
-    ),
+    expiresIn: Math.max(0, row.expires_at - now) * 1000,
+    attempts: row.attempts ?? 0,
+    lastSentAt: row.last_sent_at
+      ? new Date(row.last_sent_at * 1000).toISOString()
+      : null,
+    cooldownSeconds: Math.max(0, OTP_RESEND_COOLDOWN_SECONDS - elapsedSeconds),
   };
+}
+
+/** Removes OTP records that expired more than a day ago. */
+export async function purgeExpiredOTPs(env: Env): Promise<void> {
+  const db = requireDb(env);
+  const cutoff = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
+
+  await db
+    .prepare("DELETE FROM email_otps WHERE expires_at < ?1")
+    .bind(cutoff)
+    .run();
 }
 
 /**

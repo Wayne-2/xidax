@@ -4,8 +4,8 @@ import {
   ensureSettings,
   findUserByToken,
   readToken,
+  rowToStoredUser,
   toUser,
-  type StoredUser,
 } from "./auth";
 import { resolveCustomer } from "./bachs";
 import type { Env } from "./types";
@@ -68,17 +68,7 @@ export async function handleRegister(request: Request, env: Env) {
     return json({ error: "Use at least 8 characters." }, 400);
   }
 
-  const { auth: firebaseAuth, firestore: db } = await ensureInitialized(env);
-
-  const existing = await db
-    .collection("users")
-    .where("email", "==", email)
-    .limit(1)
-    .get();
-
-  if (!existing.empty) {
-    return json({ error: "An account already uses that email." }, 409);
-  }
+  const { auth: firebaseAuth } = await ensureInitialized(env);
 
   let userId: string;
 
@@ -127,18 +117,16 @@ export async function handleRegister(request: Request, env: Env) {
 
   const createdAt = new Date().toISOString();
 
-  await db.collection("users").doc(userId).set({
-    id: userId,
-    email,
-    name,
-    phone,
-    country,
-    postal_code: postalCode,
-    tier: "Member",
-    bachs_customer_id: bachsCustomerId,
-    email_verified: 0,
-    created_at: createdAt,
-  });
+  // Any stale row for this email belongs to a pre-Firebase account.
+  await env.DB.prepare("DELETE FROM users WHERE email = ?1").bind(email).run();
+
+  await env.DB.prepare(
+    `INSERT INTO users
+       (id, email, name, phone, country, postal_code, tier, bachs_customer_id, email_verified, created_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'Member', ?7, 0, ?8)`
+  )
+    .bind(userId, email, name, phone, country, postalCode, bachsCustomerId, createdAt)
+    .run();
 
   await ensureSettings(env, userId);
 
@@ -183,7 +171,7 @@ export async function handleLogin(request: Request, env: Env) {
     return json({ error: "Enter your email and password." }, 400);
   }
 
-  const { auth: firebaseAuth, firestore: db } = await ensureInitialized(env);
+  const { auth: firebaseAuth } = await ensureInitialized(env);
 
   let userRecord;
 
@@ -193,47 +181,34 @@ export async function handleLogin(request: Request, env: Env) {
     return json({ error: "Those details do not match an account." }, 401);
   }
 
-  const userDoc = await db.collection("users").doc(userRecord.uid).get();
+  const row = await env.DB.prepare(
+    `SELECT id, email, name, phone, country, postal_code, tier, bachs_customer_id, email_verified, created_at
+       FROM users WHERE id = ?1`
+  )
+    .bind(userRecord.uid)
+    .first<{
+      id: string;
+      email: string;
+      name: string;
+      phone: string | null;
+      country: string | null;
+      postal_code: string | null;
+      tier: string | null;
+      bachs_customer_id: string | null;
+      email_verified: number;
+      created_at: string;
+    }>();
 
-  if (!userDoc.exists) {
+  if (!row) {
     return json({ error: "Account not found in our system." }, 404);
   }
 
-  const userData = userDoc.data() as {
-    id: string;
-    email: string;
-    name: string;
-    phone: string | null;
-    country: string | null;
-    postal_code: string | null;
-    tier: string | null;
-    bachs_customer_id: string | null;
-    email_verified: number;
-    created_at: string;
-  };
-
-  const storedUser: StoredUser = {
-    id: userData.id,
-    email: userData.email,
-    name: userData.name,
-    phone: userData.phone ?? "",
-    country: userData.country ?? "",
-    postalCode: userData.postal_code ?? "",
-    tier: userData.tier ?? "Member",
-    memberSince: userData.created_at
-      ? userData.created_at.slice(0, 4)
-      : "2024",
-    bachsCustomerId: userData.bachs_customer_id ?? null,
-    emailVerified: userData.email_verified === 1,
-    createdAt: userData.created_at,
-  };
-
-  const session = await createSession(env, userRecord.uid);
+  const session = await createSession(env, row.id);
 
   return json({
     token: session.token,
     expiresAt: session.expiresAt,
-    user: toUser(storedUser),
+    user: toUser(rowToStoredUser(row)),
   });
 }
 
@@ -241,8 +216,9 @@ export async function handleLogout(request: Request, env: Env) {
   const token = readToken(request);
 
   if (token) {
-    const { firestore: db } = await ensureInitialized(env);
-    await db.collection("user_sessions").doc(token).delete();
+    await env.DB.prepare("DELETE FROM user_sessions WHERE token = ?1")
+      .bind(token)
+      .run();
   }
 
   return json({ ok: true });
@@ -253,25 +229,26 @@ export async function handleMe(request: Request, env: Env) {
 
   if (!user) return json({ error: "Not signed in." }, 401);
 
-  const { firestore: db } = await ensureInitialized(env);
   const settings = await ensureSettings(env, user.id);
 
-  const ordersSnap = await db
-    .collection("user_orders")
-    .where("user_id", "==", user.id)
-    .get();
+  const orders = await env.DB.prepare(
+    "SELECT COUNT(*) AS count FROM user_orders WHERE user_id = ?1"
+  )
+    .bind(user.id)
+    .first<{ count: number }>();
 
-  const productsSnap = await db
-    .collection("user_products")
-    .where("user_id", "==", user.id)
-    .get();
+  const products = await env.DB.prepare(
+    "SELECT COUNT(*) AS count FROM user_products WHERE user_id = ?1"
+  )
+    .bind(user.id)
+    .first<{ count: number }>();
 
   return json({
     user,
     settings,
     counts: {
-      orders: ordersSnap.size,
-      products: productsSnap.size,
+      orders: orders?.count ?? 0,
+      products: products?.count ?? 0,
     },
   });
 }
@@ -295,50 +272,36 @@ export async function handleUpdateMe(request: Request, env: Env) {
     return json({ error: "Enter a valid email address." }, 400);
   }
 
-  const { firestore: db } = await ensureInitialized(env);
+  await env.DB.prepare(
+    `UPDATE users SET name = ?1, email = ?2, phone = ?3, country = ?4, postal_code = ?5
+      WHERE id = ?6`
+  )
+    .bind(name, email, phone, country, postalCode, user.id)
+    .run();
 
-  await db.collection("users").doc(user.id).update({
-    name,
-    email,
-    phone,
-    country,
-    postal_code: postalCode,
-  });
+  const row = await env.DB.prepare(
+    `SELECT id, email, name, phone, country, postal_code, tier, bachs_customer_id, email_verified, created_at
+       FROM users WHERE id = ?1`
+  )
+    .bind(user.id)
+    .first<{
+      id: string;
+      email: string;
+      name: string;
+      phone: string | null;
+      country: string | null;
+      postal_code: string | null;
+      tier: string | null;
+      bachs_customer_id: string | null;
+      email_verified: number;
+      created_at: string;
+    }>();
 
-  const doc = await db.collection("users").doc(user.id).get();
-
-  if (!doc.exists) {
+  if (!row) {
     return json({ error: "User not found." }, 404);
   }
 
-  const data = doc.data() as {
-    id: string;
-    email: string;
-    name: string;
-    phone: string | null;
-    country: string | null;
-    postal_code: string | null;
-    tier: string | null;
-    bachs_customer_id: string | null;
-    email_verified: number;
-    created_at: string;
-  };
-
-  return json({
-    user: toUser({
-      id: data.id,
-      email: data.email,
-      name: data.name,
-      phone: data.phone ?? "",
-      country: data.country ?? "",
-      postalCode: data.postal_code ?? "",
-      tier: data.tier ?? "Member",
-      memberSince: data.created_at ? data.created_at.slice(0, 4) : "2024",
-      bachsCustomerId: data.bachs_customer_id ?? null,
-      emailVerified: data.email_verified === 1,
-      createdAt: data.created_at,
-    }),
-  });
+  return json({ user: toUser(rowToStoredUser(row)) });
 }
 
 export async function handleSettings(request: Request, env: Env) {
@@ -372,18 +335,26 @@ export async function handleSettings(request: Request, env: Env) {
     currency: text(body.currency) || current.currency,
   };
 
-  const { firestore: db } = await ensureInitialized(env);
-
-  await db.collection("user_settings").doc(user.id).set(
-    {
-      order_updates: settings.orderUpdates ? 1 : 0,
-      drop_notifications: settings.dropNotifications ? 1 : 0,
-      marketing_emails: settings.marketingEmails ? 1 : 0,
-      language: settings.language,
-      currency: settings.currency,
-    },
-    { merge: true }
-  );
+  await env.DB.prepare(
+    `INSERT INTO user_settings
+       (user_id, order_updates, drop_notifications, marketing_emails, language, currency)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     ON CONFLICT(user_id) DO UPDATE SET
+       order_updates = excluded.order_updates,
+       drop_notifications = excluded.drop_notifications,
+       marketing_emails = excluded.marketing_emails,
+       language = excluded.language,
+       currency = excluded.currency`
+  )
+    .bind(
+      user.id,
+      settings.orderUpdates ? 1 : 0,
+      settings.dropNotifications ? 1 : 0,
+      settings.marketingEmails ? 1 : 0,
+      settings.language,
+      settings.currency
+    )
+    .run();
 
   return json({ settings });
 }
@@ -393,83 +364,72 @@ export async function handleUserOrders(request: Request, env: Env) {
 
   if (!user) return json({ error: "Not signed in." }, 401);
 
-  const { firestore: db } = await ensureInitialized(env);
+  const rows = await env.DB.prepare(
+    `SELECT id, reference, title, detail, total, currency, status, method, created_at
+       FROM user_orders WHERE user_id = ?1 ORDER BY created_at DESC LIMIT 50`
+  )
+    .bind(user.id)
+    .all<{
+      id: string;
+      reference: string;
+      title: string;
+      detail: string | null;
+      total: number;
+      currency: string;
+      status: string;
+      method: string | null;
+      created_at: string;
+    }>();
 
-  const ordersSnap = await db
-    .collection("user_orders")
-    .where("user_id", "==", user.id)
-    .orderBy("created_at", "desc")
-    .limit(50)
-    .get();
-
-  const orders = ordersSnap.docs.map((doc) => {
-    const data = doc.data();
-    return {
-      id: doc.id,
-      reference: data.reference,
-      title: data.title,
-      detail: data.detail ?? "",
-      total: data.total,
-      currency: data.currency,
-      status: data.status,
-      method: data.method ?? "",
-      createdAt: data.created_at,
-    };
+  return json({
+    orders: (rows.results ?? []).map((row) => ({
+      id: row.id,
+      reference: row.reference,
+      title: row.title,
+      detail: row.detail ?? "",
+      total: row.total,
+      currency: row.currency,
+      status: row.status,
+      method: row.method ?? "",
+      createdAt: row.created_at,
+    })),
   });
-
-  return json({ orders });
 }
 
-export async function handleProducts(request: Request, env: Env, id?: string) {
+export async function handleProducts(request: Request, env: Env) {
   const user = await requireUser(request, env);
 
   if (!user) return json({ error: "Not signed in." }, 401);
 
-  const { firestore: db } = await ensureInitialized(env);
-
-  if (id) {
-    const doc = await db.collection("user_products").doc(id).get();
-
-    if (!doc.exists) return json({ error: "Product not found." }, 404);
-
-    const data = doc.data();
-    return json({
-      product: {
-        id: doc.id,
-        kind: data?.kind,
-        name: data?.name,
-        orderNumber: data?.order_number,
-        purchasedOn: data?.purchased_on ?? "",
-        labelNumber: data?.label_number,
-        trackingNumber: data?.tracking_number,
-        createdAt: data?.created_at,
-      },
-    });
-  }
-
-  const productsSnap = await db
-    .collection("user_products")
-    .where("user_id", "==", user.id)
-    .orderBy("created_at", "desc")
-    .limit(50)
-    .get();
-
-  const products = productsSnap.docs.map((doc) => {
-    const data = doc.data();
-    return {
-      id: doc.id,
-      kind: data?.kind,
-      name: data?.name,
-      orderNumber: data?.order_number,
-      purchasedOn: data?.purchased_on ?? "",
-      labelNumber: data?.label_number,
-      trackingNumber: data?.tracking_number,
-      createdAt: data?.created_at,
-    };
-  });
-
   if (request.method === "GET") {
-    return json({ products });
+    const rows = await env.DB.prepare(
+      `SELECT id, kind, name, order_number, purchased_on, label_number, tracking_number, created_at
+         FROM user_products WHERE user_id = ?1 ORDER BY created_at DESC LIMIT 50`
+    )
+      .bind(user.id)
+      .all<{
+        id: string;
+        kind: string;
+        name: string;
+        order_number: string;
+        purchased_on: string | null;
+        label_number: string;
+        tracking_number: string;
+        created_at: string;
+      }>();
+
+    return json({
+      products: (rows.results ?? []).map((row) => ({
+        id: row.id,
+        kind: row.kind,
+        name: row.name,
+        orderNumber: row.order_number,
+        purchasedOn: row.purchased_on ?? "",
+        labelNumber: row.label_number,
+        trackingNumber: row.tracking_number,
+        createdAt: row.created_at,
+      })),
+    });
   }
 
   const body = await readJson(request);
@@ -484,26 +444,32 @@ export async function handleProducts(request: Request, env: Env, id?: string) {
   if (!name) return json({ error: "Name the machine you bought." }, 400);
   if (!orderNumber) return json({ error: "Add your order number." }, 400);
 
-  const productId = crypto.randomUUID();
+  const id = crypto.randomUUID();
   const labelNumber = `PCM-LBL-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
   const trackingNumber = `PCMT-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
-  await db.collection("user_products").doc(productId).set({
-    id: productId,
-    user_id: user.id,
-    kind,
-    name,
-    order_number: orderNumber,
-    purchased_on: purchasedOn,
-    label_number: labelNumber,
-    tracking_number: trackingNumber,
-    created_at: new Date().toISOString(),
-  });
+  await env.DB.prepare(
+    `INSERT INTO user_products
+       (id, user_id, kind, name, order_number, purchased_on, label_number, tracking_number, created_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
+  )
+    .bind(
+      id,
+      user.id,
+      kind,
+      name,
+      orderNumber,
+      purchasedOn,
+      labelNumber,
+      trackingNumber,
+      new Date().toISOString()
+    )
+    .run();
 
   return json(
     {
       product: {
-        id: productId,
+        id,
         kind,
         name,
         orderNumber,
@@ -522,8 +488,9 @@ export async function handleDeleteProduct(request: Request, env: Env, id: string
 
   if (!user) return json({ error: "Not signed in." }, 401);
 
-  const { firestore: db } = await ensureInitialized(env);
-  await db.collection("user_products").doc(id).delete();
+  await env.DB.prepare("DELETE FROM user_products WHERE id = ?1 AND user_id = ?2")
+    .bind(id, user.id)
+    .run();
 
   return json({ ok: true });
 }
@@ -549,20 +516,22 @@ export async function attachOrderToUser(
 
   if (!user) return;
 
-  const { firestore: db } = await ensureInitialized(env);
-
-  await db.collection("user_orders").doc(order.id).set({
-    id: order.id,
-    user_id: user.id,
-    reference: order.reference,
-    title: order.lines.map((line) => line.name).join(", "),
-    detail: order.lines
-      .map((line) => `${line.name} x${line.quantity}`)
-      .join(" · "),
-    total: order.total,
-    currency: order.currency,
-    status: order.status,
-    method: order.method,
-    created_at: new Date().toISOString(),
-  });
+  await env.DB.prepare(
+    `INSERT OR REPLACE INTO user_orders
+       (id, user_id, reference, title, detail, total, currency, status, method, created_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`
+  )
+    .bind(
+      order.id,
+      user.id,
+      order.reference,
+      order.lines.map((line) => line.name).join(", "),
+      order.lines.map((line) => `${line.name} x${line.quantity}`).join(" · "),
+      order.total,
+      order.currency,
+      order.status,
+      order.method,
+      new Date().toISOString()
+    )
+    .run();
 }

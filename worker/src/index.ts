@@ -32,10 +32,12 @@ import { sendVerificationEmail } from "./email";
 import {
   checkOTPStatus,
   ensureInitialized,
-  readToken,
   generateSixDigitOTP,
   invalidateOTP,
   markEmailVerified,
+  purgeExpiredOTPs,
+  readToken,
+  rowToStoredUser,
   storeOTP,
   verifyOTP,
 } from "./auth";
@@ -71,21 +73,13 @@ async function readJson(request: Request) {
 const supportEmail = "support@genericpcs.com";
 
 async function ensureUserSettings(env: Env, userId: string) {
-  const { firestore: db } = await ensureInitialized(env);
-  if (!db) return;
-
-  const docRef = db.collection("user_settings").doc(userId);
-  const snap = await docRef.get();
-
-  if (!snap.exists) {
-    await docRef.set({
-      order_updates: true,
-      drop_notifications: true,
-      marketing_emails: false,
-      language: "English (Nigeria)",
-      currency: "USD ($)",
-    });
-  }
+  await env.DB.prepare(
+    `INSERT OR IGNORE INTO user_settings
+       (user_id, order_updates, drop_notifications, marketing_emails, language, currency)
+     VALUES (?1, 1, 1, 0, 'English (Nigeria)', 'USD ($)')`
+  )
+    .bind(userId)
+    .run();
 }
 
 function readNumber(value: unknown) {
@@ -137,46 +131,53 @@ function gatewayFailure(error: unknown): { message: string; status: number } {
 }
 
 async function persistOrder(env: Env, session: CheckoutSession) {
-  const { firestore: db } = await ensureInitialized(env);
-  if (!db) return;
+  await env.DB.prepare(
+    `INSERT OR REPLACE INTO orders
+       (id, reference, checkout_id, email, name, phone, country, postal_code,
+        method, network, subtotal, shipping, total, currency, status, created_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)`
+  )
+    .bind(
+      session.id,
+      session.reference,
+      session.instructions.checkoutId || null,
+      session.details.email,
+      session.details.name,
+      session.details.phone,
+      session.details.country,
+      session.details.postalCode,
+      session.instructions.method,
+      session.instructions.method === "crypto"
+        ? session.instructions.network
+        : null,
+      session.subtotal,
+      session.shipping,
+      session.total,
+      session.currency,
+      session.status,
+      session.createdAt
+    )
+    .run();
 
-  await db.collection("orders").doc(session.id).set({
-    id: session.id,
-    reference: session.reference,
-    checkout_id: session.instructions.checkoutId || null,
-    email: session.details.email,
-    name: session.details.name,
-    phone: session.details.phone,
-    country: session.details.country,
-    postal_code: session.details.postalCode,
-    method: session.instructions.method,
-    network: session.instructions.method === "crypto"
-      ? session.instructions.network
-      : null,
-    subtotal: session.subtotal,
-    shipping: session.shipping,
-    total: session.total,
-    currency: session.currency,
-    status: session.status,
-    created_at: session.createdAt,
-  });
+  const statements = session.lines.map((line) =>
+    env.DB.prepare(
+      `INSERT INTO order_lines
+         (id, order_id, product_id, name, kind, price, quantity)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`
+    ).bind(
+      crypto.randomUUID(),
+      session.id,
+      line.id,
+      line.name,
+      line.kind,
+      line.price,
+      line.quantity
+    )
+  );
 
-  const batch = db.batch();
-
-  for (const line of session.lines) {
-    const lineRef = db.collection("order_lines").doc();
-    batch.set(lineRef, {
-      id: lineRef.id,
-      order_id: session.id,
-      product_id: line.id,
-      name: line.name,
-      kind: line.kind,
-      price: line.price,
-      quantity: line.quantity,
-    });
+  if (statements.length > 0) {
+    await env.DB.batch(statements);
   }
-
-  await batch.commit();
 }
 
 function randomReference() {
@@ -262,16 +263,17 @@ async function handleCheckout(env: Env, request: Request) {
 }
 
 async function handleSession(env: Env, id: string) {
-  const { firestore: db } = await ensureInitialized(env);
-  if (!db) return json({ error: "Database not configured." }, 500);
+  const row = await env.DB.prepare(
+    "SELECT data, status, expires_at FROM checkout_sessions WHERE id = ?1"
+  )
+    .bind(id)
+    .first<{ data: string; status: string; expires_at: string }>();
 
-  const doc = await db.collection("checkout_sessions").doc(id).get();
-
-  if (!doc.exists) {
+  if (!row) {
     return json({ error: "Checkout session not found." }, 404);
   }
 
-  const session = doc.data() as CheckoutSession;
+  const session = JSON.parse(row.data) as CheckoutSession;
 
   if (new Date(session.expiresAt).getTime() < Date.now()) {
     return json({ ...session, status: "expired" });
@@ -281,16 +283,17 @@ async function handleSession(env: Env, id: string) {
 }
 
 async function handleSubmit(env: Env, id: string) {
-  const { firestore: db } = await ensureInitialized(env);
-  if (!db) return json({ error: "Database not configured." }, 500);
+  const row = await env.DB.prepare(
+    "SELECT data FROM checkout_sessions WHERE id = ?1"
+  )
+    .bind(id)
+    .first<{ data: string }>();
 
-  const doc = await db.collection("checkout_sessions").doc(id).get();
-
-  if (!doc.exists) {
+  if (!row) {
     return json({ error: "Checkout session not found." }, 410);
   }
 
-  const session = doc.data() as CheckoutSession;
+  const session = JSON.parse(row.data) as CheckoutSession;
 
   if (new Date(session.expiresAt).getTime() < Date.now()) {
     return json({ error: "Checkout session expired." }, 410);
@@ -302,8 +305,15 @@ async function handleSubmit(env: Env, id: string) {
     await confirmGatewayPayment(env, updated.instructions.checkoutId);
   }
 
-  await db.collection("checkout_sessions").doc(id).update({ status: "submitted" });
-  await db.collection("orders").doc(updated.id).update({ status: "submitted" });
+  await env.DB.prepare(
+    "UPDATE checkout_sessions SET status = 'submitted', data = ?1 WHERE id = ?2"
+  )
+    .bind(JSON.stringify(updated), id)
+    .run();
+
+  await env.DB.prepare("UPDATE orders SET status = 'submitted' WHERE id = ?1")
+    .bind(updated.id)
+    .run();
 
   return json({ status: updated.status });
 }
@@ -324,17 +334,23 @@ async function handleRegistration(env: Env, request: Request) {
     .slice(2, 10)
     .toUpperCase()}`;
 
-  await (await ensureInitialized(env)).firestore.collection("registrations").doc().set({
-    id: crypto.randomUUID(),
-    email: payload.email,
-    kind: payload.kind,
-    name: payload.name,
-    order_number: payload.orderNumber,
-    purchased_on: payload.purchasedOn ?? "",
-    label_number: labelNumber,
-    tracking_number: trackingNumber,
-    created_at: new Date().toISOString(),
-  });
+  await env.DB.prepare(
+    `INSERT INTO registrations
+       (id, email, kind, name, order_number, purchased_on, label_number, tracking_number, created_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
+  )
+    .bind(
+      crypto.randomUUID(),
+      payload.email,
+      payload.kind,
+      payload.name,
+      payload.orderNumber,
+      payload.purchasedOn ?? "",
+      labelNumber,
+      trackingNumber,
+      new Date().toISOString()
+    )
+    .run();
 
   return json({ ok: true, labelNumber, trackingNumber }, 201);
 }
@@ -468,13 +484,17 @@ async function handleWebhook(env: Env, request: Request) {
   const checkoutId = event.data?.checkout_id ?? undefined;
   const reference = event.data?.reference ?? event.reference ?? undefined;
 
-  const orderDoc = (checkoutId
-    ? await (await ensureInitialized(env)).firestore.collection("orders").doc(checkoutId).get()
+  const orderRow = (checkoutId
+    ? await env.DB.prepare("SELECT id, reference FROM orders WHERE checkout_id = ?1 LIMIT 1")
+        .bind(checkoutId)
+        .first<{ id: string; reference: string }>()
     : reference
-      ? await (await ensureInitialized(env)).firestore.collection("orders").where("reference", "==", reference).limit(1).get()
-      : null) as FirebaseFirestore.DocumentSnapshot | null;
+      ? await env.DB.prepare("SELECT id, reference FROM orders WHERE reference = ?1 LIMIT 1")
+          .bind(reference)
+          .first<{ id: string; reference: string }>()
+      : null);
 
-  if (!orderDoc || !orderDoc.exists) {
+  if (!orderRow) {
     return json({ ok: true, matched: false });
   }
 
@@ -484,51 +504,37 @@ async function handleWebhook(env: Env, request: Request) {
     return json({ ok: true, matched: true, status: "ignored" });
   }
 
-  const orderData = orderDoc.data();
+  const newStatus = status === "paid" ? "paid" : "submitted";
 
-  const updatedSession: CheckoutSession = {
-    id: orderDoc.id,
-    provider: "bachs",
-    status,
-    reference: orderData?.reference ?? "",
-    createdAt: orderData?.created_at ?? "",
-    expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString(),
-    subtotal: orderData?.subtotal ?? 0,
-    shipping: orderData?.shipping ?? 0,
-    total: orderData?.total ?? 0,
-    currency: orderData?.currency ?? "USD",
-    lines: [],
-    details: {
-      name: orderData?.name ?? "",
-      email: orderData?.email ?? "",
-      phone: orderData?.phone ?? "",
-      country: orderData?.country ?? "",
-      postalCode: orderData?.postal_code ?? "",
-    },
-    instructions: {
-      method: orderData?.method ?? "crypto",
-      network: orderData?.network ?? "btc",
-      currency: orderData?.currency ?? "USD",
-      billingCurrency: orderData?.currency ?? "USD",
-      amount: orderData?.total ?? "0",
-      confirmations: 2,
-      checkoutId: orderDoc.id,
-      checkoutUrl: "",
-      availableMethods: ["CRYPTO", "NGN_BANK_TRANSFER"],
-      excludedMethods: [],
-    },
-    gatewayWarning: undefined,
-  };
+  await env.DB.prepare("UPDATE orders SET status = ?1 WHERE id = ?2")
+    .bind(newStatus, orderRow.id)
+    .run();
 
-  await (await ensureInitialized(env)).firestore.collection("checkout_sessions").doc(orderDoc.id).set(updatedSession);
+  await env.DB.prepare("UPDATE user_orders SET status = ?1 WHERE id = ?2")
+    .bind(newStatus, orderRow.id)
+    .run();
 
-  await (await ensureInitialized(env)).firestore.collection("orders").doc(orderDoc.id).update({ status: status === "paid" ? "paid" : "submitted" });
+  // Mirror the status into any cached checkout session.
+  const sessionRow = await env.DB.prepare(
+    "SELECT data FROM checkout_sessions WHERE id = ?1"
+  )
+    .bind(orderRow.id)
+    .first<{ data: string }>();
 
-  await (await ensureInitialized(env)).firestore.collection("user_orders").where("id", "==", orderDoc.id).get().then((snapshot) => {
-    snapshot?.docs.forEach((doc) => {
-      doc.ref.update({ status: status === "paid" ? "paid" : "submitted" });
-    });
-  });
+  if (sessionRow) {
+    try {
+      const session = JSON.parse(sessionRow.data) as CheckoutSession;
+      session.status = status;
+
+      await env.DB.prepare(
+        "UPDATE checkout_sessions SET status = ?1, data = ?2 WHERE id = ?3"
+      )
+        .bind(status, JSON.stringify(session), orderRow.id)
+        .run();
+    } catch {
+      // Ignore malformed cached sessions.
+    }
+  }
 
   return json({ ok: true, matched: true, status });
 }
@@ -540,23 +546,22 @@ async function handleOrders(env: Env, url: URL) {
     return json({ error: "email is required." }, 400);
   }
 
-  const ordersSnap = await (await ensureInitialized(env)).firestore.collection("orders")
-    .where("email", "==", email)
-    .orderBy("created_at", "desc")
-    .limit(50)
-    .get();
+  const rows = await env.DB.prepare(
+    `SELECT id, reference, total, currency, method, status, created_at
+       FROM orders WHERE email = ?1 ORDER BY created_at DESC LIMIT 50`
+  )
+    .bind(email)
+    .all<{
+      id: string;
+      reference: string;
+      total: number;
+      currency: string;
+      method: string;
+      status: string;
+      created_at: string;
+    }>();
 
-  const orders = (ordersSnap?.docs ?? []).map((doc) => ({
-    id: doc.id,
-    reference: doc.data().reference,
-    total: doc.data().total,
-    currency: doc.data().currency,
-    method: doc.data().method,
-    status: doc.data().status,
-    created_at: doc.data().created_at,
-  }));
-
-  return json({ orders });
+  return json({ orders: rows.results ?? [] });
 }
 
 async function handleVerifyEmail(request: Request, env: Env) {
@@ -569,17 +574,15 @@ async function handleVerifyEmail(request: Request, env: Env) {
     return jsonWithCors({ error: "Missing token or email." }, request, env, 400);
   }
 
-  const { firestore: db } = await ensureInitialized(env);
-  if (!db) return jsonWithCors({ error: "Database not configured." }, request, env, 500);
+  const result = await env.DB.prepare(
+    "UPDATE users SET email_verified = 1 WHERE email = ?1 AND email_verified = 0"
+  )
+    .bind(email)
+    .run();
 
-  const snap = await db.collection("users").where("email", "==", email).limit(1).get();
-
-  if (snap.empty) {
+  if ((result.meta?.changes ?? 0) === 0) {
     return jsonWithCors({ alreadyVerified: true }, request, env);
   }
-
-  const userDoc = snap.docs[0];
-  await userDoc.ref.update({ email_verified: 1 });
 
   return jsonWithCors({ verified: true }, request, env);
 }
@@ -595,7 +598,7 @@ async function handleSendOTP(request: Request, env: Env) {
   }
 
   try {
-    const { auth: firebaseAuth, firestore: db } = await ensureInitialized(env);
+    const { auth: firebaseAuth } = await ensureInitialized(env);
 
     const decoded = await firebaseAuth.verifyIdToken(idToken);
     const uid = decoded.uid;
@@ -645,7 +648,9 @@ async function handleSendOTP(request: Request, env: Env) {
       return jsonWithCors({ error: "We could not send the verification email. Please try again." }, request, env, 502);
     }
 
-    await db.collection("users").doc(uid).update({ email_verified: 0 });
+    await env.DB.prepare("UPDATE users SET email_verified = 0 WHERE id = ?1")
+      .bind(uid)
+      .run();
 
     return jsonWithCors({
       success: true,
@@ -686,7 +691,7 @@ async function handleVerifyOTP(request: Request, env: Env) {
   }
 
   try {
-    const { auth: firebaseAuth, firestore: db } = await ensureInitialized(env);
+    const { auth: firebaseAuth } = await ensureInitialized(env);
 
     const decoded = await firebaseAuth.verifyIdToken(idToken);
     const uid = decoded.uid;
@@ -718,7 +723,9 @@ async function handleVerifyOTP(request: Request, env: Env) {
     // Admin SDK user update API rather than custom claims.
     await markEmailVerified(env, uid);
 
-    await db.collection("users").doc(uid).update({ email_verified: 1 });
+    await env.DB.prepare("UPDATE users SET email_verified = 1 WHERE id = ?1")
+      .bind(uid)
+      .run();
 
     return jsonWithCors({ success: true, verified: true }, request, env);
   } catch (error) {
@@ -856,7 +863,7 @@ async function handleOTPStatus(request: Request, env: Env) {
 }
 
 async function handleDeleteAccount(request: Request, env: Env) {
-  const { auth: firebaseAuth, firestore: db } = await ensureInitialized(env);
+  const { auth: firebaseAuth } = await ensureInitialized(env);
 
   // The uid always comes from the verified token, never from the body.
   const token = readToken(request);
@@ -878,19 +885,16 @@ async function handleDeleteAccount(request: Request, env: Env) {
     console.error("deleteUser failed:", (error as { code?: string }).code ?? "");
   });
 
-  await db.collection("users").doc(uid).delete();
-  await db.collection("email_otps").doc(uid).delete();
+  const deleteStatements = [
+    env.DB.prepare("DELETE FROM email_otps WHERE uid = ?1").bind(uid),
+    env.DB.prepare("DELETE FROM user_sessions WHERE user_id = ?1").bind(uid),
+    env.DB.prepare("DELETE FROM user_orders WHERE user_id = ?1").bind(uid),
+    env.DB.prepare("DELETE FROM user_products WHERE user_id = ?1").bind(uid),
+    env.DB.prepare("DELETE FROM user_settings WHERE user_id = ?1").bind(uid),
+    env.DB.prepare("DELETE FROM users WHERE id = ?1").bind(uid),
+  ];
 
-  await db.collection("user_sessions").where("user_id", "==", uid).get().then((snapshot) => {
-    snapshot.docs.forEach((doc) => doc.ref.delete());
-  });
-  await db.collection("user_orders").where("user_id", "==", uid).get().then((snapshot) => {
-    snapshot.docs.forEach((doc) => doc.ref.delete());
-  });
-  await db.collection("user_products").where("user_id", "==", uid).get().then((snapshot) => {
-    snapshot.docs.forEach((doc) => doc.ref.delete());
-  });
-  await db.collection("user_settings").doc(uid).delete();
+  await env.DB.batch(deleteStatements);
 
   return jsonWithCors({ deleted: true }, request, env);
 }
@@ -1038,24 +1042,20 @@ const worker = {
       return;
     }
 
-    const { firestore: db } = await ensureInitialized(env);
-    if (!db) return;
+    const cutoff = new Date(
+      Date.now() - 48 * 60 * 60 * 1000
+    ).toISOString();
 
-    const snapshot = await db.collection("orders").get();
-
-    const batch = db.batch();
-
-    snapshot.docs.forEach((doc) => {
-      const createdAt = doc.data().created_at;
-      if (
-        createdAt &&
-        new Date(createdAt as string).getTime() < Date.now() - 48 * 60 * 60 * 1000
-      ) {
-        batch.update(doc.ref, { status: "expired" });
-      }
-    });
-
-    await batch.commit();
+    // Expire stale orders and clean up old OTP records.
+    await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE orders SET status = 'expired'
+          WHERE status IN ('pending', 'awaiting_payment') AND created_at < ?1`
+      ).bind(cutoff),
+      env.DB.prepare("DELETE FROM email_otps WHERE expires_at < ?1").bind(
+        Math.floor(Date.now() / 1000) - 24 * 60 * 60
+      ),
+    ]);
   },
 
 
