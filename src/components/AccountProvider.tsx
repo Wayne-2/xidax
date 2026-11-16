@@ -168,12 +168,18 @@ export function AccountProvider({
 
         setError(message);
 
+        if (requestError instanceof Error && requestError.message.includes("Those details do not match")) {
+          toast.error("Email or password is incorrect.");
+        } else {
+          toast.error(message);
+        }
+
         return message;
       } finally {
         setBusy(false);
       }
     },
-    [loadSession]
+    [toast]
   );
 
   const signUp = useCallback(
@@ -201,12 +207,18 @@ export function AccountProvider({
 
         setError(message);
 
+        if (requestError instanceof Error && requestError.message.includes("already use")) {
+          toast.error("An account already uses that email.");
+        } else {
+          toast.error(message);
+        }
+
         return message;
       } finally {
         setBusy(false);
       }
     },
-    [loadSession]
+    [toast]
   );
 
   const signOut = useCallback(async () => {
