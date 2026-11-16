@@ -70,6 +70,17 @@ export async function handleRegister(request: Request, env: Env) {
 
   const { auth: firebaseAuth } = await ensureInitialized(env);
 
+  // If D1 already has a fully registered user, this is a genuine duplicate.
+  const existingUser = await env.DB.prepare(
+    "SELECT id FROM users WHERE email = ?1"
+  )
+    .bind(email)
+    .first<{ id: string }>();
+
+  if (existingUser) {
+    return json({ error: "An account already uses that email." }, 409);
+  }
+
   let userId: string;
 
   try {
@@ -84,19 +95,37 @@ export async function handleRegister(request: Request, env: Env) {
     const code = (error as { code?: string }).code ?? "";
 
     if (code === "auth/email-already-exists") {
-      return json({ error: "An account already uses that email." }, 409);
-    }
+      // A Firebase account exists but there is no D1 user. This is an orphan
+      // left behind by a previous failed registration (for example the
+      // client SDK creating the account before the Worker did). Recover it
+      // by adopting that account instead of locking the user out.
+      try {
+        const orphan = await firebaseAuth.getUserByEmail(email);
 
-    if (code === "auth/invalid-email") {
+        // Only adopt accounts that have never been verified. Adopting a
+        // verified account with a password we do not know would be unsafe.
+        if (!orphan.emailVerified) {
+          await firebaseAuth.updateUser(orphan.uid, {
+            password,
+            displayName: name,
+          });
+          userId = orphan.uid;
+        } else {
+          return json({ error: "An account already uses that email." }, 409);
+        }
+      } catch (recoverError) {
+        const recoverCode = (recoverError as { code?: string }).code ?? "";
+        console.error("orphan recovery failed:", recoverCode);
+        return json({ error: "An account already uses that email." }, 409);
+      }
+    } else if (code === "auth/invalid-email") {
       return json({ error: "Enter a valid email address." }, 400);
-    }
-
-    if (code === "auth/weak-password") {
+    } else if (code === "auth/weak-password") {
       return json({ error: "Use at least 8 characters." }, 400);
+    } else {
+      console.error("createUser failed:", code);
+      return json({ error: "We could not create that account." }, 500);
     }
-
-    console.error("createUser failed:", code);
-    return json({ error: "We could not create that account." }, 500);
   }
 
   let bachsCustomerId: string | null = null;

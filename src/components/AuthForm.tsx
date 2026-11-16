@@ -13,7 +13,6 @@ import {
   isFirebaseClientConfigured,
   sendOtp,
   signInWithEmail,
-  signUpWithEmail,
 } from "@/lib/firebase-client";
 
 export type AuthMode = "signin" | "signup";
@@ -170,9 +169,9 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
         return;
       }
 
-      // Sign up: Firebase creates the account with emailVerified false.
-      await signUpWithEmail(email, password, name);
-
+      // The Worker owns Firebase user creation. Calling the client SDK here
+      // as well would try to create the same account twice and the second
+      // attempt would fail with "email already in use".
       const failure = await signUp({
         name,
         email,
@@ -187,8 +186,10 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
         return;
       }
 
-      // Kick off the OTP flow. The verification page sends the code if it
-      // has not been sent yet.
+      // The Worker created the account with the same password, so the client
+      // can now sign in and obtain a Firebase ID token for the OTP flow.
+      await signInWithEmail(email, password);
+
       const idToken = await getIdToken();
       await sendOtp(idToken).catch(() => undefined);
 
