@@ -678,19 +678,29 @@ export default function ProfileView() {
             >
               Reset preferences
             </button>
-            <button
+<button
               type="button"
               onClick={() => {
                 signOut();
                 router.push("/login");
               }}
-              className="inline-flex h-11 touch-manipulation items-center justify-center rounded-xl border border-[#DC2626]/30 bg-[#DC2626]/5 px-5 text-sm font-semibold text-[#B91C1C] transition-colors hover:bg-[#DC2626]/10"
+              className="inline-flex h-11 touch-manipulation items-center justify-center gap-2 rounded-xl border border-[#DC2626]/30 bg-[#DC2626]/5 px-5 text-sm font-semibold text-[#B91C1C] transition-colors hover:bg-[#DC2626]/10"
             >
               Sign out everywhere
             </button>
           </div>
         </div>
       </section>
+      <button
+        type="button"
+        onClick={() => {
+          signOut();
+          router.push("/login");
+        }}
+        className="inline-flex h-11 touch-manipulation items-center justify-center gap-2 rounded-xl border border-[#DC2626]/30 bg-[#DC2626]/5 px-5 text-sm font-semibold text-[#B91C1C] transition-colors hover:bg-[#DC2626]/10"
+      >
+        Delete account
+      </button>
     </div>
   );
 }

@@ -651,6 +651,10 @@ const worker = {
         return await handleVerifyEmail(request, env);
       }
 
+      if (request.method === "POST" && path === "/api/auth/delete") {
+        return await handleDeleteAccount(request, env);
+      }
+
       return json({ error: "Not found." }, 404);
     } catch (error) {
       return json(
@@ -699,6 +703,26 @@ const worker = {
     }
 
     return json({ verified: true });
+  },
+
+  async function handleDeleteAccount(request: Request, env: Env) {
+    const { user } = await (await fetch(request)).json();
+
+    const { userId } = user;
+
+    if (!userId) {
+      return json({ error: "User not found." }, 400);
+    }
+
+    // Delete user's data
+    await env.DB.prepare("DELETE FROM users WHERE id = ?1").bind(userId).run();
+    await env.DB.prepare("DELETE FROM user_sessions WHERE userId = ?1").bind(userId).run();
+    await env.DB.prepare("DELETE FROM user_orders WHERE userId = ?1").bind(userId).run();
+    await env.DB.prepare("DELETE FROM user_settings WHERE userId = ?1").bind(userId).run();
+    await env.DB.prepare("DELETE FROM user_products WHERE userId = ?1").bind(userId).run();
+    await env.DB.prepare("DELETE FROM user_orders WHERE userId = ?1").bind(userId).run();
+
+    return json({ deleted: true });
   },
 
 export default worker;
