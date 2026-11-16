@@ -5,7 +5,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowIcon } from "@/components/BuildIcons";
 import { useAccount } from "@/components/AccountProvider";
+import { useToast } from "@/components/ToastProvider";
+import { friendlyError } from "@/lib/errors";
 import { countries } from "@/data/account";
+import {
+  getIdToken,
+  isFirebaseClientConfigured,
+  sendOtp,
+  signInWithEmail,
+  signUpWithEmail,
+} from "@/lib/firebase-client";
 
 export type AuthMode = "signin" | "signup";
 
@@ -60,6 +69,7 @@ function EyeIcon({ className = "h-4 w-4" }: { className?: string }) {
 export default function AuthForm({ mode }: { mode: AuthMode }) {
   const router = useRouter();
   const { user, ready, signIn, signUp, busy } = useAccount();
+  const toast = useToast();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -138,26 +148,108 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
 
     setSubmitting(true);
 
-    const failure =
-      mode === "signin"
-        ? await signIn(email, password)
-        : await signUp({
-            name,
-            email,
-            phone,
-            country,
-            postalCode: postal,
-            password,
-          });
+    try {
+      if (!isFirebaseClientConfigured()) {
+        toast.error(
+          "Sign in is temporarily unavailable. Please try again in a moment."
+        );
+        return;
+      }
 
-    setSubmitting(false);
+      if (mode === "signin") {
+        await signInWithEmail(email, password);
 
-    if (failure) {
-      setErrors({ form: failure });
-      return;
+        const failure = await signIn(email, password);
+
+        if (failure) {
+          setErrors({ form: failure });
+          return;
+        }
+
+        router.push("/profile");
+        return;
+      }
+
+      // Sign up: Firebase creates the account with emailVerified false.
+      await signUpWithEmail(email, password, name);
+
+      const failure = await signUp({
+        name,
+        email,
+        phone,
+        country,
+        postalCode: postal,
+        password,
+      });
+
+      if (failure) {
+        setErrors({ form: failure });
+        return;
+      }
+
+      // Kick off the OTP flow. The verification page sends the code if it
+      // has not been sent yet.
+      const idToken = await getIdToken();
+      await sendOtp(idToken).catch(() => undefined);
+
+      router.push("/verify-otp");
+    } catch (error) {
+      const code = (error as { code?: string }).code ?? "";
+
+      if (code === "auth/email-already-in-use") {
+        toast.error("An account already uses that email address.");
+        setErrors({ form: "An account already uses that email." });
+        return;
+      }
+
+      if (code === "auth/invalid-credential") {
+        toast.error("Email or password is incorrect.");
+        setErrors({ form: "Email or password is incorrect." });
+        return;
+      }
+
+      if (code === "auth/user-not-found") {
+        toast.error("No account found with that email address.");
+        setErrors({ form: "No account found with that email address." });
+        return;
+      }
+
+      if (code === "auth/wrong-password") {
+        toast.error("Incorrect password. Please try again.");
+        setErrors({ form: "Incorrect password. Please try again." });
+        return;
+      }
+
+      if (code === "auth/weak-password") {
+        toast.error("Use at least 8 characters for your password.");
+        setErrors({ form: "Use at least 8 characters." });
+        return;
+      }
+
+      if (code === "auth/invalid-email") {
+        toast.error("That email address does not look right.");
+        setErrors({ form: "That email address does not look right." });
+        return;
+      }
+
+      if (code === "auth/too-many-requests") {
+        toast.error("Too many attempts. Please wait a moment and try again.");
+        setErrors({ form: "Too many attempts. Please wait a moment." });
+        return;
+      }
+
+      const message = friendlyError(
+        error,
+        mode === "signin"
+          ? "We could not sign you in."
+          : "We could not create that account."
+      );
+
+      toast.error(message);
+      setErrors({ form: message });
+    } finally {
+      setSubmitting(false);
     }
-
-    router.push("/profile");
   }
 
   const inputClass =

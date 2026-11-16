@@ -105,3 +105,15 @@ CREATE TABLE IF NOT EXISTS user_products (
 );
 
 CREATE INDEX IF NOT EXISTS user_products_user_idx ON user_products (user_id);
+
+CREATE TABLE IF NOT EXISTS email_otps (
+  uid TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  otp_hash TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_sent_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS email_otps_email_idx ON email_otps (email);

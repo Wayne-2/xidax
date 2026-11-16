@@ -95,9 +95,22 @@ export type RegisteredProductPayload = {
   email: string;
 };
 
+/**
+ * Worker bindings and secrets.
+ *
+ * Note: there is deliberately no `FIRESTORE` binding. Firestore is reached
+ * through the Firebase Admin SDK, which is initialised from FIREBASE_CONFIG
+ * (see `ensureInitialized` in ./auth).
+ */
 export type Env = {
-  DB: D1Database;
-  SESSIONS: KVNamespace;
+  /** JSON blob with the Firebase project config plus a service account key. */
+  FIREBASE_CONFIG?: string;
+  /** Secret pepper used when hashing email OTPs. */
+  OTP_SECRET?: string;
+  /** Resend API key used to deliver verification emails. */
+  RESEND_API_KEY?: string;
+  /** Origins allowed to call the auth endpoints, comma separated. */
+  ALLOWED_ORIGINS?: string;
   BACHS_API_KEY?: string;
   BACHS_API_BASE?: string;
   BACHS_CRYPTO_PATH?: string;

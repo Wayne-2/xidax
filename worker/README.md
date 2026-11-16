@@ -1,145 +1,478 @@
-# generic pcs API (Cloudflare Worker)
+# Generic PCs — Firebase Email OTP Verification
 
-Backend for the generic pcs storefront. Handles checkout sessions, the bachs payment
-gateway (crypto and wire transfer), order storage and product registration.
+Custom six digit email OTP verification for Generic PCs, replacing Firebase's
+default email verification link.
 
-## Stack
-
-- Cloudflare Worker (runtime) — `src/index.ts`
-- D1 — accounts, sessions, settings, orders, order lines and registrations
-- KV — live checkout sessions
-- bachs — the payment gateway adapter (`src/bachs.ts`)
-
-## Routes
-
-### Accounts
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| POST | `/api/auth/register` | Create an account, return a bearer token |
-| POST | `/api/auth/login` | Exchange email + password for a bearer token |
-| POST | `/api/auth/logout` | Invalidate the current session |
-| GET | `/api/me` | Read the signed-in profile |
-| PATCH | `/api/me` | Update the profile (name, phone, country, postal code) |
-| GET | `/api/me/orders` | Orders placed by the signed-in customer |
-| GET | `/api/me/settings` | Read the notification and display settings |
-| PATCH | `/api/me/settings` | Save the notification and display settings |
-| GET | `/api/me/products` | Machines the customer registered |
-| POST | `/api/me/products` | Register a machine and issue its label |
-| DELETE | `/api/me/products/:id` | Remove a registered machine |
-
-### Commerce
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/health` | Liveness + provider check |
-| POST | `/api/checkout` | Create a checkout session and return payment instructions |
-| GET | `/api/checkout/:id` | Read a session (status, instructions, expiry) |
-| POST | `/api/checkout/:id/submit` | Mark that the customer sent the payment |
-| POST | `/api/registrations` | Issue a purchase label + tracking number |
-| GET | `/api/orders?email=` | Order history for a customer |
-| POST | `/api/webhooks/bachs` | Gateway callback — flips an order to `paid` |
-
-Passwords are hashed with PBKDF2-SHA256 (100k iterations, per-user salt) and
-sessions are random 32-byte tokens stored in `user_sessions` with a 30-day
-expiry. Send the token as `Authorization: Bearer <token>`.
-
-## Setup
-
-### Auth
-
-Wrangler needs either an OAuth session or an API token. If
-`oauth.cloudflare.com` is unreachable from your network, use a token instead —
-it only talks to `api.cloudflare.com`:
-
-```bash
-export CLOUDFLARE_API_TOKEN=<token>
-export CLOUDFLARE_ACCOUNT_ID=d289dbc731c7695dd906f8bf8ea11dd1
+```
+Frontend (Next.js)  ──Firebase ID token──▶  Cloudflare Worker
+                                                │
+                        ┌───────────────────────┼───────────────────────┐
+                        ▼                       ▼                       ▼
+                Firebase Auth            Firestore (OTP records)      Resend (email)
 ```
 
-The token needs Workers Scripts (Edit), Workers KV (Edit) and D1 (Edit).
+Firebase remains the identity provider. The Worker owns OTP generation,
+storage, verification and email delivery. Firestore holds the temporary OTP
+records.
 
-### Resources
+---
+
+## 1. Architecture
+
+| Concern | Owner | Notes |
+|---|---|---|
+| Password storage | Firebase Auth | Never handled by our code |
+| Email verification | This system | 6 digit OTP, not Firebase's link |
+| OTP storage | Firestore `email_otps` | Hash + pepper, plaintext never stored |
+| OTP delivery | Resend | `hello@genericpcs.com` |
+| Session tokens | Firestore `user_sessions` | Opaque 32 byte random tokens |
+| Media storage | Cloudflare | Unchanged, served from `public/` |
+
+### OTP lifecycle
+
+1. `POST /api/auth/send-otp` — verifies the Firebase ID token, confirms the
+   account exists and is not yet verified, generates a six digit code, hashes
+   it with the server pepper, stores it in Firestore with a five minute
+   expiry, and emails it through Resend.
+2. The user enters the code on `/verify-otp`.
+3. `POST /api/auth/verify-otp` — verifies the ID token, re-hashes the
+   submitted code, compares in constant time, enforces the five attempt
+   limit, consumes the record, then sets `emailVerified: true` on the
+   Firebase account via the Admin SDK.
+4. `POST /api/auth/resend-otp` — invalidates any previous code, applies the
+   60 second cooldown, and sends a fresh code.
+
+---
+
+## 2. Security model
+
+| Control | Implementation |
+|---|---|
+| Authentication | Firebase ID token verified on every protected endpoint |
+| Never trust the browser | UID, email and verification status always come from the verified token |
+| OTP generation | `crypto.getRandomValues()`, exactly six digits, leading zeros preserved |
+| OTP storage | SHA-256 hash with `OTP_SECRET` pepper; plaintext never persisted |
+| OTP lifetime | 5 minutes |
+| Attempt limit | 5 incorrect submissions, then the record is destroyed |
+| Resend cooldown | 60 seconds per user |
+| Replay protection | The record is deleted on successful verification |
+| Concurrency | Attempt counter uses `FieldValue.increment` so parallel failures cannot skip the cap |
+| Timing | Constant time hash comparison |
+| CORS | Explicit allowlist, never `*`, unknown origins rejected with 403 |
+| Enumeration | Responses are generic and never confirm whether an email exists |
+| Logging | No OTP, token, key or email body is ever logged |
+
+### Rate limiting
+
+Cooldown and attempt limits are stored in Firestore, not in memory, because
+Workers are stateless and distributed. Per IP rate limiting should be layered
+on at the Cloudflare edge (WAF rule or Rate Limiting binding) if required.
+
+---
+
+## 3. Environment variables
+
+### Worker secrets (`wrangler secret put`)
+
+| Secret | Required | Purpose |
+|---|---|---|
+| `FIREBASE_CONFIG` | yes | Firebase project config **plus** service account key |
+| `RESEND_API_KEY` | yes | Resend API key |
+| `OTP_SECRET` | yes | Pepper for OTP hashing, at least 16 characters |
+
+### Worker vars (`wrangler.toml`)
+
+| Var | Optional | Purpose |
+|---|---|---|
+| `ALLOWED_ORIGINS` | yes | Extra allowed origins, comma separated |
+
+### Frontend variables (`.env.local`)
+
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_API_BASE_URL` | Worker API base URL |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase web config |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase web config |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase web config |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase web config |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase web config |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase web config |
+
+> The Firebase web config is public by design and is safe to ship in the
+> browser bundle. Only the **service account private key** must stay in the
+> Worker secret.
+
+---
+
+## 4. Firebase configuration
+
+### 4.1 Create the service account key
+
+1. Firebase Console → **Project Settings** → **Service Accounts**
+2. **Generate new private key** → download the JSON
+3. Note `project_id`, `client_email` and `private_key`
+
+### 4.2 Build the `FIREBASE_CONFIG` value
+
+The Worker accepts either camelCase or the snake_case field names from the
+downloaded JSON, and restores escaped newlines inside the private key.
+
+```json
+{
+  "apiKey": "AIza...",
+  "authDomain": "your-project.firebaseapp.com",
+  "projectId": "your-project",
+  "storageBucket": "your-project.appspot.com",
+  "messagingSenderId": "1234567890",
+  "appId": "1:1234567890:web:abcdef123456",
+  "clientEmail": "firebase-adminsdk-xxxx@your-project.iam.gserviceaccount.com",
+  "privateKey": "-----BEGIN PRIVATE KEY-----\nMIIEvQ...\n-----END PRIVATE KEY-----\n"
+}
+```
+
+### 4.3 Enable the sign-in providers
+
+Firebase Console → **Authentication** → **Sign-in method**:
+
+- **Email/Password** → enable
+- Turn **off** "Email link (passwordless sign-in)" — this system replaces it
+
+### 4.4 Firestore
+
+Create a Firestore database if one does not exist. The `email_otps`
+collection is created automatically on first write. Recommended rules: deny all
+client access, since every read and write goes through the Worker.
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+```
+
+---
+
+## 5. Cloudflare configuration
+
+The API Worker lives in `worker/` and is deployed independently of the Next.js
+app.
+
+```bash
+# 0. Check which secrets are already set (names only, never values)
+cd worker && npm run secrets:list && cd ..
+```
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Set the Worker secrets (you will be prompted for each value)
+cd worker
+npm run secret:FIREBASE_CONFIG   # or: npx wrangler secret put FIREBASE_CONFIG
+npm run secret:RESEND_API_KEY
+npm run secret:OTP_SECRET
+cd ..
+
+# 3. Optional: allow extra origins
+#    ALLOWED_ORIGINS = "https://staging.genericpcs.com"  in worker/wrangler.toml
+
+# 4. Deploy the API Worker
+cd worker
+npm run deploy
+cd ..
+
+# 5. Deploy the Next.js site
+npm run build
+npx opennextjs-cloudflare deploy
+```
+
+> **Always pass `--config wrangler.toml`** when running wrangler from inside
+> `worker/`. Without it, wrangler can pick up the repository root
+> `wrangler.jsonc` and deploy the wrong Worker. The `npm run deploy` script
+> already includes the flag.
+
+### Custom API domain
 
 ```bash
 cd worker
-npm install
-npx wrangler d1 create generic-pcs            # then paste the id into wrangler.toml
-npx wrangler kv namespace create SESSIONS # then paste the id into wrangler.toml
-npx wrangler d1 execute generic-pcs --remote --file=./schema.sql
-npx wrangler secret put BACHS_API_KEY
-npx wrangler secret put BACHS_API_BASE
-npm run deploy
+npx wrangler deploy --config wrangler.toml --routes auth.genericpcs.com
 ```
 
-`npx wrangler secret put` writes a secret and creates a new version of the
-worker, so the script keeps running. Deploys must always point at this config
-(`npx wrangler deploy --config worker/wrangler.toml`) — plain `wrangler deploy`
-from the repo root picks up the storefront's `wrangler.jsonc` instead.
+Then add a CNAME for `auth.genericpcs.com` to the Worker in the Cloudflare
+dashboard. Use this as `NEXT_PUBLIC_API_BASE_URL`:
 
-The worker also runs its own `CREATE TABLE IF NOT EXISTS` migration on the first
-request of a cold isolate, so the API is usable even before the CLI migration
-has been applied.
+```
+NEXT_PUBLIC_API_BASE_URL=https://auth.genericpcs.com
+```
 
-## bachs
-
-Base URL: `https://sandbox-api.bachs.io` (`BACHS_API_BASE`).
-
-| Purpose | Endpoint | Required scope |
-| --- | --- | --- |
-| Customer | `GET/POST /v1/customers` | `customers:read`, `customers:write` |
-| Product | `GET/POST /v1/products` | `products:read`, `products:write` |
-| Checkout session (crypto + wire) | `POST /v1/checkout-sessions` — `BACHS_CRYPTO_PATH`, `BACHS_WIRE_PATH` | `payments:write` |
-| Confirm a session | `POST /v1/checkout-sessions/:id/confirm` | `payments:write` |
-
-Both checkout paths are vars so they can be corrected without touching code. The
-bachs key needs the scopes above; if a scope is missing the worker falls back to
-the wallet/bank variables in `wrangler.toml` and returns a `gatewayWarning` on the
-session so the storefront can show a notice instead of failing the checkout.
-
-Two gateway rejections are translated into shopper-facing messages instead of a
-generic failure:
-
-- `EMAIL_NOT_DELIVERABLE` — the checkout email domain accepts no mail, so the
-  customer is asked for another address.
-- `DEPOSIT_LIMIT_EXCEEDED` — the order is above the account's per-payment
-  limit; the response names both the order total and the limit. The sandbox
-  account is capped at $5,000 per payment, so carts above that need splitting.
-
-### Webhooks
-
-`POST /api/webhooks/bachs` settles an order when bachs reports the payment.
-The worker follows bachs's signing scheme:
-
-| Header | Value |
-| --- | --- |
-| `X-Bachs-Timestamp` | Unix seconds |
-| `X-Bachs-Signature` | HMAC-SHA256 hex of `"{timestamp}.{raw_body}"` |
-| `X-Bachs-Signature-V2` | `t={timestamp},v1={signature}` — repeats `v1=` per live secret |
-
-Set the shared secret with `npx wrangler secret put BACHS_WEBHOOK_SECRET` and
-paste the same value into the bachs dashboard. Secrets are write-only, so the
-worker cannot read the value back — that is why it has to be set from the CLI.
-
-Verification accepts either signature header, rejects deliveries more than 300
-seconds old or in the future, and — while no secret is configured — still
-refuses to guess: a webhook only changes an order when its payload matches an
-order we created, by the bachs checkout id (`orders.checkout_id`) or by the
-order reference. Unknown ids are ignored (`{"ok": true, "matched": false}`).
-
-Handled events: `checkout.completed` and `collection.succeeded` settle the
-order (`paid`), `collection.failed` marks it `failed`. Both the live session in
-KV and the order rows in D1 (including the customer's order history) are
-updated.
-
-## Frontend
-
-Point the Next app at the worker:
+### Local development
 
 ```bash
-# .env.local
-NEXT_PUBLIC_API_BASE_URL=https://generic-pcs-api.<account>.workers.dev
+# API worker
+cd worker && npm run dev
+
+# Next.js site (separate terminal)
+npm run dev
 ```
 
-Without that variable the app falls back to a local demo gateway that returns
-the same session shape, so the checkout UI is fully usable offline.
+For local secrets, create `worker/.dev.vars`:
+
+```
+FIREBASE_CONFIG={"projectId":"...","clientEmail":"...","privateKey":"..."}
+RESEND_API_KEY=re_xxx
+OTP_SECRET=a-long-random-string
+```
+
+---
+
+## 6. Verify the setup
+
+Hit the diagnostics endpoint. It reports presence and connectivity only — it
+never returns a secret.
+
+```bash
+curl -s https://auth.genericpcs.com/api/auth/config-check | jq
+```
+
+```json
+{
+  "ok": true,
+  "firebase": {
+    "configured": true,
+    "projectId": "your-project",
+    "serviceAccountPresent": true,
+    "reachable": true,
+    "error": null
+  },
+  "resend": { "configured": true },
+  "otpSecret": { "configured": true, "lengthOk": true },
+  "origins": []
+}
+```
+
+`ok: true` means every dependency is wired correctly.
+
+---
+
+## 7. API contract
+
+Base URL: `https://auth.genericpcs.com`
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `POST` | `/api/auth/send-otp` | Firebase ID token | Generate and email a code |
+| `POST` | `/api/auth/verify-otp` | Firebase ID token | Verify a code and mark the email verified |
+| `POST` | `/api/auth/resend-otp` | Firebase ID token | Invalidate and re-send a code |
+| `GET` | `/api/auth/status` | `Authorization: Bearer <idToken>` | Current verification status |
+| `GET` | `/api/auth/config-check` | none | Configuration diagnostics |
+
+### Send
+
+```jsonc
+// POST /api/auth/send-otp
+{ "idToken": "<firebase id token>" }
+```
+
+```jsonc
+// 200
+{
+  "success": true,
+  "message": "A verification code is on its way to your inbox.",
+  "expiresInSeconds": 300,
+  "resendAfterSeconds": 60
+}
+```
+
+```jsonc
+// 429 — cooldown
+{
+  "error": "Please wait 42 seconds before requesting another code.",
+  "code": "cooldown",
+  "cooldown": true,
+  "retryAfter": 42
+}
+```
+
+### Verify
+
+```jsonc
+// POST /api/auth/verify-otp
+{ "idToken": "<firebase id token>", "otp": "042193" }
+```
+
+```jsonc
+// 200
+{ "success": true, "verified": true }
+```
+
+```jsonc
+// 400
+{
+  "error": "That code is not correct.",
+  "code": "invalid_otp",
+  "attemptsRemaining": 4
+}
+```
+
+Possible `code` values: `invalid_otp`, `expired`, `max_attempts`,
+`not_found`.
+
+### Status
+
+```jsonc
+// GET /api/auth/status   Authorization: Bearer <idToken>
+{
+  "emailVerified": false,
+  "hasPendingOTP": true,
+  "expiresIn": 268412,
+  "attempts": 0,
+  "lastSentAt": "2026-01-01T12:00:00.000Z",
+  "cooldownSeconds": 0
+}
+```
+
+---
+
+## 8. Manual testing with curl
+
+```bash
+API="https://auth.genericpcs.com"
+TOKEN="<firebase id token>"
+
+# Configuration health
+curl -s "$API/api/auth/config-check" | jq
+
+# Send a code
+curl -s -X POST "$API/api/auth/send-otp" \
+  -H "Content-Type: application/json" \
+  -d "{\"idToken\":\"$TOKEN\"}" | jq
+
+# Cooldown check (run twice quickly)
+curl -s -X POST "$API/api/auth/send-otp" \
+  -H "Content-Type: application/json" \
+  -d "{\"idToken\":\"$TOKEN\"}" | jq
+
+# Wrong code
+curl -s -X POST "$API/api/auth/verify-otp" \
+  -H "Content-Type: application/json" \
+  -d "{\"idToken\":\"$TOKEN\",\"otp\":\"000000\"}" | jq
+
+# Status
+curl -s "$API/api/auth/status" \
+  -H "Authorization: Bearer $TOKEN" | jq
+
+# Correct code
+curl -s -X POST "$API/api/auth/verify-otp" \
+  -H "Content-Type: application/json" \
+  -d "{\"idToken\":\"$TOKEN\",\"otp\":\"042193\"}" | jq
+
+# Reuse the same code (must fail)
+curl -s -X POST "$API/api/auth/verify-otp" \
+  -H "Content-Type: application/json" \
+  -d "{\"idToken\":\"$TOKEN\",\"otp\":\"042193\"}" | jq
+
+# Missing token (must be 401)
+curl -s -X POST "$API/api/auth/send-otp" \
+  -H "Content-Type: application/json" -d '{}' | jq
+
+# Disallowed origin (must be 403)
+curl -s -X POST "$API/api/auth/send-otp" \
+  -H "Origin: https://evil.test" \
+  -H "Content-Type: application/json" \
+  -d "{\"idToken\":\"$TOKEN\"}" | jq
+```
+
+---
+
+## 9. Frontend integration
+
+### Getting a Firebase ID token
+
+`src/lib/firebase-client.ts` wraps the Firebase web SDK:
+
+```ts
+import { getIdToken, sendOtp, verifyOtp } from "@/lib/firebase-client";
+
+const idToken = await getIdToken();
+await sendOtp(idToken);
+await verifyOtp(idToken, "042193");
+```
+
+### Registration flow
+
+`src/components/AuthForm.tsx`:
+
+1. `signUpWithEmail(email, password, name)` creates the Firebase account with
+   `emailVerified: false`.
+2. The Worker session endpoint issues the site session token.
+3. `sendOtp(idToken)` triggers the email.
+4. `router.push("/verify-otp")` sends the user to the verification screen.
+
+### Verification screen
+
+`src/app/(auth)/verify-otp/page.tsx` provides:
+
+- Six separate inputs with automatic focus progression
+- Backspace navigation, arrow key navigation and paste support
+- Live expiry countdown
+- 60 second resend cooldown
+- Attempts remaining
+- Auto submission once six digits are entered
+- Loading, error and success feedback
+
+---
+
+## 10. Tests
+
+```bash
+npm test              # 42 tests
+npm run test:watch
+npm run typecheck        # Next.js app
+npm run typecheck:worker # Worker
+```
+
+Coverage:
+
+| File | Focus |
+|---|---|
+| `worker/tests/otp.test.ts` | Generation, hashing, comparison, policy constants |
+| `worker/tests/config.test.ts` | `FIREBASE_CONFIG` parsing, including snake_case and base64 |
+| `worker/tests/email.test.ts` | Template structure, branding, expiry and security notice |
+| `worker/tests/cors.test.ts` | Origin allowlist, wildcard protection, localhost rules |
+
+---
+
+## 11. Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `config-check` reports `FIREBASE_CONFIG is not set` | Secret missing | `wrangler secret put FIREBASE_CONFIG` |
+| `config-check` reports `missing clientEmail/privateKey` | Web config pasted instead of a service account key | Add `client_email` and `private_key` from the downloaded JSON |
+| `FIREBASE_CONFIG could not be parsed` | Malformed JSON | Paste the raw JSON, or base64 encode it |
+| `Invalid Firebase ID token` | Expired token | Call `getIdToken(null, true)` to force a refresh |
+| No email arrives | Sender not verified in Resend | Verify `hello@genericpcs.com` in Resend |
+| `Email service is not configured` | `RESEND_API_KEY` missing | `wrangler secret put RESEND_API_KEY` |
+| `Origin not allowed` | Origin missing from the allowlist | Add it to `ALLOWED_ORIGINS` |
+| `Origin not allowed` on localhost | Localhost port not matched | Use `http://localhost:<port>` exactly |
+| Firestore permission denied | Client rules allow access | Lock the rules down; the Worker uses the Admin SDK |
+
+---
+
+## 12. Files
+
+| File | Purpose |
+|---|---|
+| `worker/src/auth.ts` | Firebase Admin setup, OTP primitives, Firestore OTP storage |
+| `worker/src/email.ts` | Resend delivery and the HTML template |
+| `worker/src/cors.ts` | Origin allowlist and CORS headers |
+| `worker/src/config-check.ts` | Configuration diagnostics |
+| `worker/src/index.ts` | Routing and the OTP endpoints |
+| `worker/src/account.ts` | Registration, login, profile and order endpoints |
+| `worker/src/types.ts` | `Env` bindings and shared types |
+| `src/lib/firebase-client.ts` | Firebase web SDK wrapper and OTP API client |
+| `src/app/(auth)/verify-otp/page.tsx` | OTP verification interface |
+| `src/components/AuthForm.tsx` | Registration and sign-in form |

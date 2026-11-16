@@ -1,11 +1,11 @@
 import {
-  createPassword,
   createSession,
+  ensureInitialized,
   ensureSettings,
   findUserByToken,
   readToken,
   toUser,
-  verifyPassword,
+  type StoredUser,
 } from "./auth";
 import { resolveCustomer } from "./bachs";
 import type { Env } from "./types";
@@ -68,19 +68,46 @@ export async function handleRegister(request: Request, env: Env) {
     return json({ error: "Use at least 8 characters." }, 400);
   }
 
-  const existing = await env.DB.prepare(
-    "SELECT id FROM users WHERE email = ?1"
-  )
-    .bind(email)
-    .first<{ id: string }>();
+  const { auth: firebaseAuth, firestore: db } = await ensureInitialized(env);
 
-  if (existing) {
+  const existing = await db
+    .collection("users")
+    .where("email", "==", email)
+    .limit(1)
+    .get();
+
+  if (!existing.empty) {
     return json({ error: "An account already uses that email." }, 409);
   }
 
-  const { salt, hash } = await createPassword(password);
-  const userId = crypto.randomUUID();
-  const createdAt = new Date().toISOString();
+  let userId: string;
+
+  try {
+    const userRecord = await firebaseAuth.createUser({
+      email,
+      password,
+      displayName: name,
+    });
+
+    userId = userRecord.uid;
+  } catch (error) {
+    const code = (error as { code?: string }).code ?? "";
+
+    if (code === "auth/email-already-exists") {
+      return json({ error: "An account already uses that email." }, 409);
+    }
+
+    if (code === "auth/invalid-email") {
+      return json({ error: "Enter a valid email address." }, 400);
+    }
+
+    if (code === "auth/weak-password") {
+      return json({ error: "Use at least 8 characters." }, 400);
+    }
+
+    console.error("createUser failed:", code);
+    return json({ error: "We could not create that account." }, 500);
+  }
 
   let bachsCustomerId: string | null = null;
 
@@ -98,57 +125,29 @@ export async function handleRegister(request: Request, env: Env) {
     bachsCustomerId = null;
   }
 
-  await env.DB.prepare(
-    `INSERT INTO users (id, email, name, phone, country, postal_code, password_hash, password_salt, tier, bachs_customer_id, email_verified, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`
-  )
-    .bind(
-      userId,
-      email,
-      name,
-      phone,
-      country,
-      postalCode,
-      hash,
-      salt,
-      "Member",
-      bachsCustomerId,
-      0,
-      createdAt
-    )
-    .run();
+  const createdAt = new Date().toISOString();
+
+  await db.collection("users").doc(userId).set({
+    id: userId,
+    email,
+    name,
+    phone,
+    country,
+    postal_code: postalCode,
+    tier: "Member",
+    bachs_customer_id: bachsCustomerId,
+    email_verified: 0,
+    created_at: createdAt,
+  });
 
   await ensureSettings(env, userId);
 
+  await firebaseAuth.setCustomUserClaims(userId, {
+    tier: "Member",
+    memberSince: new Date().getFullYear().toString(),
+  });
+
   const session = await createSession(env, userId);
-
-  // Send verification email via Resend
-  try {
-    const verificationUrl = `https://generic-pcs-web.pcmarketweb.workers.dev/auth/verify?token=${session.token}&email=${encodeURIComponent(
-      email
-    )}`;
-
-    const emailResponse = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
-      },
-      body: JSON.stringify({
-        from: "onboarding@generic-pcs.com",
-        to: [email],
-        subject: "Verify your email address",
-        html: `<p>Click <a href="${verificationUrl}">here</a> to verify your email address.</p><p>This link will expire in 24 hours.</p>`,
-      }),
-    });
-
-    if (!emailResponse.ok) {
-      const err = await emailResponse.text();
-      throw new Error(err || "Failed to send verification email");
-    }
-  } catch {
-    // Verification email failure does not prevent account creation
-  }
 
   return json(
     {
@@ -162,6 +161,9 @@ export async function handleRegister(request: Request, env: Env) {
         country,
         postalCode,
         tier: "Member",
+        memberSince: new Date().getFullYear().toString(),
+        bachsCustomerId,
+        emailVerified: false,
         createdAt,
       },
     },
@@ -181,45 +183,57 @@ export async function handleLogin(request: Request, env: Env) {
     return json({ error: "Enter your email and password." }, 400);
   }
 
-  const row = await env.DB.prepare(
-    "SELECT id, email, name, phone, country, postal_code, tier, bachs_customer_id, email_verified, created_at, password_hash, password_salt FROM users WHERE email = ?1"
-  )
-    .bind(email)
-    .first<{
-      id: string;
-      email: string;
-      name: string;
-      phone: string | null;
-      country: string | null;
-      postal_code: string | null;
-      tier: string | null;
-      bachs_customer_id: string | null;
-      email_verified: number;
-      created_at: string;
-      password_hash: string;
-      password_salt: string;
-    }>();
+  const { auth: firebaseAuth, firestore: db } = await ensureInitialized(env);
 
-  if (!row) {
+  let userRecord;
+
+  try {
+    userRecord = await firebaseAuth.getUserByEmail(email);
+  } catch {
     return json({ error: "Those details do not match an account." }, 401);
   }
 
-  const valid = await verifyPassword(
-    password,
-    row.password_salt,
-    row.password_hash
-  );
+  const userDoc = await db.collection("users").doc(userRecord.uid).get();
 
-  if (!valid) {
-    return json({ error: "Those details do not match an account." }, 401);
+  if (!userDoc.exists) {
+    return json({ error: "Account not found in our system." }, 404);
   }
 
-  const session = await createSession(env, row.id);
+  const userData = userDoc.data() as {
+    id: string;
+    email: string;
+    name: string;
+    phone: string | null;
+    country: string | null;
+    postal_code: string | null;
+    tier: string | null;
+    bachs_customer_id: string | null;
+    email_verified: number;
+    created_at: string;
+  };
+
+  const storedUser: StoredUser = {
+    id: userData.id,
+    email: userData.email,
+    name: userData.name,
+    phone: userData.phone ?? "",
+    country: userData.country ?? "",
+    postalCode: userData.postal_code ?? "",
+    tier: userData.tier ?? "Member",
+    memberSince: userData.created_at
+      ? userData.created_at.slice(0, 4)
+      : "2024",
+    bachsCustomerId: userData.bachs_customer_id ?? null,
+    emailVerified: userData.email_verified === 1,
+    createdAt: userData.created_at,
+  };
+
+  const session = await createSession(env, userRecord.uid);
 
   return json({
     token: session.token,
     expiresAt: session.expiresAt,
-    user: toUser(row),
+    user: toUser(storedUser),
   });
 }
 
@@ -227,9 +241,8 @@ export async function handleLogout(request: Request, env: Env) {
   const token = readToken(request);
 
   if (token) {
-    await env.DB.prepare("DELETE FROM user_sessions WHERE token = ?1")
-      .bind(token)
-      .run();
+    const { firestore: db } = await ensureInitialized(env);
+    await db.collection("user_sessions").doc(token).delete();
   }
 
   return json({ ok: true });
@@ -240,16 +253,27 @@ export async function handleMe(request: Request, env: Env) {
 
   if (!user) return json({ error: "Not signed in." }, 401);
 
+  const { firestore: db } = await ensureInitialized(env);
   const settings = await ensureSettings(env, user.id);
 
-  const counts = await env.DB.prepare(
-    `SELECT (SELECT COUNT(*) FROM user_orders WHERE user_id = ?1) AS orders,
-            (SELECT COUNT(*) FROM user_products WHERE user_id = ?1) AS products`
-  )
-    .bind(user.id)
-    .first<{ orders: number; products: number }>();
+  const ordersSnap = await db
+    .collection("user_orders")
+    .where("user_id", "==", user.id)
+    .get();
 
-  return json({ user, settings, counts: counts ?? { orders: 0, products: 0 } });
+  const productsSnap = await db
+    .collection("user_products")
+    .where("user_id", "==", user.id)
+    .get();
+
+  return json({
+    user,
+    settings,
+    counts: {
+      orders: ordersSnap.size,
+      products: productsSnap.size,
+    },
+  });
 }
 
 export async function handleUpdateMe(request: Request, env: Env) {
@@ -271,30 +295,50 @@ export async function handleUpdateMe(request: Request, env: Env) {
     return json({ error: "Enter a valid email address." }, 400);
   }
 
-  await env.DB.prepare(
-    "UPDATE users SET name = ?1, email = ?2, phone = ?3, country = ?4, postal_code = ?5 WHERE id = ?6"
-  )
-    .bind(name, email, phone, country, postalCode, user.id)
-    .run();
+  const { firestore: db } = await ensureInitialized(env);
 
-  const row = await env.DB.prepare(
-    "SELECT id, email, name, phone, country, postal_code, tier, bachs_customer_id, email_verified, created_at FROM users WHERE id = ?1"
-  )
-    .bind(user.id)
-    .first<{
-      id: string;
-      email: string;
-      name: string;
-      phone: string | null;
-      country: string | null;
-      postal_code: string | null;
-      tier: string | null;
-      bachs_customer_id: string | null;
-      email_verified: number;
-      created_at: string;
-    }>();
+  await db.collection("users").doc(user.id).update({
+    name,
+    email,
+    phone,
+    country,
+    postal_code: postalCode,
+  });
 
-  return json({ user: toUser(row!) });
+  const doc = await db.collection("users").doc(user.id).get();
+
+  if (!doc.exists) {
+    return json({ error: "User not found." }, 404);
+  }
+
+  const data = doc.data() as {
+    id: string;
+    email: string;
+    name: string;
+    phone: string | null;
+    country: string | null;
+    postal_code: string | null;
+    tier: string | null;
+    bachs_customer_id: string | null;
+    email_verified: number;
+    created_at: string;
+  };
+
+  return json({
+    user: toUser({
+      id: data.id,
+      email: data.email,
+      name: data.name,
+      phone: data.phone ?? "",
+      country: data.country ?? "",
+      postalCode: data.postal_code ?? "",
+      tier: data.tier ?? "Member",
+      memberSince: data.created_at ? data.created_at.slice(0, 4) : "2024",
+      bachsCustomerId: data.bachs_customer_id ?? null,
+      emailVerified: data.email_verified === 1,
+      createdAt: data.created_at,
+    }),
+  });
 }
 
 export async function handleSettings(request: Request, env: Env) {
@@ -328,21 +372,18 @@ export async function handleSettings(request: Request, env: Env) {
     currency: text(body.currency) || current.currency,
   };
 
-  await env.DB.prepare(
-    `INSERT INTO user_settings (user_id, order_updates, drop_notifications, marketing_emails, language, currency)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-     ON CONFLICT(user_id) DO UPDATE SET
-       order_updates = ?2, drop_notifications = ?3, marketing_emails = ?4, language = ?5, currency = ?6`
-  )
-    .bind(
-      user.id,
-      settings.orderUpdates ? 1 : 0,
-      settings.dropNotifications ? 1 : 0,
-      settings.marketingEmails ? 1 : 0,
-      settings.language,
-      settings.currency
-    )
-    .run();
+  const { firestore: db } = await ensureInitialized(env);
+
+  await db.collection("user_settings").doc(user.id).set(
+    {
+      order_updates: settings.orderUpdates ? 1 : 0,
+      drop_notifications: settings.dropNotifications ? 1 : 0,
+      marketing_emails: settings.marketingEmails ? 1 : 0,
+      language: settings.language,
+      currency: settings.currency,
+    },
+    { merge: true }
+  );
 
   return json({ settings });
 }
@@ -352,70 +393,83 @@ export async function handleUserOrders(request: Request, env: Env) {
 
   if (!user) return json({ error: "Not signed in." }, 401);
 
-  const rows = await env.DB.prepare(
-    "SELECT id, reference, title, detail, total, currency, status, method, created_at FROM user_orders WHERE user_id = ?1 ORDER BY created_at DESC LIMIT 50"
-  )
-    .bind(user.id)
-    .all<{
-      id: string;
-      reference: string;
-      title: string;
-      detail: string | null;
-      total: number;
-      currency: string;
-      status: string;
-      method: string | null;
-      created_at: string;
-    }>();
+  const { firestore: db } = await ensureInitialized(env);
 
-  return json({
-    orders: (rows.results ?? []).map((row) => ({
-      id: row.id,
-      reference: row.reference,
-      title: row.title,
-      detail: row.detail ?? "",
-      total: row.total,
-      currency: row.currency,
-      status: row.status,
-      method: row.method ?? "",
-      createdAt: row.created_at,
-    })),
+  const ordersSnap = await db
+    .collection("user_orders")
+    .where("user_id", "==", user.id)
+    .orderBy("created_at", "desc")
+    .limit(50)
+    .get();
+
+  const orders = ordersSnap.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      reference: data.reference,
+      title: data.title,
+      detail: data.detail ?? "",
+      total: data.total,
+      currency: data.currency,
+      status: data.status,
+      method: data.method ?? "",
+      createdAt: data.created_at,
+    };
   });
+
+  return json({ orders });
 }
 
-export async function handleProducts(request: Request, env: Env) {
+export async function handleProducts(request: Request, env: Env, id?: string) {
   const user = await requireUser(request, env);
 
   if (!user) return json({ error: "Not signed in." }, 401);
 
-  if (request.method === "GET") {
-    const rows = await env.DB.prepare(
-      "SELECT id, kind, name, order_number, purchased_on, label_number, tracking_number, created_at FROM user_products WHERE user_id = ?1 ORDER BY created_at DESC LIMIT 50"
-    )
-      .bind(user.id)
-      .all<{
-        id: string;
-        kind: string;
-        name: string;
-        order_number: string;
-        purchased_on: string | null;
-        label_number: string;
-        tracking_number: string;
-        created_at: string;
-      }>();
+  const { firestore: db } = await ensureInitialized(env);
 
+  if (id) {
+    const doc = await db.collection("user_products").doc(id).get();
+
+    if (!doc.exists) return json({ error: "Product not found." }, 404);
+
+    const data = doc.data();
     return json({
-      products: (rows.results ?? []).map((row) => ({
-        id: row.id,
-        kind: row.kind,
-        name: row.name,
-        orderNumber: row.order_number,
-        purchasedOn: row.purchased_on ?? "",
-        labelNumber: row.label_number,
-        trackingNumber: row.tracking_number,
-        createdAt: row.created_at,
-      })),
+      product: {
+        id: doc.id,
+        kind: data?.kind,
+        name: data?.name,
+        orderNumber: data?.order_number,
+        purchasedOn: data?.purchased_on ?? "",
+        labelNumber: data?.label_number,
+        trackingNumber: data?.tracking_number,
+        createdAt: data?.created_at,
+      },
     });
+  }
+
+  const productsSnap = await db
+    .collection("user_products")
+    .where("user_id", "==", user.id)
+    .orderBy("created_at", "desc")
+    .limit(50)
+    .get();
+
+  const products = productsSnap.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      kind: data?.kind,
+      name: data?.name,
+      orderNumber: data?.order_number,
+      purchasedOn: data?.purchased_on ?? "",
+      labelNumber: data?.label_number,
+      trackingNumber: data?.tracking_number,
+      createdAt: data?.created_at,
+    };
+  });
+
+  if (request.method === "GET") {
+    return json({ products });
   }
 
   const body = await readJson(request);
@@ -430,31 +484,26 @@ export async function handleProducts(request: Request, env: Env) {
   if (!name) return json({ error: "Name the machine you bought." }, 400);
   if (!orderNumber) return json({ error: "Add your order number." }, 400);
 
-  const id = crypto.randomUUID();
+  const productId = crypto.randomUUID();
   const labelNumber = `PCM-LBL-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
   const trackingNumber = `PCMT-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
-  await env.DB.prepare(
-    `INSERT INTO user_products (id, user_id, kind, name, order_number, purchased_on, label_number, tracking_number, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
-  )
-    .bind(
-      id,
-      user.id,
-      kind,
-      name,
-      orderNumber,
-      purchasedOn,
-      labelNumber,
-      trackingNumber,
-      new Date().toISOString()
-    )
-    .run();
+  await db.collection("user_products").doc(productId).set({
+    id: productId,
+    user_id: user.id,
+    kind,
+    name,
+    order_number: orderNumber,
+    purchased_on: purchasedOn,
+    label_number: labelNumber,
+    tracking_number: trackingNumber,
+    created_at: new Date().toISOString(),
+  });
 
   return json(
     {
       product: {
-        id,
+        id: productId,
         kind,
         name,
         orderNumber,
@@ -473,11 +522,8 @@ export async function handleDeleteProduct(request: Request, env: Env, id: string
 
   if (!user) return json({ error: "Not signed in." }, 401);
 
-  await env.DB.prepare(
-    "DELETE FROM user_products WHERE id = ?1 AND user_id = ?2"
-  )
-    .bind(id, user.id)
-    .run();
+  const { firestore: db } = await ensureInitialized(env);
+  await db.collection("user_products").doc(id).delete();
 
   return json({ ok: true });
 }
@@ -503,21 +549,20 @@ export async function attachOrderToUser(
 
   if (!user) return;
 
-  await env.DB.prepare(
-    `INSERT OR REPLACE INTO user_orders (id, user_id, reference, title, detail, total, currency, status, method, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`
-  )
-    .bind(
-      order.id,
-      user.id,
-      order.reference,
-      order.lines.map((line) => line.name).join(", "),
-      order.lines.map((line) => `${line.name} x${line.quantity}`).join(" · "),
-      order.total,
-      order.currency,
-      order.status,
-      order.method,
-      new Date().toISOString()
-    )
-    .run();
+  const { firestore: db } = await ensureInitialized(env);
+
+  await db.collection("user_orders").doc(order.id).set({
+    id: order.id,
+    user_id: user.id,
+    reference: order.reference,
+    title: order.lines.map((line) => line.name).join(", "),
+    detail: order.lines
+      .map((line) => `${line.name} x${line.quantity}`)
+      .join(" · "),
+    total: order.total,
+    currency: order.currency,
+    status: order.status,
+    method: order.method,
+    created_at: new Date().toISOString(),
+  });
 }

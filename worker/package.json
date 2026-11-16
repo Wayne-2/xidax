@@ -3,13 +3,21 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "db:init": "wrangler d1 execute generic-pcs --remote --file=./schema.sql"
+    "dev": "wrangler dev --config wrangler.toml",
+    "deploy": "wrangler deploy --config wrangler.toml",
+    "db:init": "wrangler d1 execute generic-pcs --remote --file=./schema.sql",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "secret:FIREBASE_CONFIG": "wrangler secret put FIREBASE_CONFIG --config wrangler.toml",
+    "secret:RESEND_API_KEY": "wrangler secret put RESEND_API_KEY --config wrangler.toml",
+    "secret:OTP_SECRET": "wrangler secret put OTP_SECRET --config wrangler.toml",
+    "secrets:list": "wrangler secret list --config wrangler.toml"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20241106.0",
+    "@cloudflare/workers-types": "^5.20261116.1",
     "typescript": "^5",
-    "wrangler": "^3"
+    "wrangler": "^4.163.0"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.5.1"
   }
 }

@@ -1,6 +1,7 @@
 name = "generic-pcs-api"
 main = "src/index.ts"
 compatibility_date = "2025-11-01"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 PAYMENT_PROVIDER = "bachs"
@@ -12,6 +13,17 @@ WIRE_BANK_NAME = "generic pcs Payments Bank"
 WIRE_ROUTING_CODE = "021000021"
 WIRE_SWIFT = "PCMAGTNG"
 
+# Extra origins allowed to call the API, comma separated.
+# The production site is always allowed. Localhost is permitted for dev.
+ALLOWED_ORIGINS = ""
+
+# Secrets are set with `wrangler secret put` and must NOT be committed here:
+#   FIREBASE_CONFIG   JSON with the Firebase project config + service account key
+#   RESEND_API_KEY    Resend API key
+#   OTP_SECRET        Pepper used to hash email OTPs (16+ characters)
+
+# The D1 database and KV namespace below are retained for backwards
+# compatibility. Active user, order and OTP data lives in Firestore.
 [[d1_databases]]
 binding = "DB"
 database_name = "generic-pcs"

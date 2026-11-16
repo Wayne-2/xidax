@@ -26,71 +26,66 @@ import {
   type PaymentStatus,
   type RegisteredProductPayload,
 } from "./types";
+import { corsHeaders, isOriginAllowed } from "./cors";
+import { runConfigCheck } from "./config-check";
+import { sendVerificationEmail } from "./email";
+import {
+  checkOTPStatus,
+  ensureInitialized,
+  readToken,
+  generateSixDigitOTP,
+  invalidateOTP,
+  markEmailVerified,
+  storeOTP,
+  verifyOTP,
+} from "./auth";
 
 const SESSION_TTL_SECONDS = 60 * 60 * 48;
+
+function jsonWithCors(
+  payload: unknown,
+  request: Request,
+  env: Env,
+  status = 200
+) {
+  const response = json(payload, status);
+  const headers = new Headers(response.headers);
+
+  for (const [key, value] of Object.entries(corsHeaders(request, env))) {
+    headers.set(key, value);
+  }
+
+  return new Response(response.body, {
+    status: response.status,
+    headers,
+  });
+}
+
+async function readJson(request: Request) {
+  try {
+    return (await request.json()) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
 const supportEmail = "support@genericpcs.com";
 
-const SCHEMA_STATEMENTS = [
-  `CREATE TABLE IF NOT EXISTS orders (
-     id TEXT PRIMARY KEY,
-     reference TEXT NOT NULL,
-     checkout_id TEXT,
-     email TEXT NOT NULL,
-     name TEXT NOT NULL,
-     phone TEXT,
-     country TEXT,
-     postal_code TEXT,
-     method TEXT NOT NULL,
-     network TEXT,
-     subtotal REAL NOT NULL,
-     shipping REAL NOT NULL,
-     total REAL NOT NULL,
-     currency TEXT NOT NULL,
-     status TEXT NOT NULL,
-     created_at TEXT NOT NULL
-   )`,
-  `CREATE INDEX IF NOT EXISTS orders_email_idx ON orders (email)`,
-  `CREATE INDEX IF NOT EXISTS orders_status_idx ON orders (status)`,
-  `CREATE TABLE IF NOT EXISTS order_lines (
-     id INTEGER PRIMARY KEY AUTOINCREMENT,
-     order_id TEXT NOT NULL,
-     product_id TEXT NOT NULL,
-     name TEXT NOT NULL,
-     kind TEXT,
-     price REAL NOT NULL,
-     quantity INTEGER NOT NULL,
-     FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE
-   )`,
-  `CREATE TABLE IF NOT EXISTS registrations (
-     id TEXT PRIMARY KEY,
-     email TEXT NOT NULL,
-     kind TEXT NOT NULL,
-     name TEXT NOT NULL,
-     order_number TEXT NOT NULL,
-     purchased_on TEXT,
-     label_number TEXT NOT NULL,
-     tracking_number TEXT NOT NULL,
-     created_at TEXT NOT NULL
-   )`,
-  `CREATE INDEX IF NOT EXISTS registrations_email_idx ON registrations (email)`,
-];
+async function ensureUserSettings(env: Env, userId: string) {
+  const { firestore: db } = await ensureInitialized(env);
+  if (!db) return;
 
-let schemaReady = false;
+  const docRef = db.collection("user_settings").doc(userId);
+  const snap = await docRef.get();
 
-async function ensureSchema(env: Env) {
-  if (schemaReady) return;
-
-  for (const statement of SCHEMA_STATEMENTS) {
-    await env.DB.prepare(statement).run();
+  if (!snap.exists) {
+    await docRef.set({
+      order_updates: true,
+      drop_notifications: true,
+      marketing_emails: false,
+      language: "English (Nigeria)",
+      currency: "USD ($)",
+    });
   }
-
-  const columns = await env.DB.prepare("PRAGMA table_info(orders)").all();
-
-  if (!columns.results.some((column) => column.name === "checkout_id")) {
-    await env.DB.prepare("ALTER TABLE orders ADD COLUMN checkout_id TEXT").run();
-  }
-
-  schemaReady = true;
 }
 
 function readNumber(value: unknown) {
@@ -142,52 +137,46 @@ function gatewayFailure(error: unknown): { message: string; status: number } {
 }
 
 async function persistOrder(env: Env, session: CheckoutSession) {
-  const statements: D1PreparedStatement[] = [];
+  const { firestore: db } = await ensureInitialized(env);
+  if (!db) return;
 
-  statements.push(
-    env.DB.prepare(
-      `INSERT INTO orders (id, reference, checkout_id, email, name, phone, country, postal_code, method, network, subtotal, shipping, total, currency, status, created_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)`
-    )
-      .bind(
-        session.id,
-        session.reference,
-        session.instructions.checkoutId || null,
-        session.details.email,
-        session.details.name,
-        session.details.phone,
-        session.details.country,
-        session.details.postalCode,
-        session.instructions.method,
-        session.instructions.method === "crypto"
-          ? session.instructions.network
-          : null,
-        session.subtotal,
-        session.shipping,
-        session.total,
-        session.currency,
-        session.status,
-        session.createdAt
-      )
-  );
+  await db.collection("orders").doc(session.id).set({
+    id: session.id,
+    reference: session.reference,
+    checkout_id: session.instructions.checkoutId || null,
+    email: session.details.email,
+    name: session.details.name,
+    phone: session.details.phone,
+    country: session.details.country,
+    postal_code: session.details.postalCode,
+    method: session.instructions.method,
+    network: session.instructions.method === "crypto"
+      ? session.instructions.network
+      : null,
+    subtotal: session.subtotal,
+    shipping: session.shipping,
+    total: session.total,
+    currency: session.currency,
+    status: session.status,
+    created_at: session.createdAt,
+  });
+
+  const batch = db.batch();
 
   for (const line of session.lines) {
-    statements.push(
-      env.DB.prepare(
-        `INSERT INTO order_lines (order_id, product_id, name, kind, price, quantity)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
-      ).bind(
-        session.id,
-        line.id,
-        line.name,
-        line.kind,
-        line.price,
-        line.quantity
-      )
-    );
+    const lineRef = db.collection("order_lines").doc();
+    batch.set(lineRef, {
+      id: lineRef.id,
+      order_id: session.id,
+      product_id: line.id,
+      name: line.name,
+      kind: line.kind,
+      price: line.price,
+      quantity: line.quantity,
+    });
   }
 
-  await env.DB.batch(statements);
+  await batch.commit();
 }
 
 function randomReference() {
@@ -258,11 +247,6 @@ async function handleCheckout(env: Env, request: Request) {
 
   const session = buildSession(payload, instructions, reference, warning);
 
-  await env.SESSIONS.put(
-    session.id,
-    JSON.stringify(session),
-    { expirationTtl: SESSION_TTL_SECONDS }
-  );
   await persistOrder(env, session);
   await attachOrderToUser(env, request, {
     id: session.id,
@@ -278,13 +262,16 @@ async function handleCheckout(env: Env, request: Request) {
 }
 
 async function handleSession(env: Env, id: string) {
-  const stored = await env.SESSIONS.get(id, "json");
+  const { firestore: db } = await ensureInitialized(env);
+  if (!db) return json({ error: "Database not configured." }, 500);
 
-  if (!stored) {
+  const doc = await db.collection("checkout_sessions").doc(id).get();
+
+  if (!doc.exists) {
     return json({ error: "Checkout session not found." }, 404);
   }
 
-  const session = stored as CheckoutSession;
+  const session = doc.data() as CheckoutSession;
 
   if (new Date(session.expiresAt).getTime() < Date.now()) {
     return json({ ...session, status: "expired" });
@@ -294,13 +281,16 @@ async function handleSession(env: Env, id: string) {
 }
 
 async function handleSubmit(env: Env, id: string) {
-  const stored = await env.SESSIONS.get(id, "json");
+  const { firestore: db } = await ensureInitialized(env);
+  if (!db) return json({ error: "Database not configured." }, 500);
 
-  if (!stored) {
-    return json({ error: "Checkout session not found." }, 404);
+  const doc = await db.collection("checkout_sessions").doc(id).get();
+
+  if (!doc.exists) {
+    return json({ error: "Checkout session not found." }, 410);
   }
 
-  const session = stored as CheckoutSession;
+  const session = doc.data() as CheckoutSession;
 
   if (new Date(session.expiresAt).getTime() < Date.now()) {
     return json({ error: "Checkout session expired." }, 410);
@@ -312,16 +302,8 @@ async function handleSubmit(env: Env, id: string) {
     await confirmGatewayPayment(env, updated.instructions.checkoutId);
   }
 
-  await env.SESSIONS.put(
-    updated.id,
-    JSON.stringify(updated),
-    { expirationTtl: SESSION_TTL_SECONDS }
-  );
-  await env.DB.prepare(
-    "UPDATE orders SET status = ?1 WHERE id = ?2"
-  )
-    .bind(updated.status, updated.id)
-    .run();
+  await db.collection("checkout_sessions").doc(id).update({ status: "submitted" });
+  await db.collection("orders").doc(updated.id).update({ status: "submitted" });
 
   return json({ status: updated.status });
 }
@@ -342,22 +324,17 @@ async function handleRegistration(env: Env, request: Request) {
     .slice(2, 10)
     .toUpperCase()}`;
 
-  await env.DB.prepare(
-    `INSERT INTO registrations (id, email, kind, name, order_number, purchased_on, label_number, tracking_number, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
-  )
-    .bind(
-      crypto.randomUUID(),
-      payload.email,
-      payload.kind,
-      payload.name,
-      payload.orderNumber,
-      payload.purchasedOn ?? "",
-      labelNumber,
-      trackingNumber,
-      new Date().toISOString()
-    )
-    .run();
+  await (await ensureInitialized(env)).firestore.collection("registrations").doc().set({
+    id: crypto.randomUUID(),
+    email: payload.email,
+    kind: payload.kind,
+    name: payload.name,
+    order_number: payload.orderNumber,
+    purchased_on: payload.purchasedOn ?? "",
+    label_number: labelNumber,
+    tracking_number: trackingNumber,
+    created_at: new Date().toISOString(),
+  });
 
   return json({ ok: true, labelNumber, trackingNumber }, 201);
 }
@@ -491,21 +468,13 @@ async function handleWebhook(env: Env, request: Request) {
   const checkoutId = event.data?.checkout_id ?? undefined;
   const reference = event.data?.reference ?? event.reference ?? undefined;
 
-  const order = (checkoutId
-    ? await env.DB.prepare(
-        "SELECT id, reference FROM orders WHERE checkout_id = ?1 LIMIT 1"
-      )
-        .bind(checkoutId)
-        .first()
+  const orderDoc = (checkoutId
+    ? await (await ensureInitialized(env)).firestore.collection("orders").doc(checkoutId).get()
     : reference
-      ? await env.DB.prepare(
-          "SELECT id, reference FROM orders WHERE reference = ?1 LIMIT 1"
-        )
-          .bind(reference)
-          .first()
-      : null) as { id: string; reference: string } | null;
+      ? await (await ensureInitialized(env)).firestore.collection("orders").where("reference", "==", reference).limit(1).get()
+      : null) as FirebaseFirestore.DocumentSnapshot | null;
 
-  if (!order) {
+  if (!orderDoc || !orderDoc.exists) {
     return json({ ok: true, matched: false });
   }
 
@@ -515,28 +484,51 @@ async function handleWebhook(env: Env, request: Request) {
     return json({ ok: true, matched: true, status: "ignored" });
   }
 
-  const stored = (await env.SESSIONS.get(order.id, "json")) as
-    | CheckoutSession
-    | null;
+  const orderData = orderDoc.data();
 
-  if (stored) {
-    const updated: CheckoutSession = { ...stored, status };
+  const updatedSession: CheckoutSession = {
+    id: orderDoc.id,
+    provider: "bachs",
+    status,
+    reference: orderData?.reference ?? "",
+    createdAt: orderData?.created_at ?? "",
+    expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString(),
+    subtotal: orderData?.subtotal ?? 0,
+    shipping: orderData?.shipping ?? 0,
+    total: orderData?.total ?? 0,
+    currency: orderData?.currency ?? "USD",
+    lines: [],
+    details: {
+      name: orderData?.name ?? "",
+      email: orderData?.email ?? "",
+      phone: orderData?.phone ?? "",
+      country: orderData?.country ?? "",
+      postalCode: orderData?.postal_code ?? "",
+    },
+    instructions: {
+      method: orderData?.method ?? "crypto",
+      network: orderData?.network ?? "btc",
+      currency: orderData?.currency ?? "USD",
+      billingCurrency: orderData?.currency ?? "USD",
+      amount: orderData?.total ?? "0",
+      confirmations: 2,
+      checkoutId: orderDoc.id,
+      checkoutUrl: "",
+      availableMethods: ["CRYPTO", "NGN_BANK_TRANSFER"],
+      excludedMethods: [],
+    },
+    gatewayWarning: undefined,
+  };
 
-    await env.SESSIONS.put(updated.id, JSON.stringify(updated), {
-      expirationTtl: SESSION_TTL_SECONDS,
+  await (await ensureInitialized(env)).firestore.collection("checkout_sessions").doc(orderDoc.id).set(updatedSession);
+
+  await (await ensureInitialized(env)).firestore.collection("orders").doc(orderDoc.id).update({ status: status === "paid" ? "paid" : "submitted" });
+
+  await (await ensureInitialized(env)).firestore.collection("user_orders").where("id", "==", orderDoc.id).get().then((snapshot) => {
+    snapshot?.docs.forEach((doc) => {
+      doc.ref.update({ status: status === "paid" ? "paid" : "submitted" });
     });
-  }
-
-  await env.DB.batch([
-    env.DB.prepare("UPDATE orders SET status = ?1 WHERE id = ?2").bind(
-      status,
-      order.id
-    ),
-    env.DB.prepare("UPDATE user_orders SET status = ?1 WHERE id = ?2").bind(
-      status,
-      order.id
-    ),
-  ]);
+  });
 
   return json({ ok: true, matched: true, status });
 }
@@ -548,13 +540,359 @@ async function handleOrders(env: Env, url: URL) {
     return json({ error: "email is required." }, 400);
   }
 
-  const result = await env.DB.prepare(
-    "SELECT id, reference, total, currency, method, status, created_at FROM orders WHERE email = ?1 ORDER BY created_at DESC LIMIT 50"
-  )
-    .bind(email)
-    .all();
+  const ordersSnap = await (await ensureInitialized(env)).firestore.collection("orders")
+    .where("email", "==", email)
+    .orderBy("created_at", "desc")
+    .limit(50)
+    .get();
 
-  return json({ orders: result.results ?? [] });
+  const orders = (ordersSnap?.docs ?? []).map((doc) => ({
+    id: doc.id,
+    reference: doc.data().reference,
+    total: doc.data().total,
+    currency: doc.data().currency,
+    method: doc.data().method,
+    status: doc.data().status,
+    created_at: doc.data().created_at,
+  }));
+
+  return json({ orders });
+}
+
+async function handleVerifyEmail(request: Request, env: Env) {
+  const url = new URL(request.url);
+  const searchParams = url.searchParams;
+  const token = searchParams.get("token") as string;
+  const email = searchParams.get("email") as string;
+
+  if (!token || !email) {
+    return jsonWithCors({ error: "Missing token or email." }, request, env, 400);
+  }
+
+  const { firestore: db } = await ensureInitialized(env);
+  if (!db) return jsonWithCors({ error: "Database not configured." }, request, env, 500);
+
+  const snap = await db.collection("users").where("email", "==", email).limit(1).get();
+
+  if (snap.empty) {
+    return jsonWithCors({ alreadyVerified: true }, request, env);
+  }
+
+  const userDoc = snap.docs[0];
+  await userDoc.ref.update({ email_verified: 1 });
+
+  return jsonWithCors({ verified: true }, request, env);
+}
+
+async function handleSendOTP(request: Request, env: Env) {
+  const body = await readJson(request);
+
+  if (!body) return jsonWithCors({ error: "Invalid request." }, request, env, 400);
+
+  const idToken = typeof body.idToken === "string" ? body.idToken : "";
+  if (!idToken) {
+    return jsonWithCors({ error: "Missing Firebase ID token." }, request, env, 401);
+  }
+
+  try {
+    const { auth: firebaseAuth, firestore: db } = await ensureInitialized(env);
+
+    const decoded = await firebaseAuth.verifyIdToken(idToken);
+    const uid = decoded.uid;
+    const email = decoded.email;
+
+    if (!uid || !email) {
+      return jsonWithCors({ error: "Invalid token." }, request, env, 401);
+    }
+
+    const userRecord = await firebaseAuth.getUser(uid);
+
+    if (userRecord.emailVerified) {
+      return jsonWithCors({ error: "This email address is already verified." }, request, env, 400);
+    }
+
+    const status = await checkOTPStatus(env, uid);
+
+    if (status.hasPendingOTP && status.cooldownSeconds > 0) {
+      return jsonWithCors({
+          error: `Please wait ${status.cooldownSeconds} seconds before requesting another code.`,
+          code: "cooldown",
+          cooldown: true,
+          retryAfter: status.cooldownSeconds,
+        }, request, env, 429);
+    }
+
+    const otp = generateSixDigitOTP();
+    await storeOTP(env, uid, email, otp);
+
+    const resendApiKey = env.RESEND_API_KEY;
+
+    if (!resendApiKey) {
+      await invalidateOTP(env, uid);
+      return jsonWithCors({ error: "Email service is not configured." }, request, env, 500);
+    }
+
+    const emailResponse = await sendVerificationEmail({
+      apiKey: resendApiKey,
+      to: email,
+      otp,
+    });
+
+    if (!emailResponse.ok) {
+      await invalidateOTP(env, uid);
+      console.error("resend send failed:", emailResponse.status);
+
+      return jsonWithCors({ error: "We could not send the verification email. Please try again." }, request, env, 502);
+    }
+
+    await db.collection("users").doc(uid).update({ email_verified: 0 });
+
+    return jsonWithCors({
+      success: true,
+      message: "A verification code is on its way to your inbox.",
+      expiresInSeconds: 300,
+      resendAfterSeconds: 60,
+    }, request, env);
+  } catch (error) {
+    const code = (error as { code?: string }).code ?? "";
+    console.error("send-otp error:", code);
+
+    if (code === "auth/invalid-id-token" || code === "auth/expired-id-token") {
+      return jsonWithCors({ error: "Your session has expired. Please sign in again." }, request, env, 401);
+    }
+
+    if (code === "auth/user-not-found") {
+      return jsonWithCors({ error: "Account not found." }, request, env, 404);
+    }
+
+    return jsonWithCors({ error: "We could not send the code. Please try again." }, request, env, 500);
+  }
+}
+
+async function handleVerifyOTP(request: Request, env: Env) {
+  const body = await readJson(request);
+
+  if (!body) return jsonWithCors({ error: "Invalid request." }, request, env, 400);
+
+  const idToken = typeof body.idToken === "string" ? body.idToken : "";
+  const otp = typeof body.otp === "string" ? body.otp.trim() : "";
+
+  if (!idToken || !otp) {
+    return jsonWithCors({ error: "Missing ID token or OTP." }, request, env, 400);
+  }
+
+  if (!/^\d{6}$/.test(otp)) {
+    return jsonWithCors({ error: "Enter the six digit code from your email." }, request, env, 400);
+  }
+
+  try {
+    const { auth: firebaseAuth, firestore: db } = await ensureInitialized(env);
+
+    const decoded = await firebaseAuth.verifyIdToken(idToken);
+    const uid = decoded.uid;
+
+    if (!uid) {
+      return jsonWithCors({ error: "Invalid token." }, request, env, 401);
+    }
+
+    const result = await verifyOTP(env, uid, otp);
+
+    if (!result.valid) {
+      const reasonMap: Record<string, string> = {
+        not_found: "That code is not valid. Request a new one.",
+        expired: "That code has expired. Request a new one.",
+        max_attempts: "Too many incorrect attempts. Request a new code.",
+        invalid_otp: "That code is not correct.",
+        unavailable: "Verification is unavailable right now.",
+      };
+
+      return jsonWithCors({
+          error:
+            reasonMap[result.reason] ?? "That code could not be verified.",
+          code: result.reason,
+          attemptsRemaining: result.attemptsRemaining ?? 0,
+        }, request, env, 400);
+    }
+
+    // email_verified is a reserved claim, so it must be set through the
+    // Admin SDK user update API rather than custom claims.
+    await markEmailVerified(env, uid);
+
+    await db.collection("users").doc(uid).update({ email_verified: 1 });
+
+    return jsonWithCors({ success: true, verified: true }, request, env);
+  } catch (error) {
+    const code = (error as { code?: string }).code ?? "";
+    console.error("verify-otp error:", code);
+
+    if (code === "auth/invalid-id-token" || code === "auth/expired-id-token") {
+      return jsonWithCors({ error: "Your session has expired. Please sign in again." }, request, env, 401);
+    }
+
+    return jsonWithCors({ error: "We could not verify that code. Please try again." }, request, env, 500);
+  }
+}
+
+async function handleResendOTP(request: Request, env: Env) {
+  const body = await readJson(request);
+
+  if (!body) return jsonWithCors({ error: "Invalid request." }, request, env, 400);
+
+  const idToken = typeof body.idToken === "string" ? body.idToken : "";
+
+  if (!idToken) {
+    return jsonWithCors({ error: "Missing Firebase ID token." }, request, env, 401);
+  }
+
+  try {
+    const { auth: firebaseAuth } = await ensureInitialized(env);
+
+    const decoded = await firebaseAuth.verifyIdToken(idToken);
+    const uid = decoded.uid;
+
+    if (!uid) {
+      return jsonWithCors({ error: "Invalid token." }, request, env, 401);
+    }
+
+    const userRecord = await firebaseAuth.getUser(uid);
+    const email = userRecord.email ?? decoded.email;
+
+    if (!email) {
+      return jsonWithCors({ error: "This account has no email address." }, request, env, 400);
+    }
+
+    if (userRecord.emailVerified) {
+      return jsonWithCors({ error: "This email address is already verified." }, request, env, 400);
+    }
+
+    const status = await checkOTPStatus(env, uid);
+
+    if (status.hasPendingOTP && status.cooldownSeconds > 0) {
+      return jsonWithCors({
+          error: `Please wait ${status.cooldownSeconds} seconds before requesting another code.`,
+          code: "cooldown",
+          cooldown: true,
+          retryAfter: status.cooldownSeconds,
+        }, request, env, 429);
+    }
+
+    // Replace any previous code.
+    await invalidateOTP(env, uid);
+
+    const otp = generateSixDigitOTP();
+    await storeOTP(env, uid, email, otp);
+
+    const resendApiKey = env.RESEND_API_KEY;
+
+    if (!resendApiKey) {
+      await invalidateOTP(env, uid);
+      return jsonWithCors({ error: "Email service is not configured." }, request, env, 500);
+    }
+
+    const emailResponse = await sendVerificationEmail({
+      apiKey: resendApiKey,
+      to: email,
+      otp,
+    });
+
+    if (!emailResponse.ok) {
+      await invalidateOTP(env, uid);
+      console.error("resend send failed:", emailResponse.status);
+
+      return jsonWithCors({ error: "We could not send the verification email. Please try again." }, request, env, 502);
+    }
+
+    return jsonWithCors({
+      success: true,
+      message: "A new verification code is on its way to your inbox.",
+      expiresInSeconds: 300,
+      resendAfterSeconds: 60,
+    }, request, env);
+  } catch (error) {
+    const code = (error as { code?: string }).code ?? "";
+    console.error("resend-otp error:", code);
+
+    if (code === "auth/invalid-id-token" || code === "auth/expired-id-token") {
+      return jsonWithCors({ error: "Your session has expired. Please sign in again." }, request, env, 401);
+    }
+
+    return jsonWithCors({ error: "We could not send the code. Please try again." }, request, env, 500);
+  }
+}
+
+async function handleOTPStatus(request: Request, env: Env) {
+  const token = readToken(request);
+
+  if (!token) {
+    return jsonWithCors({ error: "Missing authorization header." }, request, env, 401);
+  }
+
+  try {
+    const { auth: firebaseAuth } = await ensureInitialized(env);
+
+    const decoded = await firebaseAuth.verifyIdToken(token);
+    const uid = decoded.uid;
+
+    const status = await checkOTPStatus(env, uid);
+    const userRecord = await firebaseAuth.getUser(uid);
+
+    return jsonWithCors({
+      emailVerified: userRecord.emailVerified,
+      hasPendingOTP: status.hasPendingOTP,
+      expiresIn: status.expiresIn,
+      attempts: status.attempts,
+      lastSentAt: status.lastSentAt,
+      cooldownSeconds: status.cooldownSeconds,
+    }, request, env);
+  } catch (error) {
+    const code = (error as { code?: string }).code ?? "";
+
+    if (code === "auth/invalid-id-token" || code === "auth/expired-id-token") {
+      return jsonWithCors({ error: "Invalid or expired ID token." }, request, env, 401);
+    }
+
+    return jsonWithCors({ error: "Could not read verification status." }, request, env, 500);
+  }
+}
+
+async function handleDeleteAccount(request: Request, env: Env) {
+  const { auth: firebaseAuth, firestore: db } = await ensureInitialized(env);
+
+  // The uid always comes from the verified token, never from the body.
+  const token = readToken(request);
+
+  if (!token) {
+    return jsonWithCors({ error: "Not signed in." }, request, env, 401);
+  }
+
+  let uid: string;
+
+  try {
+    const decoded = await firebaseAuth.verifyIdToken(token);
+    uid = decoded.uid;
+  } catch {
+    return jsonWithCors({ error: "Invalid or expired session." }, request, env, 401);
+  }
+
+  await firebaseAuth.deleteUser(uid).catch((error: unknown) => {
+    console.error("deleteUser failed:", (error as { code?: string }).code ?? "");
+  });
+
+  await db.collection("users").doc(uid).delete();
+  await db.collection("email_otps").doc(uid).delete();
+
+  await db.collection("user_sessions").where("user_id", "==", uid).get().then((snapshot) => {
+    snapshot.docs.forEach((doc) => doc.ref.delete());
+  });
+  await db.collection("user_orders").where("user_id", "==", uid).get().then((snapshot) => {
+    snapshot.docs.forEach((doc) => doc.ref.delete());
+  });
+  await db.collection("user_products").where("user_id", "==", uid).get().then((snapshot) => {
+    snapshot.docs.forEach((doc) => doc.ref.delete());
+  });
+  await db.collection("user_settings").doc(uid).delete();
+
+  return jsonWithCors({ deleted: true }, request, env);
 }
 
 const worker = {
@@ -563,12 +901,24 @@ const worker = {
     const path = url.pathname.replace(/\/+$/, "");
 
     if (request.method === "OPTIONS") {
-      return json({});
+      return jsonWithCors({}, request, env);
+    }
+
+    // Reject cross origin calls from sites we do not control.
+    const origin = request.headers.get("origin");
+
+    if (origin && !isOriginAllowed(origin, env)) {
+      return jsonWithCors({ error: "Origin not allowed." }, request, env, 403);
     }
 
     try {
       if (path.startsWith("/api/")) {
-        await ensureSchema(env);
+        await ensureUserSettings(env, "temp");
+      }
+
+      if (request.method === "GET" && path === "/api/auth/config-check") {
+        const report = await runConfigCheck(env);
+        return jsonWithCors(report, request, env, report.ok ? 200 : 503);
       }
 
       if (request.method === "GET" && path === "/api/health") {
@@ -647,8 +997,25 @@ const worker = {
 
       if (request.method === "GET" && path === "/api/orders") {
         return await handleOrders(env, url);
+      }
       if (request.method === "GET" && path === "/api/auth/verify") {
         return await handleVerifyEmail(request, env);
+      }
+
+      if (request.method === "POST" && path === "/api/auth/send-otp") {
+        return await handleSendOTP(request, env);
+      }
+
+      if (request.method === "POST" && path === "/api/auth/verify-otp") {
+        return await handleVerifyOTP(request, env);
+      }
+
+      if (request.method === "POST" && path === "/api/auth/resend-otp") {
+        return await handleResendOTP(request, env);
+      }
+
+      if (request.method === "GET" && path === "/api/auth/status") {
+        return await handleOTPStatus(request, env);
       }
 
       if (request.method === "POST" && path === "/api/auth/delete") {
@@ -671,58 +1038,31 @@ const worker = {
       return;
     }
 
-    await env.DB.prepare(
-      "UPDATE orders SET status = 'expired' WHERE status IN ('pending','awaiting_payment') AND created_at < ?1"
-    )
-      .bind(new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString())
-      .run();
+    const { firestore: db } = await ensureInitialized(env);
+    if (!db) return;
+
+    const snapshot = await db.collection("orders").get();
+
+    const batch = db.batch();
+
+    snapshot.docs.forEach((doc) => {
+      const createdAt = doc.data().created_at;
+      if (
+        createdAt &&
+        new Date(createdAt as string).getTime() < Date.now() - 48 * 60 * 60 * 1000
+      ) {
+        batch.update(doc.ref, { status: "expired" });
+      }
+    });
+
+    await batch.commit();
   },
 
-  async function handleVerifyEmail(request: Request, env: Env) {
-    const { token, email } = Object.fromEntries(new URL(request.url).searchParams) as {
-      token: string;
-      email: string;
-    };
 
-    if (!token || !email) {
-      return json({ error: "Missing token or email." }, 400);
-    }
 
-    // Verify the user exists and update email_verified status
-    const row = await env.DB.prepare(
-      "UPDATE users SET email_verified = 1 WHERE email = ?1 AND email_verified = 0"
-    )
-      .bind(email)
-      .run();
 
-    const changes = row.changes ?? 0;
 
-    if (changes === 0) {
-      // Already verified or user not found
-      return json({ alreadyVerified: true });
-    }
 
-    return json({ verified: true });
-  },
-
-  async function handleDeleteAccount(request: Request, env: Env) {
-    const { user } = await (await fetch(request)).json();
-
-    const { userId } = user;
-
-    if (!userId) {
-      return json({ error: "User not found." }, 400);
-    }
-
-    // Delete user's data
-    await env.DB.prepare("DELETE FROM users WHERE id = ?1").bind(userId).run();
-    await env.DB.prepare("DELETE FROM user_sessions WHERE userId = ?1").bind(userId).run();
-    await env.DB.prepare("DELETE FROM user_orders WHERE userId = ?1").bind(userId).run();
-    await env.DB.prepare("DELETE FROM user_settings WHERE userId = ?1").bind(userId).run();
-    await env.DB.prepare("DELETE FROM user_products WHERE userId = ?1").bind(userId).run();
-    await env.DB.prepare("DELETE FROM user_orders WHERE userId = ?1").bind(userId).run();
-
-    return json({ deleted: true });
-  },
+};
 
 export default worker;
