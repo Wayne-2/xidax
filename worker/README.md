@@ -108,9 +108,18 @@ on at the Cloudflare edge (WAF rule or Rate Limiting binding) if required.
 
 ### 4.1 Create the service account key
 
-1. Firebase Console → **Project Settings** → **Service Accounts**
-2. **Generate new private key** → download the JSON
-3. Note `project_id`, `client_email` and `private_key`
+1. Firebase Console → make sure **the `genericpcs` project is selected** in
+   the top project switcher
+2. **Project Settings** → **Service Accounts**
+3. **Generate new private key** → download the JSON
+4. Never paste that JSON into a chat or a ticket. Hand it to the script:
+
+```bash
+node scripts/set-firebase-secret.mjs ~/Downloads/genericpcs-firebase-adminsdk-xxxxx.json
+```
+
+The script refuses to proceed if `project_id` in the file does not match
+`NEXT_PUBLIC_FIREBASE_PROJECT_ID`.
 
 ### 4.2 Build the `FIREBASE_CONFIG` value
 
