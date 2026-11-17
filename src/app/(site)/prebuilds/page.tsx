@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import PrebuildsBrowser from "@/components/PrebuildsBrowser";
+import LivePrebuildsBrowser from "@/components/LivePrebuildsBrowser";
 import RevealObserver from "@/components/RevealObserver";
-import { prebuilds } from "@/data/prebuilds";
 
 export const metadata: Metadata = {
   title: "Prebuilds | generic pcs",
@@ -83,7 +82,7 @@ export default function PrebuildsPage() {
         </div>
       </section>
 
-      <PrebuildsBrowser products={prebuilds} />
+      <LivePrebuildsBrowser />
       <RevealObserver />
     </main>
   );

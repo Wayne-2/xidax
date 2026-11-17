@@ -1,28 +1,28 @@
 "use client";
 
 import { useRef } from "react";
-import AccessoryCard from "@/components/AccessoryCard";
+import ConsoleCard from "@/components/ConsoleCard";
 import {
-  AccessoryCategoryIcon,
+  ConsoleCategoryIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-} from "@/components/AccessoryIcons";
+} from "@/components/ConsoleIcons";
 import type { CartItem } from "@/data/cart";
-import type { Accessory, AccessoryCategory } from "@/data/accessories";
+import type { Console, ConsoleCategory } from "@/data/consoles";
 
-type AccessoryRailProps = {
-  category: AccessoryCategory;
-  products: Accessory[];
+type ConsoleRailProps = {
+  category: ConsoleCategory;
+  products: Console[];
   cartItems: CartItem[];
-  onToggle: (product: Accessory) => void;
+  onToggle: (product: Console) => void;
 };
 
-export default function AccessoryRail({
+export default function ConsoleRail({
   category,
   products,
   cartItems,
   onToggle,
-}: AccessoryRailProps) {
+}: ConsoleRailProps) {
   const trackRef = useRef<HTMLDivElement>(null);
 
   function scrollRail(direction: -1 | 1) {
@@ -32,7 +32,7 @@ export default function AccessoryRail({
       return;
     }
 
-    const card = track.querySelector<HTMLElement>("[data-accessory-card]");
+    const card = track.querySelector<HTMLElement>("[data-console-card]");
     const amount = card ? card.offsetWidth + 16 : track.clientWidth * 0.8;
 
     track.scrollBy({ left: direction * amount, behavior: "smooth" });
@@ -57,7 +57,7 @@ export default function AccessoryRail({
                 color: category.accent,
               }}
             >
-              <AccessoryCategoryIcon
+              <ConsoleCategoryIcon
                 category={category.id}
                 className="h-6 w-6"
               />
@@ -103,10 +103,10 @@ export default function AccessoryRail({
           className="mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {products.map((product) => (
-            <AccessoryCard
+            <ConsoleCard
               key={product.id}
               category={category}
-              product={product}
+              consoleItem={product}
               added={cartItems.some(
                 (entry) => entry.productId === product.id
               )}

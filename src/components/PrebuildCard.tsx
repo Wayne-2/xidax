@@ -1,5 +1,5 @@
-import Image from "next/image";
-import { SlidersIcon } from "@/components/AccessoryIcons";
+import { SlidersIcon } from "@/components/ConsoleIcons";
+import ProductImageGrid from "@/components/ProductImageGrid";
 import { useCart } from "@/components/CartProvider";
 import { useRegion } from "@/components/RegionProvider";
 import { cartItemFromPrebuild } from "@/data/cart";
@@ -7,7 +7,6 @@ import type { Prebuild } from "@/data/prebuilds";
 
 export default function PrebuildCard({ product }: { product: Prebuild }) {
   const { formatMoney } = useRegion();
-  const inStock = product.stock === "in-stock";
   const { items, add, remove } = useCart();
   const inCart = items.some((entry) => entry.productId === product.id);
 
@@ -27,34 +26,14 @@ export default function PrebuildCard({ product }: { product: Prebuild }) {
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card transition-colors hover:border-[#5865F2]/60 hover:shadow-card-hover">
       <div className="relative aspect-[4/3] overflow-hidden bg-[#dce3ee]">
-        <Image
-          src={product.image}
+        <ProductImageGrid
+          images={product.images?.length ? product.images : [product.image]}
           alt={product.name}
-          fill
-          sizes="(min-width: 1280px) 30vw, (min-width: 640px) 45vw, 100vw"
-          quality={90}
-          className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+          className="transition-transform duration-500 ease-out group-hover:scale-105"
         />
 
-        <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
-          <span
-            className={`animate-badge-pulse text-[10px] font-bold uppercase tracking-wide ${
-              product.brand === "intel" ? "text-[#0068B5]" : "text-[#C8102E]"
-            }`}
-          >
-            {product.brand === "intel" ? "Intel" : "AMD"}
-          </span>
-          <span
-            className={`animate-badge-pulse text-[10px] font-bold uppercase tracking-wide ${
-              inStock ? "text-[#15803D]" : "text-[#B45309]"
-            }`}
-          >
-            {inStock ? "In stock" : "Built in order"}
-          </span>
-        </div>
-
         {product.flagship && (
-          <span className="absolute bottom-3 left-3 animate-badge-pulse text-[10px] font-bold uppercase tracking-wide text-[#5865F2]">
+          <span className="absolute bottom-3 left-3 z-10 animate-badge-pulse text-[10px] font-bold uppercase tracking-wide text-[#5865F2]">
             Flagship
           </span>
         )}

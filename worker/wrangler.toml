@@ -33,5 +33,9 @@ database_id = "b258856d-5461-40f4-9923-527179b80d68"
 binding = "SESSIONS"
 id = "f6cc58992677400581984356fa837ba7"
 
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "genericpcs-media"
+
 [triggers]
 crons = ["0 * * * *"]

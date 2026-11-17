@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import LaptopArtwork from "@/components/LaptopArtwork";
 import LaptopCard from "@/components/LaptopCard";
-import { CartIcon, ChevronLeftIcon, ChevronRightIcon } from "@/components/AccessoryIcons";
+import { CartIcon, ChevronLeftIcon, ChevronRightIcon } from "@/components/ConsoleIcons";
 import { CheckIcon } from "@/components/BuildIcons";
 import {
   BriefcaseIcon,

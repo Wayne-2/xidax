@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { CartIcon } from "@/components/AccessoryIcons";
+import { CartIcon } from "@/components/ConsoleIcons";
 import { UserIcon } from "@/components/SupportIcons";
 import { useCart } from "@/components/CartProvider";
 import RegionMenu from "@/components/RegionMenu";
@@ -163,7 +163,7 @@ export default function MobileNav({
                 href="tel:+234907649842"
                 className="text-sm font-semibold text-[#5c5e66] transition-colors hover:text-[#5865F2]"
               >
-                +234-907649842
+                +1-202-555-0147
               </a>
 
               <div className="mt-3">

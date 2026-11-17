@@ -1,4 +1,4 @@
-import type { AccessoryCategoryId } from "@/data/accessories";
+import type { ConsoleCategoryId } from "@/data/consoles";
 
 type IconProps = {
   className?: string;
@@ -133,11 +133,11 @@ function OtherIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
-export function AccessoryCategoryIcon({
+export function ConsoleCategoryIcon({
   category,
   className = "h-5 w-5",
 }: {
-  category: AccessoryCategoryId;
+  category: ConsoleCategoryId;
   className?: string;
 }) {
   switch (category) {

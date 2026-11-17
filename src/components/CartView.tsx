@@ -3,21 +3,21 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import AccessoryArtwork from "@/components/AccessoryArtwork";
+import ConsoleArtwork from "@/components/ConsoleArtwork";
 import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
 import { useCart } from "@/components/CartProvider";
 import { useRegion } from "@/components/RegionProvider";
 import { useToast } from "@/components/ToastProvider";
 import LaptopArtwork from "@/components/LaptopArtwork";
 import {
-  cartItemFromAccessory,
+  cartItemFromConsole,
   cartItemFromLaptop,
   cartPromoCodes,
   flatShippingRate,
   freeShippingThreshold,
   type CartItem,
 } from "@/data/cart";
-import { accessories, accessoryCategories } from "@/data/accessories";
+import { consoles, consoleCategories } from "@/data/consoles";
 import { laptops, laptopCategories } from "@/data/laptops";
 import { deliveryWindow } from "@/lib/regions";
 
@@ -79,7 +79,7 @@ function ItemThumbnail({ item }: { item: CartItem }) {
   }
 
   return (
-    <AccessoryArtwork
+    <ConsoleArtwork
       category={item.artCategory as "monitors" | "mice" | "keyboards"}
       accent={item.accent}
       label={`${item.name} illustration`}
@@ -119,11 +119,11 @@ export default function CartView() {
           laptopCategories[0]
       ),
     })),
-    ...accessories.slice(0, 2).map((accessory) => ({
-      item: cartItemFromAccessory(
-        accessory,
-        accessoryCategories.find((c) => c.id === accessory.category) ??
-          accessoryCategories[0]
+    ...consoles.slice(0, 2).map((console) => ({
+      item: cartItemFromConsole(
+        console,
+        consoleCategories.find((c) => c.id === console.category) ??
+          consoleCategories[0]
       ),
     })),
   ].filter(
@@ -191,7 +191,7 @@ export default function CartView() {
             Your cart is empty
           </h2>
           <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-[#5c5e66]">
-            Pick a prebuild, configure a machine or add the accessories that
+            Pick a prebuild, configure a machine or add the consoles that
             finish the setup.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
@@ -209,10 +209,10 @@ export default function CartView() {
               Browse laptops
             </Link>
             <Link
-              href="/accessories"
+              href="/consoles"
               className="inline-flex h-11 touch-manipulation items-center justify-center rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-semibold text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338]"
             >
-              Accessories
+              Consoles
             </Link>
           </div>
         </div>

@@ -1,14 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import LaptopCatalogue from "@/components/LaptopCatalogue";
+import LiveLaptopCatalogue from "@/components/LiveLaptopCatalogue";
 import RevealObserver from "@/components/RevealObserver";
 import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
 import Money from "@/components/Money";
-import {
-  featuredLaptopId,
-  laptopCategories,
-  laptops,
-} from "@/data/laptops";
+import { laptopCategories, laptops } from "@/data/laptops";
 
 export const metadata: Metadata = {
   title: "Laptops | generic pcs",
@@ -18,7 +14,6 @@ const gridMask =
   "linear-gradient(to right, transparent 0%, black 55%, black 100%)";
 
 export default function LaptopsPage() {
-  const featured = laptops.find((laptop) => laptop.id === featuredLaptopId) ?? laptops[0];
 
   return (
     <main className="relative flex-1">
@@ -128,11 +123,7 @@ export default function LaptopsPage() {
         </div>
       </section>
 
-      <LaptopCatalogue
-        categories={laptopCategories}
-        laptops={laptops}
-        featured={featured}
-      />
+      <LiveLaptopCatalogue />
 
       <section className="bg-[#eaf0f8]">
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">

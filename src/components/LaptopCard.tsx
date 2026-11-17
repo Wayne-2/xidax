@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import LaptopArtwork from "@/components/LaptopArtwork";
-import { CartIcon } from "@/components/AccessoryIcons";
+import ProductImageGrid from "@/components/ProductImageGrid";
+import { CartIcon } from "@/components/ConsoleIcons";
 import { CheckIcon, ChevronDownIcon } from "@/components/BuildIcons";
 import { useRegion } from "@/components/RegionProvider";
 import { type Laptop, type LaptopCategory } from "@/data/laptops";
@@ -88,23 +88,17 @@ export default function LaptopCard({
           style={{ backgroundColor: `${accent}22` }}
         />
 
-        <div className="absolute inset-0 flex items-center justify-center p-6">
-          {laptop.image ? (
-            <Image
-              src={laptop.image}
-              alt={laptop.name}
-              fill
-              sizes="(min-width: 1024px) 40vw, 90vw"
-              className="object-cover"
-            />
-          ) : (
+        <ProductImageGrid
+          images={laptop.images?.length ? laptop.images : laptop.image ? [laptop.image] : []}
+          alt={laptop.name}
+          fallback={
             <LaptopArtwork
               category={category.id}
               accent={accent}
               label={`${laptop.name} illustration`}
             />
-          )}
-        </div>
+          }
+        />
 
         <div className="absolute inset-x-4 top-4 flex items-start justify-between gap-2">
           <span className="rounded-full border border-[#d2dbe8]/80 bg-[#f8fafe]/90 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[#5c5e66] backdrop-blur">

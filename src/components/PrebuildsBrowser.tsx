@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import PrebuildCard from "@/components/PrebuildCard";
 import PrebuildFilters, {
   type PlatformFilter,
   type RefinementFilter,
 } from "@/components/PrebuildFilters";
-import { ChevronLeftIcon, ChevronRightIcon } from "@/components/AccessoryIcons";
+import { ChevronRightIcon } from "@/components/ConsoleIcons";
 import type { Prebuild } from "@/data/prebuilds";
 import { useRegion } from "@/components/RegionProvider";
 
@@ -132,9 +132,6 @@ export default function PrebuildsBrowser({
   const [stockFilters, setStockFilters] = useState<string[]>([]);
   const [brandFilters, setBrandFilters] = useState<string[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-  const trackRef = useRef<HTMLDivElement>(null);
 
   const platform: PlatformFilter =
     brandFilters.length === 1 ? (brandFilters[0] as PlatformFilter) : "all";
@@ -197,46 +194,6 @@ export default function PrebuildsBrowser({
       setBrandFilters([next]);
     }
   };
-
-  const updateScrollState = useCallback(() => {
-    const track = trackRef.current;
-
-    if (!track) return;
-
-    setCanScrollLeft(track.scrollLeft > 4);
-    setCanScrollRight(
-      track.scrollLeft + track.clientWidth < track.scrollWidth - 4
-    );
-  }, []);
-
-  useEffect(() => {
-    const track = trackRef.current;
-
-    if (!track) return;
-
-    const handle = () => updateScrollState();
-    const frame = requestAnimationFrame(handle);
-
-    track.addEventListener("scroll", handle, { passive: true });
-    window.addEventListener("resize", handle);
-
-    return () => {
-      cancelAnimationFrame(frame);
-      track.removeEventListener("scroll", handle);
-      window.removeEventListener("resize", handle);
-    };
-  }, [updateScrollState, filtered.length]);
-
-  function scrollTrack(direction: -1 | 1) {
-    const track = trackRef.current;
-
-    if (!track) return;
-
-    const card = track.querySelector<HTMLElement>("[data-prebuild-item]");
-    const amount = card ? card.offsetWidth + 20 : track.clientWidth * 0.8;
-
-    track.scrollBy({ left: direction * amount, behavior: "smooth" });
-  }
 
   return (
     <>
@@ -382,47 +339,20 @@ export default function PrebuildsBrowser({
             <div className="min-w-0">
               <h2 className="sr-only">Prebuild catalogue</h2>
 
-              <div className="flex items-center justify-between gap-4">
-                <p
-                  data-reveal="up"
-                  className="text-sm font-medium text-[#5c5e66]"
-                >
-                  {filtered.length}{" "}
-                  {filtered.length === 1 ? "item" : "items"} available
-                </p>
-
-                <div className="flex items-center gap-2 sm:hidden">
-                  <button
-                    type="button"
-                    aria-label="Previous prebuilds"
-                    disabled={!canScrollLeft}
-                    onClick={() => scrollTrack(-1)}
-                    className="flex h-9 w-9 items-center justify-center rounded-full border border-[#d2dbe8] bg-[#f8fafe] text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338] disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <ChevronLeftIcon className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Next prebuilds"
-                    disabled={!canScrollRight}
-                    onClick={() => scrollTrack(1)}
-                    className="flex h-9 w-9 items-center justify-center rounded-full border border-[#d2dbe8] bg-[#f8fafe] text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338] disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <ChevronRightIcon className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
+              <p
+                data-reveal="up"
+                className="text-sm font-medium text-[#5c5e66]"
+              >
+                {filtered.length}{" "}
+                {filtered.length === 1 ? "item" : "items"} available
+              </p>
 
               {filtered.length > 0 ? (
-                <div
-                  ref={trackRef}
-                  className="mt-4 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2 [scrollbar-width:none] sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:pb-0 lg:grid-cols-3 [&::-webkit-scrollbar]:hidden"
-                >
+                <div className="mt-4 columns-1 gap-5 sm:mt-6 sm:columns-2 lg:columns-3">
                   {filtered.map((product) => (
                     <div
                       key={product.id}
-                      data-prebuild-item
-                      className="flex w-[86%] shrink-0 snap-start sm:w-auto"
+                      className="mb-5 break-inside-avoid"
                     >
                       <PrebuildCard product={product} />
                     </div>
@@ -430,19 +360,32 @@ export default function PrebuildsBrowser({
                 </div>
               ) : (
                 <div className="mt-6 rounded-2xl border border-dashed border-[#d2dbe8] bg-[#f8fafe] p-10 text-center">
-                  <p className="text-sm font-semibold text-[#2e3338]">
-                    No prebuilds match your filters.
-                  </p>
-                  <p className="mt-1 text-sm text-[#5c5e66]">
-                    Try adjusting or clearing your filters.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={clearAllFilters}
-                    className="mt-5 inline-flex h-10 items-center justify-center rounded-lg bg-[#5865F2] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
-                  >
-                    Clear all filters
-                  </button>
+                  {products.length === 0 ? (
+                    <>
+                      <p className="text-sm font-semibold text-[#2e3338]">
+                        No products yet.
+                      </p>
+                      <p className="mt-1 text-sm text-[#5c5e66]">
+                        Our prebuild catalogue is being prepared. Check back soon.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold text-[#2e3338]">
+                        No prebuilds match your filters.
+                      </p>
+                      <p className="mt-1 text-sm text-[#5c5e66]">
+                        Try adjusting or clearing your filters.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={clearAllFilters}
+                        className="mt-5 inline-flex h-10 items-center justify-center rounded-lg bg-[#5865F2] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
+                      >
+                        Clear all filters
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>

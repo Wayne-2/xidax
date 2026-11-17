@@ -16,7 +16,7 @@ export type SupportDay = {
   hours: string;
 };
 
-export const supportPhone = "+234-907649842";
+export const supportPhone = "+1-202-555-0147";
 export const supportPhoneHref = "tel:+234907649842";
 export const supportEmail = "support@genericpcs.com";
 export const ownersEmail = "owners@genericpcs.com";

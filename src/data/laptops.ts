@@ -19,6 +19,7 @@ export type Laptop = {
   category: LaptopCategoryId;
   name: string;
   image?: string;
+  images?: string[];
   tagline: string;
   description: string;
   price: number;

@@ -1,19 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import AccessoriesCatalogue from "@/components/AccessoriesCatalogue";
+import LiveConsolesCatalogue from "@/components/LiveConsolesCatalogue";
 import RevealObserver from "@/components/RevealObserver";
 import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
 import Money from "@/components/Money";
-import { accessoryCategories, accessories } from "@/data/accessories";
+import { consoleCategories, consoles } from "@/data/consoles";
 
 export const metadata: Metadata = {
-  title: "Accessories | generic pcs",
+  title: "Consoles | generic pcs",
 };
 
 const gridMask =
   "linear-gradient(to right, transparent 0%, black 55%, black 100%)";
 
-export default function AccessoriesPage() {
+export default function ConsolesPage() {
   return (
     <main className="relative flex-1">
       <section className="relative overflow-hidden border-b border-[#dce3ee] bg-[#f0f4fa]">
@@ -49,11 +49,11 @@ export default function AccessoriesPage() {
               /
             </span>
             <Link
-              href="/accessories"
+              href="/consoles"
               aria-current="page"
               className="text-[#2e3338] transition-colors hover:text-[#5865F2]"
             >
-              Accessories
+              Consoles
             </Link>
           </nav>
 
@@ -75,10 +75,10 @@ export default function AccessoriesPage() {
 
               <div className="mt-6 flex flex-wrap gap-2">
                 <span className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-xs font-semibold text-[#5c5e66]">
-                  {accessories.length} products
+                  {consoles.length} products
                 </span>
                 <span className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-xs font-semibold text-[#5c5e66]">
-                  {accessoryCategories.length} categories
+                  {consoleCategories.length} categories
                 </span>
                 <span className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-xs font-semibold text-[#5c5e66]">
                   Free shipping over <Money usd={99} />
@@ -95,7 +95,7 @@ export default function AccessoriesPage() {
                 Setup essentials
               </p>
               <p className="mt-2 text-lg font-bold leading-snug text-[#2e3338]">
-                Every accessory is tested with our builds.
+                Every console is tested with our builds.
               </p>
               <p className="mt-2 text-sm leading-relaxed text-[#5c5e66]">
                 Pair your PC with gear that fits the way you play, work, and
@@ -130,10 +130,7 @@ export default function AccessoriesPage() {
         </div>
       </section>
 
-      <AccessoriesCatalogue
-        categories={accessoryCategories}
-        products={accessories}
-      />
+      <LiveConsolesCatalogue />
 
       <section className="border-t border-[#dce3ee] bg-[#eaf0f8]">
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">

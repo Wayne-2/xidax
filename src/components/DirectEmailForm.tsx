@@ -140,7 +140,7 @@ export default function DirectEmailForm() {
             id="support-name"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Ada Lovelace"
+            placeholder="John Doe"
             aria-invalid={Boolean(errors.name)}
             aria-describedby={errors.name ? "support-name-error" : undefined}
             className={`${baseField} h-11 ${

@@ -28,6 +28,43 @@ import {
 } from "./types";
 import { corsHeaders, isOriginAllowed } from "./cors";
 import { runConfigCheck } from "./config-check";
+import { adminGuard } from "./admin-auth";
+import {
+  addAdmin,
+  countAdmins,
+  listAdmins,
+  removeAdmin,
+} from "./admin-admins";
+import {
+  getAdminOrder,
+  getAdminOrderStats,
+  listAdminOrders,
+  updateAdminOrderStatus,
+} from "./admin-orders";
+import {
+  getAdminUser,
+  getAdminUserStats,
+  listAdminUsers,
+} from "./admin-users";
+import {
+  createProduct,
+  deleteProduct,
+  getProduct,
+  listAllProducts,
+  listPublishedProducts,
+  setPublished,
+  updateProduct,
+  validateProductInput,
+} from "./admin-products";
+import { deleteImage, serveImage, uploadImage } from "./images";
+import {
+  deleteCatalogItem,
+  getCatalogItem,
+  listCatalogItems,
+  saveCatalogItem,
+  setCatalogPublished,
+  type CatalogKind,
+} from "./catalog";
 import { sendVerificationEmail } from "./email";
 import {
   checkOTPStatus,
@@ -923,6 +960,442 @@ const worker = {
       if (request.method === "GET" && path === "/api/auth/config-check") {
         const report = await runConfigCheck(env);
         return jsonWithCors(report, request, env, report.ok ? 200 : 503);
+      }
+
+      /* ---------------- Public products ---------------- */
+
+      if (request.method === "GET" && path === "/api/products") {
+        const products = await listPublishedProducts(env);
+        return jsonWithCors({ products }, request, env);
+      }
+
+      const imageMatch = path.match(/^\/api\/images\/(.+)$/);
+
+      if (request.method === "GET" && imageMatch) {
+        const key = decodeURIComponent(imageMatch[1]);
+        const response = await serveImage(env, key);
+
+        if (!response) {
+          return jsonWithCors({ error: "Image not found." }, request, env, 404);
+        }
+
+        // Add CORS headers to the streamed response.
+        for (const [name, value] of Object.entries(corsHeaders(request, env))) {
+          response.headers.set(name, value);
+        }
+
+        return response;
+      }
+
+      /* ---------------- Public catalogs ---------------- */
+
+      const publicCatalogMatch = path.match(/^\/api\/(laptops|consoles)$/);
+
+      if (request.method === "GET" && publicCatalogMatch) {
+        const kind = publicCatalogMatch[1] as CatalogKind;
+        const items = await listCatalogItems(env, kind, true);
+        return jsonWithCors({ items }, request, env);
+      }
+
+      /* ---------------- Admin API ---------------- */
+
+      if (path.startsWith("/api/admin/")) {
+        const guard = await adminGuard(request, env, jsonWithCors);
+
+        if (!guard.authorized) return guard.response;
+
+        // GET /api/admin/orders
+        if (request.method === "GET" && path === "/api/admin/orders") {
+          const result = await listAdminOrders(env, url);
+          return jsonWithCors(result, request, env);
+        }
+
+        // GET /api/admin/orders/stats
+        if (request.method === "GET" && path === "/api/admin/orders/stats") {
+          const stats = await getAdminOrderStats(env);
+          return jsonWithCors(stats, request, env);
+        }
+
+        // GET /api/admin/orders/:id
+        const adminOrderMatch = path.match(/^\/api\/admin\/orders\/([^/]+)$/);
+
+        if (request.method === "GET" && adminOrderMatch) {
+          const order = await getAdminOrder(env, adminOrderMatch[1]);
+
+          if (!order) {
+            return jsonWithCors({ error: "Order not found." }, request, env, 404);
+          }
+
+          return jsonWithCors(order, request, env);
+        }
+
+        // PATCH /api/admin/orders/:id/status
+        const adminStatusMatch = path.match(
+          /^\/api\/admin\/orders\/([^/]+)\/status$/
+        );
+
+        if (request.method === "PATCH" && adminStatusMatch) {
+          const body = await readJson(request);
+
+          if (!body || typeof body.status !== "string") {
+            return jsonWithCors({ error: "Status is required." }, request, env, 400);
+          }
+
+          const result = await updateAdminOrderStatus(
+            env,
+            adminStatusMatch[1],
+            body.status
+          );
+
+          if (!result.ok) {
+            return jsonWithCors({ error: "Invalid status." }, request, env, 400);
+          }
+
+          if (result.notFound) {
+            return jsonWithCors({ error: "Order not found." }, request, env, 404);
+          }
+
+          return jsonWithCors({ ok: true, status: body.status }, request, env);
+        }
+
+        /* ---- Users ---- */
+
+        if (request.method === "GET" && path === "/api/admin/users") {
+          const result = await listAdminUsers(env, url);
+          return jsonWithCors(result, request, env);
+        }
+
+        if (request.method === "GET" && path === "/api/admin/users/stats") {
+          const stats = await getAdminUserStats(env);
+          return jsonWithCors(stats, request, env);
+        }
+
+        const adminUserMatch = path.match(/^\/api\/admin\/users\/([^/]+)$/);
+
+        if (request.method === "GET" && adminUserMatch) {
+          const user = await getAdminUser(env, adminUserMatch[1]);
+
+          if (!user) {
+            return jsonWithCors({ error: "User not found." }, request, env, 404);
+          }
+
+          return jsonWithCors(user, request, env);
+        }
+
+        /* ---- Admin allowlist ---- */
+
+        if (request.method === "GET" && path === "/api/admin/admins") {
+          const admins = await listAdmins(env);
+          return jsonWithCors({ admins }, request, env);
+        }
+
+        if (request.method === "POST" && path === "/api/admin/admins") {
+          const body = await readJson(request);
+
+          if (!body || typeof body.email !== "string") {
+            return jsonWithCors({ error: "Email is required." }, request, env, 400);
+          }
+
+          const result = await addAdmin(env, body.email, guard.auth.email);
+
+          if (!result.ok) {
+            return jsonWithCors({ error: result.error }, request, env, result.status);
+          }
+
+          return jsonWithCors({ ok: true, email: result.email }, request, env, 201);
+        }
+
+        const adminEmailMatch = path.match(/^\/api\/admin\/admins\/([^/]+)$/);
+
+        if (request.method === "DELETE" && adminEmailMatch) {
+          const email = decodeURIComponent(adminEmailMatch[1]);
+
+          // Prevent lockout: an admin cannot remove themselves, and the last
+          // admin cannot be removed.
+          if (email.toLowerCase() === guard.auth.email.toLowerCase()) {
+            return jsonWithCors(
+              { error: "You cannot remove your own admin access." },
+              request,
+              env,
+              400
+            );
+          }
+
+          if ((await countAdmins(env)) <= 1) {
+            return jsonWithCors(
+              { error: "The last admin cannot be removed." },
+              request,
+              env,
+              400
+            );
+          }
+
+          const result = await removeAdmin(env, email);
+
+          if (result.notFound) {
+            return jsonWithCors({ error: "Admin not found." }, request, env, 404);
+          }
+
+          return jsonWithCors({ ok: true }, request, env);
+        }
+
+        /* ---- Products ---- */
+
+        if (request.method === "GET" && path === "/api/admin/products") {
+          const products = await listAllProducts(env);
+          return jsonWithCors({ products }, request, env);
+        }
+
+        if (request.method === "POST" && path === "/api/admin/products") {
+          const body = await readJson(request);
+
+          if (!body) {
+            return jsonWithCors({ error: "Invalid request." }, request, env, 400);
+          }
+
+          const validation = validateProductInput(body);
+
+          if (!validation.ok) {
+            return jsonWithCors({ error: validation.error }, request, env, 400);
+          }
+
+          const id = crypto.randomUUID();
+          const product = await createProduct(env, id, validation.input);
+
+          return jsonWithCors({ product }, request, env, 201);
+        }
+
+        const adminProductMatch = path.match(/^\/api\/admin\/products\/([^/]+)$/);
+
+        if (request.method === "GET" && adminProductMatch) {
+          const product = await getProduct(env, adminProductMatch[1]);
+
+          if (!product) {
+            return jsonWithCors({ error: "Product not found." }, request, env, 404);
+          }
+
+          return jsonWithCors({ product }, request, env);
+        }
+
+        if (request.method === "PATCH" && adminProductMatch) {
+          const body = await readJson(request);
+
+          if (!body) {
+            return jsonWithCors({ error: "Invalid request." }, request, env, 400);
+          }
+
+          const validation = validateProductInput(body);
+
+          if (!validation.ok) {
+            return jsonWithCors({ error: validation.error }, request, env, 400);
+          }
+
+          const product = await updateProduct(
+            env,
+            adminProductMatch[1],
+            validation.input
+          );
+
+          if (!product) {
+            return jsonWithCors({ error: "Product not found." }, request, env, 404);
+          }
+
+          return jsonWithCors({ product }, request, env);
+        }
+
+        if (request.method === "DELETE" && adminProductMatch) {
+          const product = await getProduct(env, adminProductMatch[1]);
+
+          if (!product) {
+            return jsonWithCors({ error: "Product not found." }, request, env, 404);
+          }
+
+          await deleteProduct(env, product.id);
+          await deleteImage(env, product.image);
+
+          return jsonWithCors({ ok: true }, request, env);
+        }
+
+        const adminPublishMatch = path.match(
+          /^\/api\/admin\/products\/([^/]+)\/publish$/
+        );
+
+        if (request.method === "PATCH" && adminPublishMatch) {
+          const body = await readJson(request);
+
+          if (!body || typeof body.published !== "boolean") {
+            return jsonWithCors({ error: "published must be a boolean." }, request, env, 400);
+          }
+
+          const updated = await setPublished(
+            env,
+            adminPublishMatch[1],
+            body.published
+          );
+
+          if (!updated) {
+            return jsonWithCors({ error: "Product not found." }, request, env, 404);
+          }
+
+          return jsonWithCors({ ok: true, published: body.published }, request, env);
+        }
+
+        /* ---- Image upload ---- */
+
+        if (request.method === "POST" && path === "/api/admin/upload") {
+          const contentType = request.headers.get("content-type") ?? "";
+
+          if (!contentType.toLowerCase().startsWith("multipart/form-data")) {
+            return jsonWithCors(
+              { error: "multipart/form-data is required." },
+              request,
+              env,
+              415
+            );
+          }
+
+          const formData = await request.formData();
+          const file = formData.get("file");
+
+          if (!(file instanceof File)) {
+            return jsonWithCors({ error: "No file provided." }, request, env, 400);
+          }
+
+          const result = await uploadImage(env, file);
+
+          if (!result.ok) {
+            return jsonWithCors({ error: result.error }, request, env, result.status);
+          }
+
+          return jsonWithCors(
+            { url: result.url, key: result.key },
+            request,
+            env,
+            201
+          );
+        }
+
+        /* ---- Catalog CRUD (laptops / consoles) ---- */
+
+        const adminCatalogMatch = path.match(
+          /^\/api\/admin\/(laptops|consoles)$/
+        );
+
+        if (request.method === "GET" && adminCatalogMatch) {
+          const items = await listCatalogItems(
+            env,
+            adminCatalogMatch[1] as CatalogKind,
+            false
+          );
+          return jsonWithCors({ items }, request, env);
+        }
+
+        if (request.method === "POST" && adminCatalogMatch) {
+          const body = await readJson(request);
+
+          if (!body) {
+            return jsonWithCors({ error: "Invalid request." }, request, env, 400);
+          }
+
+          const id = typeof body.id === "string" && body.id.trim()
+            ? body.id.trim()
+            : crypto.randomUUID();
+          const data = (body.data ?? body) as Record<string, unknown>;
+          const item = await saveCatalogItem(
+            env,
+            adminCatalogMatch[1] as CatalogKind,
+            id,
+            data
+          );
+
+          return jsonWithCors({ item }, request, env, 201);
+        }
+
+        const adminCatalogItemMatch = path.match(
+          /^\/api\/admin\/(laptops|consoles)\/([^/]+)$/
+        );
+
+        if (request.method === "GET" && adminCatalogItemMatch) {
+          const item = await getCatalogItem(
+            env,
+            adminCatalogItemMatch[1] as CatalogKind,
+            adminCatalogItemMatch[2]
+          );
+
+          if (!item) {
+            return jsonWithCors({ error: "Item not found." }, request, env, 404);
+          }
+
+          return jsonWithCors({ item }, request, env);
+        }
+
+        if (request.method === "PATCH" && adminCatalogItemMatch) {
+          const body = await readJson(request);
+
+          if (!body) {
+            return jsonWithCors({ error: "Invalid request." }, request, env, 400);
+          }
+
+          const data = (body.data ?? body) as Record<string, unknown>;
+          const item = await saveCatalogItem(
+            env,
+            adminCatalogItemMatch[1] as CatalogKind,
+            adminCatalogItemMatch[2],
+            data
+          );
+
+          return jsonWithCors({ item }, request, env);
+        }
+
+        if (request.method === "DELETE" && adminCatalogItemMatch) {
+          const removed = await deleteCatalogItem(
+            env,
+            adminCatalogItemMatch[1] as CatalogKind,
+            adminCatalogItemMatch[2]
+          );
+
+          if (!removed) {
+            return jsonWithCors({ error: "Item not found." }, request, env, 404);
+          }
+
+          return jsonWithCors({ ok: true }, request, env);
+        }
+
+        const adminCatalogPublishMatch = path.match(
+          /^\/api\/admin\/(laptops|consoles)\/([^/]+)\/publish$/
+        );
+
+        if (request.method === "PATCH" && adminCatalogPublishMatch) {
+          const body = await readJson(request);
+
+          if (!body || typeof body.published !== "boolean") {
+            return jsonWithCors(
+              { error: "published must be a boolean." },
+              request,
+              env,
+              400
+            );
+          }
+
+          const updated = await setCatalogPublished(
+            env,
+            adminCatalogPublishMatch[1] as CatalogKind,
+            adminCatalogPublishMatch[2],
+            body.published
+          );
+
+          if (!updated) {
+            return jsonWithCors({ error: "Item not found." }, request, env, 404);
+          }
+
+          return jsonWithCors(
+            { ok: true, published: body.published },
+            request,
+            env
+          );
+        }
+
+        return jsonWithCors({ error: "Not found." }, request, env, 404);
       }
 
       if (request.method === "GET" && path === "/api/health") {

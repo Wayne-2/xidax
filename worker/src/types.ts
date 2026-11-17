@@ -105,6 +105,8 @@ export type RegisteredProductPayload = {
 export type Env = {
   /** Cloudflare D1 database used for users, sessions and OTP records. */
   DB: D1Database;
+  /** Cloudflare R2 bucket for uploaded product images. */
+  MEDIA: R2Bucket;
   /** JSON blob with the Firebase project config plus a service account key. */
   FIREBASE_CONFIG?: string;
   /** Secret pepper used when hashing email OTPs. */

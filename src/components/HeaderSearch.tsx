@@ -4,9 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
-  accessories,
-  accessoryCategories,
-} from "@/data/accessories";
+  consoles,
+  consoleCategories,
+} from "@/data/consoles";
 import { laptops, laptopCategories } from "@/data/laptops";
 import { prebuilds } from "@/data/prebuilds";
 import { useRegion } from "@/components/RegionProvider";
@@ -118,22 +118,22 @@ export default function HeaderSearch({ open, onOpenChange }: HeaderSearchProps) 
       });
     }
 
-    for (const accessory of accessories) {
-      const category = accessoryCategories.find(
-        (entry) => entry.id === accessory.category,
+    for (const console of consoles) {
+      const category = consoleCategories.find(
+        (entry) => entry.id === console.category,
       );
 
       items.push({
-        id: `accessory-${accessory.id}`,
-        title: accessory.name,
-        subtitle: accessory.description,
-        kind: category?.label ?? "Accessory",
-        href: `/accessories#${accessory.category}`,
-        price: accessory.price,
+        id: `console-${console.id}`,
+        title: console.name,
+        subtitle: console.description,
+        kind: category?.label ?? "Console",
+        href: `/consoles#${console.category}`,
+        price: console.price,
         keywords: [
-          accessory.description,
+          console.description,
           category?.label ?? "",
-          ...accessory.specs,
+          ...console.specs,
         ]
           .join(" ")
           .toLowerCase(),
@@ -239,7 +239,7 @@ export default function HeaderSearch({ open, onOpenChange }: HeaderSearchProps) 
             value={query}
             tabIndex={open ? 0 : -1}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search laptops, accessories, prebuilds…"
+            placeholder="Search laptops, consoles, prebuilds…"
             autoComplete="off"
             className="min-w-0 flex-1 bg-transparent text-sm text-[#2e3338] outline-none placeholder:text-[#80848e]"
           />

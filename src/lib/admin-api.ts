@@ -1,0 +1,345 @@
+"use client";
+
+import { getIdToken } from "@/lib/firebase-client";
+
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  "https://generic-pcs-api.pcmarketweb.workers.dev"
+).replace(/\/+$/, "");
+
+export type AdminOrderLine = {
+  id: string;
+  productId: string;
+  name: string;
+  kind: string | null;
+  price: number;
+  quantity: number;
+};
+
+export type AdminOrder = {
+  id: string;
+  reference: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  country: string | null;
+  method: string;
+  network: string | null;
+  subtotal: number;
+  shipping: number;
+  total: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+  lines: AdminOrderLine[];
+};
+
+export type AdminOrderList = {
+  orders: AdminOrder[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type AdminOrderStats = {
+  totalOrders: number;
+  revenue: number;
+  byStatus: { status: string; count: number }[];
+  recent: { created_at: string; total: number }[];
+};
+
+export type AdminApiError = {
+  error: string;
+  status: number;
+};
+
+async function adminFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const idToken = await getIdToken();
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${idToken}`,
+      ...(init?.headers ?? {}),
+    },
+  });
+
+  const payload = (await response.json().catch(() => null)) as
+    | (T & { error?: string })
+    | null;
+
+  if (!response.ok) {
+    const error: AdminApiError = {
+      error: payload?.error ?? "Something went wrong.",
+      status: response.status,
+    };
+    throw error;
+  }
+
+  return payload as T;
+}
+
+export function fetchAdminOrders(params?: {
+  status?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const query = new URLSearchParams();
+
+  if (params?.status && params.status !== "all") {
+    query.set("status", params.status);
+  }
+  if (params?.search) query.set("search", params.search);
+  if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.offset) query.set("offset", String(params.offset));
+
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+
+  return adminFetch<AdminOrderList>(`/api/admin/orders${suffix}`);
+}
+
+export function fetchAdminOrderStats() {
+  return adminFetch<AdminOrderStats>("/api/admin/orders/stats");
+}
+
+export function fetchAdminOrder(id: string) {
+  return adminFetch<AdminOrder>(`/api/admin/orders/${encodeURIComponent(id)}`);
+}
+
+export function updateAdminOrderStatus(id: string, status: string) {
+  return adminFetch<{ ok: boolean; status: string }>(
+    `/api/admin/orders/${encodeURIComponent(id)}/status`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }
+  );
+}
+
+/* ---------------- Users ---------------- */
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  name: string;
+  phone: string;
+  country: string;
+  postalCode: string;
+  tier: string;
+  emailVerified: boolean;
+  createdAt: string;
+  orders: number;
+  products: number;
+  hasPendingOtp: boolean;
+};
+
+export type AdminUserList = {
+  users: AdminUser[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type AdminUserStats = {
+  totalUsers: number;
+  verifiedUsers: number;
+  unverifiedUsers: number;
+};
+
+export function fetchAdminUsers(params?: {
+  search?: string;
+  verified?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const query = new URLSearchParams();
+
+  if (params?.search) query.set("search", params.search);
+  if (params?.verified && params.verified !== "all") query.set("verified", params.verified);
+  if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.offset) query.set("offset", String(params.offset));
+
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+
+  return adminFetch<AdminUserList>(`/api/admin/users${suffix}`);
+}
+
+export function fetchAdminUserStats() {
+  return adminFetch<AdminUserStats>("/api/admin/users/stats");
+}
+
+/* ---------------- Admin allowlist ---------------- */
+
+export type AdminEntry = {
+  email: string;
+  createdAt: string;
+  createdBy: string | null;
+};
+
+export function fetchAdmins() {
+  return adminFetch<{ admins: AdminEntry[] }>("/api/admin/admins");
+}
+
+export function addAdmin(email: string) {
+  return adminFetch<{ ok: boolean; email: string }>("/api/admin/admins", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function removeAdmin(email: string) {
+  return adminFetch<{ ok: boolean }>(
+    `/api/admin/admins/${encodeURIComponent(email)}`,
+    { method: "DELETE" }
+  );
+}
+
+/* ---------------- Products ---------------- */
+
+export type Product = {
+  id: string;
+  name: string;
+  image: string;
+  images: string[];
+  brand: "intel" | "amd";
+  price: number;
+  originalPrice: number;
+  stock: "in-stock" | "built-to-order";
+  flagship: boolean;
+  specs: string;
+  featured: boolean;
+  featuredOrder: number;
+  published: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ProductInput = {
+  name: string;
+  image: string;
+  images: string[];
+  brand: "intel" | "amd";
+  price: number;
+  originalPrice: number;
+  stock: "in-stock" | "built-to-order";
+  flagship: boolean;
+  specs: string;
+  featured: boolean;
+  featuredOrder: number;
+  published: boolean;
+};
+
+export function fetchAdminProducts() {
+  return adminFetch<{ products: Product[] }>("/api/admin/products");
+}
+
+export function fetchAdminProduct(id: string) {
+  return adminFetch<{ product: Product }>(
+    `/api/admin/products/${encodeURIComponent(id)}`
+  );
+}
+
+export function createProduct(input: ProductInput) {
+  return adminFetch<{ product: Product }>("/api/admin/products", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateProduct(id: string, input: ProductInput) {
+  return adminFetch<{ product: Product }>(
+    `/api/admin/products/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }
+  );
+}
+
+export function deleteProduct(id: string) {
+  return adminFetch<{ ok: boolean }>(
+    `/api/admin/products/${encodeURIComponent(id)}`,
+    { method: "DELETE" }
+  );
+}
+
+export function setProductPublished(id: string, published: boolean) {
+  return adminFetch<{ ok: boolean; published: boolean }>(
+    `/api/admin/products/${encodeURIComponent(id)}/publish`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ published }),
+    }
+  );
+}
+
+/** Uploads an image and returns the URL to store on a product. */
+export async function uploadProductImage(file: File): Promise<{ url: string; key: string }> {
+  const idToken = await getIdToken();
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE}/api/admin/upload`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${idToken}`,
+    },
+    body: formData,
+  });
+
+  const payload = (await response.json().catch(() => null)) as
+    | { url?: string; key?: string; error?: string }
+    | null;
+
+  if (!response.ok) {
+    throw {
+      error: payload?.error ?? "Could not upload image.",
+      status: response.status,
+    } satisfies AdminApiError;
+  }
+
+  return { url: payload!.url!, key: payload!.key! };
+}
+
+/* ---------------- Catalog (laptops / consoles) ---------------- */
+
+export type CatalogItem = {
+  id: string;
+  data: Record<string, unknown>;
+  published: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CatalogKind = "laptops" | "consoles";
+
+export function fetchCatalog(kind: CatalogKind) {
+  return adminFetch<{ items: CatalogItem[] }>(`/api/admin/${kind}`);
+}
+
+export function saveCatalogItem(
+  kind: CatalogKind,
+  data: Record<string, unknown>,
+  id?: string
+) {
+  return adminFetch<{ item: CatalogItem }>(`/api/admin/${kind}${id ? `/${encodeURIComponent(id)}` : ""}`, {
+    method: id ? "PATCH" : "POST",
+    body: JSON.stringify({ data }),
+  });
+}
+
+export function deleteCatalogItem(kind: CatalogKind, id: string) {
+  return adminFetch<{ ok: boolean }>(
+    `/api/admin/${kind}/${encodeURIComponent(id)}`,
+    { method: "DELETE" }
+  );
+}
+
+export function setCatalogPublished(kind: CatalogKind, id: string, published: boolean) {
+  return adminFetch<{ ok: boolean; published: boolean }>(
+    `/api/admin/${kind}/${encodeURIComponent(id)}/publish`,
+    { method: "PATCH", body: JSON.stringify({ published }) }
+  );
+}

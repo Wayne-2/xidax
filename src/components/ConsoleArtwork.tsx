@@ -1,16 +1,16 @@
-import type { AccessoryCategoryId } from "@/data/accessories";
+import type { ConsoleCategoryId } from "@/data/consoles";
 
-type AccessoryArtworkProps = {
-  category: AccessoryCategoryId;
+type ConsoleArtworkProps = {
+  category: ConsoleCategoryId;
   accent: string;
   label: string;
 };
 
-export default function AccessoryArtwork({
+export default function ConsoleArtwork({
   category,
   accent,
   label,
-}: AccessoryArtworkProps) {
+}: ConsoleArtworkProps) {
   const body = "#2e3338";
   const light = "#f8fafe";
 

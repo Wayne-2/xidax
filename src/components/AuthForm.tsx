@@ -74,7 +74,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [country, setCountry] = useState("");
+  const [country, setCountry] = useState("United States");
   const [postal, setPostal] = useState("");
   const [terms, setTerms] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
@@ -327,7 +327,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
               type="tel"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
-              placeholder="+234-907649842"
+              placeholder="+1-202-555-0147"
               autoComplete="tel"
               aria-invalid={Boolean(errors.phone)}
               aria-describedby={errors.phone ? "auth-phone-error" : undefined}

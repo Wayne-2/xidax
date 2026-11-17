@@ -316,7 +316,7 @@ export default function CheckoutFlow() {
                     id="checkout-phone"
                     value={phone}
                     onChange={(event) => setPhone(event.target.value)}
-                    placeholder="+234-907649842"
+                    placeholder="+1-202-555-0147"
                     className={`${fieldClass} ${
                       errors.phone ? "border-[#DC2626]" : "border-[#d2dbe8]"
                     }`}

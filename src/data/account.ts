@@ -91,20 +91,17 @@ export const demoUser: AccountUser = {
   id: "acct-20418",
   name: "Wayne Adebayo",
   email: "wayne@example.com",
-  phone: "+234-907649842",
-  country: "Nigeria",
+  phone: "+1-202-555-0147",
+  country: "United States",
   postalCode: "100001",
   tier: "Gold member",
   memberSince: "2021",
 };
 
 export const countries = [
-  "Nigeria",
-  "Ghana",
-  "Kenya",
-  "South Africa",
-  "United Kingdom",
   "United States",
+  "United Kingdom",
+  "South Africa",
   "Canada",
   "Germany",
   "France",
@@ -147,7 +144,7 @@ export const accountOrders: AccountOrder[] = [
     detail: "Hot-swap magnetic switches · 8K polling",
     total: 149,
     status: "In transit",
-    href: "/accessories",
+    href: "/consoles",
   },
 ];
 
@@ -165,7 +162,7 @@ export const savedItems: SavedItem[] = [
     name: "Nova 27 QHD 240Hz",
     detail: "27-inch QHD IPS · 240Hz · HDR400",
     price: 449,
-    href: "/accessories#monitors",
+    href: "/consoles#monitors",
     kind: "Monitor",
   },
   {
@@ -173,7 +170,7 @@ export const savedItems: SavedItem[] = [
     name: "Volt 850W Gold",
     detail: "80+ Gold · ATX 3.1 · fully modular",
     price: 129,
-    href: "/accessories#power-adaptors",
+    href: "/consoles#power-adaptors",
     kind: "Power",
   },
 ];

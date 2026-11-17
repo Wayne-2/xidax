@@ -1,8 +1,8 @@
-import type { Accessory, AccessoryCategory } from "@/data/accessories";
+import type { Console, ConsoleCategory } from "@/data/consoles";
 import type { Prebuild } from "@/data/prebuilds";
 import type { Laptop, LaptopCategory } from "@/data/laptops";
 
-export type CartKind = "laptop" | "accessory" | "prebuild";
+export type CartKind = "laptop" | "console" | "prebuild";
 
 export type CartItem = {
   id: string;
@@ -42,22 +42,23 @@ export function cartItemFromLaptop(
   };
 }
 
-export function cartItemFromAccessory(
-  accessory: Accessory,
-  category: AccessoryCategory
+export function cartItemFromConsole(
+  console: Console,
+  category: ConsoleCategory
 ): CartItem {
   return {
-    id: `accessory-${accessory.id}`,
-    kind: "accessory",
-    productId: accessory.id,
-    name: accessory.name,
-    meta: accessory.specs[0] ?? accessory.description,
+    id: `console-${console.id}`,
+    kind: "console",
+    productId: console.id,
+    name: console.name,
+    meta: console.specs[0]?.value ?? console.description,
     category: category.label,
-    price: accessory.price,
+    price: console.price,
     quantity: 1,
-    href: `/accessories#${accessory.category}`,
+    href: `/consoles#${console.category}`,
     accent: category.accent,
-    artCategory: accessory.category,
+    artCategory: console.category,
+    image: console.images?.[0],
   };
 }
 

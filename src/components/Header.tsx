@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useAccount } from "@/components/AccountProvider";
 import { useCart } from "@/components/CartProvider";
-import { CartIcon } from "@/components/AccessoryIcons";
+import { CartIcon } from "@/components/ConsoleIcons";
 import HeaderSearch from "@/components/HeaderSearch";
 import RegionMenu from "@/components/RegionMenu";
 import MobileNav from "@/components/MobileNav";

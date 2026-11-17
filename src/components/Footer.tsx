@@ -9,7 +9,7 @@ function CopyrightYear() {
 const columns = [
   {
     title: "Shop",
-    links: ["Prebuilt PCs", "Custom Builds", "Accessories", "Sales"],
+    links: ["Prebuilt PCs", "Custom Builds", "Consoles", "Sales"],
   },
   {
     title: "Support",
@@ -24,7 +24,7 @@ const columns = [
 const routeMap: Record<string, string> = {
   "Prebuilt PCs": "/prebuilds",
   "Custom Builds": "/custom-builds",
-  Accessories: "/accessories",
+  Consoles: "/consoles",
   "Support Center": "/support",
 };
 
@@ -54,7 +54,7 @@ export default function Footer() {
               href="tel:+234907649842"
               className="mt-3 inline-block text-sm font-semibold text-[#5865F2] transition-colors hover:text-[#4752C4]"
             >
-              +234-907649842
+              +1-202-555-0147
             </a>
           </div>
 

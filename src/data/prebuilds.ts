@@ -5,6 +5,7 @@ export type Prebuild = {
   id: string;
   name: string;
   image: string;
+  images?: string[];
   brand: PrebuildBrand;
   price: number;
   originalPrice: number;
