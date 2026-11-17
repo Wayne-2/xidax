@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { resolveImageUrls, resolveImageUrl } from "@/lib/image-url";
+
+
 import PrebuildsBrowser from "@/components/PrebuildsBrowser";
 import type { Product } from "@/lib/admin-api";
 
@@ -19,10 +22,18 @@ export default function LivePrebuildsBrowser() {
     async function load() {
       try {
         const response = await fetch(`${API_BASE}/api/products`);
+        if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`);
+
         const payload = (await response.json()) as { products?: Product[] };
 
         if (!cancelled) {
-          setProducts(payload.products ?? []);
+          setProducts(
+            (payload.products ?? []).map((product) => ({
+              ...product,
+              images: resolveImageUrls(product.images),
+              image: resolveImageUrl(product.image) ?? product.image,
+            }))
+          );
         }
       } catch {
         if (!cancelled) setProducts([]);
@@ -31,8 +42,14 @@ export default function LivePrebuildsBrowser() {
 
     void load();
 
+    // Refetch whenever the tab regains focus so storefront pages stay in sync
+    // with admin changes made in another tab.
+    const onFocus = () => void load();
+    window.addEventListener("focus", onFocus);
+
     return () => {
       cancelled = true;
+      window.removeEventListener("focus", onFocus);
     };
   }, []);
 

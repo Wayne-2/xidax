@@ -72,8 +72,16 @@ customer's profile history stays in sync.
 
 ## 4. Security notes
 
-- Authorization is enforced server-side in `worker/src/admin-auth.ts`. The UI
-  hiding/showing is cosmetic — the API is the real gate.
+- Authorization is enforced server-side in `worker/src/admin-auth.ts`: a
+  verified Firebase ID token plus an email on the D1 `admins` allowlist. The
+  UI hiding/showing is cosmetic — the API is the real gate.
+
+- Login (`POST /api/auth/login`) expects a verified Firebase ID token, not a
+  raw email/password. The client signs in with Firebase first.
+
+- Email verification is required server-side for all `/api/me*` routes.
+
+- Payment webhooks require `BACHS_WEBHOOK_SECRET` and carry an idempotency key.
 - The email is read from the **verified** Firebase ID token and checked against
   the D1 `admins` table — never from anything the browser sends in a body or
   query parameter. This makes granting/revoking instant and unforgeable.
@@ -162,3 +170,38 @@ Every product card (prebuild, laptop, console) renders its media as a grid:
 one large image on the left and two stacked images on the right. Upload up to
 three images in the admin form — the first is used as the large image. When
 fewer images are provided, the artwork fallback fills the remaining tiles.
+
+## 7. Hardening notes
+
+### Session storage
+
+The D1 session token is stored in `localStorage` (`generic-pcs.session`).
+Moving it to an HttpOnly cookie was **not** done because the API Worker lives
+on `generic-pcs-api.pcmarketweb.workers.dev` while the storefront is on
+`genericpcs.com` — a cross-site cookie would need `SameSite=None; Secure` and
+is subject to third-party cookie blocking, which could break sign-in.
+
+If you later move the API to `api.genericpcs.com` (same site), HttpOnly cookies
+become reliable and are recommended. Until then:
+- no XSS sinks exist in the codebase (no `dangerouslySetInnerHTML`/`innerHTML`)
+- tokens are cleared on sign-out and on 401 responses
+- admin access has an additional server-side D1 allowlist gate
+
+### Rate limiting
+
+Abuse-prone endpoints are throttled via Cloudflare KV (`ratelimit:` keys):
+login/register 15 per 5 min per IP, OTP send 10 per 5 min, checkout 10 per min,
+registrations 10 per 5 min. OTP also has per-UID D1 attempt/cooldown limits.
+
+### Checkout integrity
+
+All amounts are recomputed server-side from D1 catalog prices in
+`worker/src/pricing.ts`. Client-submitted prices and totals are ignored. The
+two hardcoded landing-page builds have whitelisted prices until they are
+migrated into the products table.
+
+### Password reset / account deletion
+
+- `/reset-password` sends a Firebase reset link.
+- Profile → Delete account calls `POST /api/auth/delete` with a Firebase ID
+  token and removes all D1 rows plus the Firebase user.

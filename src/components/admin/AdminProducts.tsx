@@ -37,7 +37,6 @@ export default function AdminProducts() {
   const [form, setForm] = useState<ProductInput>(EMPTY_FORM);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [preview, setPreview] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,7 +58,6 @@ export default function AdminProducts() {
   function startCreate() {
     setEditing(null);
     setForm({ ...EMPTY_FORM });
-    setPreview(null);
   }
 
   function startEdit(product: Product) {
@@ -78,33 +76,50 @@ export default function AdminProducts() {
       featuredOrder: product.featuredOrder,
       published: product.published,
     });
-    setPreview(product.image.startsWith("/api/images/")
-      ? `${process.env.NEXT_PUBLIC_API_BASE_URL || "https://generic-pcs-api.pcmarketweb.workers.dev"}${product.image}`
-      : product.image);
+    const images = product.images?.length ? product.images : product.image ? [product.image] : [];
   }
 
-  async function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+  async function handleFiles(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []).slice(0, 3);
 
-    if (!file) return;
+    if (files.length === 0) return;
 
     setUploading(true);
 
     try {
-      const result = await uploadProductImage(file);
+      const uploaded: string[] = [];
+
+      for (const file of files) {
+        const result = await uploadProductImage(file);
+        uploaded.push(result.url);
+      }
+
       const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://generic-pcs-api.pcmarketweb.workers.dev";
+
       setForm((current) => ({
         ...current,
-        image: result.url,
-        images: [result.url, ...current.images.slice(1, 3)],
+        image: uploaded[0],
+        images: uploaded,
       }));
-      setPreview(`${base}${result.url}`);
-      toast.success("Image uploaded.");
+
+
+      toast.success(`${uploaded.length} image${uploaded.length > 1 ? "s" : ""} uploaded (max 3).`);
     } catch (error) {
-      toast.error((error as { error?: string }).error ?? "Could not upload image.");
+      toast.error((error as { error?: string }).error ?? "Could not upload images.");
     } finally {
       setUploading(false);
     }
+  }
+
+  function removeImage(index: number) {
+    setForm((current) => {
+      const images = current.images.filter((_, i) => i !== index);
+      return {
+        ...current,
+        images,
+        image: images[0] ?? "",
+      };
+    });
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -154,6 +169,11 @@ export default function AdminProducts() {
   const discount = form.originalPrice > 0
     ? Math.round((1 - form.price / form.originalPrice) * 100)
     : 0;
+
+  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "https://generic-pcs-api.pcmarketweb.workers.dev";
+  const previewImages = form.images.map((url) =>
+    url.startsWith("/api/images/") ? `${apiBase}${url}` : url
+  );
 
   return (
     <div>
@@ -248,22 +268,42 @@ export default function AdminProducts() {
             <Checkbox label="Published" checked={form.published} onChange={(v) => setForm({ ...form, published: v })} />
           </div>
 
-          <Field label="Product image">
+          <Field label="Product images (up to 3 — first is the large one)">
             <div className="space-y-3">
-              <input type="file" accept="image/*" onChange={handleFile} className="block w-full text-sm text-[#5c5e66] file:mr-3 file:rounded-lg file:border-0 file:bg-[#eaf0f8] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-[#4752C4]" />
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFiles}
+                className="block w-full text-sm text-[#5c5e66] file:mr-3 file:rounded-lg file:border-0 file:bg-[#eaf0f8] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-[#4752C4]"
+              />
               {uploading && <p className="text-xs text-[#5865F2]">Uploading…</p>}
+              <p className="text-xs text-[#80848e]">
+                {form.images.length}/3 images · select up to three at once
+              </p>
+
+              {form.images.map((url, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <span className="w-16 shrink-0 text-[11px] font-semibold text-[#80848e]">
+                    {index === 0 ? "Large" : `Small ${index}`}
+                  </span>
+                  <input value={url} readOnly className={inputClass} />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(index)}
+                    className="shrink-0 rounded-lg border border-[#d2dbe8] px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:border-red-400"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+
               <input
                 value={form.image}
-                onChange={(e) => setForm({ ...form, image: e.target.value })}
-                placeholder="/api/images/... or /hero_image.png"
+                onChange={(e) => setForm({ ...form, image: e.target.value, images: [e.target.value, ...form.images.slice(1, 3)] })}
+                placeholder="Or type an image path, e.g. /hero_image.png"
                 className={inputClass}
-                required
               />
-              {preview && (
-                <div className="h-28 w-40 overflow-hidden rounded-lg border border-[#dce3ee]">
-                  <ProductImageGrid images={[preview]} alt="Preview" interactive={false} />
-                </div>
-              )}
             </div>
           </Field>
 
@@ -281,7 +321,7 @@ export default function AdminProducts() {
           <p className="text-[11px] font-semibold uppercase tracking-wide text-[#80848e]">Card preview</p>
           <div className="mt-3 overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8]">
             <div className="relative aspect-[4/3] bg-[#dce3ee]">
-              <ProductImageGrid images={preview ? [preview] : []} alt="" interactive={false} />
+              <ProductImageGrid images={previewImages} alt="" interactive={false} />
               {form.flagship && (
                 <span className="absolute bottom-3 left-3 text-[10px] font-bold uppercase tracking-wide text-[#5865F2]">Flagship</span>
               )}

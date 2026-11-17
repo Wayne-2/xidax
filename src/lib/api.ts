@@ -163,16 +163,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function createCheckoutSession(
-  payload: CheckoutRequest
+  payload: CheckoutRequest,
+  token?: string | null
 ): Promise<CheckoutSession> {
   if (!API_BASE) {
     await new Promise((resolve) => setTimeout(resolve, 650));
     return mockSession(payload);
   }
 
-  return request<CheckoutSession>("/api/checkout", {
+  return accountRequest<CheckoutSession>("/api/checkout", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: payload,
+    token,
   });
 }
 
@@ -298,10 +300,10 @@ export async function registerAccount(payload: {
   }>("/api/auth/register", { method: "POST", body: payload });
 }
 
-export async function loginAccount(email: string, password: string) {
+export async function loginAccount(idToken: string) {
   return accountRequest<{ token: string; user: AccountUserPayload }>(
     "/api/auth/login",
-    { method: "POST", body: { email, password } }
+    { method: "POST", body: { idToken } }
   );
 }
 

@@ -1,4 +1,5 @@
 import { SlidersIcon } from "@/components/ConsoleIcons";
+import ExpandableContent from "@/components/ExpandableContent";
 import ProductImageGrid from "@/components/ProductImageGrid";
 import { useCart } from "@/components/CartProvider";
 import { useRegion } from "@/components/RegionProvider";
@@ -40,15 +41,18 @@ export default function PrebuildCard({ product }: { product: Prebuild }) {
       </div>
 
       <div className="flex flex-1 flex-col gap-3 p-5">
-        <h3 className="text-base font-semibold leading-snug text-[#2e3338]">
-          {product.name}
-        </h3>
+        <ExpandableContent collapsedHeight={150} label="details">
+          <div className="space-y-3">
+            <h3 className="text-base font-semibold leading-snug text-[#2e3338]">
+              {product.name}
+            </h3>
+            <p className="text-sm leading-relaxed text-[#5c5e66]">
+              {product.specs}
+            </p>
+          </div>
+        </ExpandableContent>
 
-        <p className="text-sm leading-relaxed text-[#5c5e66]">
-          {product.specs}
-        </p>
-
-        <div className="mt-auto pt-4">
+        <div className="mt-auto pt-1">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <span className="text-xl font-bold text-[#5865F2]">
               {formatMoney(product.price)}

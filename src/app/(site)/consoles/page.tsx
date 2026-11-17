@@ -66,7 +66,7 @@ export default function ConsolesPage() {
                 </p>
               </div>
               <h1 className="mt-5 text-5xl font-extrabold tracking-tight text-balance text-[#2e3338] sm:text-6xl lg:text-7xl">
-                ACCESSORIES
+                CONSOLES
               </h1>
               <p className="mt-6 max-w-xl text-base leading-relaxed text-[#5c5e66] sm:text-lg">
                 The details that make a setup yours. Displays, input, audio, and

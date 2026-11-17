@@ -57,6 +57,8 @@ import {
   validateProductInput,
 } from "./admin-products";
 import { deleteImage, serveImage, uploadImage } from "./images";
+import { recomputeCheckoutTotals } from "./pricing";
+import { clientIp, rateLimit } from "./rate-limit";
 import {
   deleteCatalogItem,
   getCatalogItem,
@@ -72,14 +74,10 @@ import {
   generateSixDigitOTP,
   invalidateOTP,
   markEmailVerified,
-  purgeExpiredOTPs,
   readToken,
-  rowToStoredUser,
   storeOTP,
   verifyOTP,
 } from "./auth";
-
-const SESSION_TTL_SECONDS = 60 * 60 * 48;
 
 function jsonWithCors(
   payload: unknown,
@@ -236,6 +234,22 @@ async function handleCheckout(env: Env, request: Request) {
     return json({ error: "Invalid checkout request." }, 400);
   }
 
+  // Recompute every amount from authoritative catalog prices before any
+  // gateway interaction. Client-submitted prices/totals are never trusted.
+  const priced = await recomputeCheckoutTotals(env, payload.lines);
+
+  if ("error" in priced) {
+    return json({ error: priced.error }, 400);
+  }
+
+  const trusted: CheckoutRequest = {
+    ...payload,
+    lines: priced.lines,
+    subtotal: priced.subtotal,
+    shipping: priced.shipping,
+    total: priced.total,
+  };
+
   if (payload.method === "crypto") {
     const network = payload.network ?? "btc";
 
@@ -252,8 +266,8 @@ async function handleCheckout(env: Env, request: Request) {
   try {
     const created =
       payload.method === "crypto"
-        ? await createCryptoInstructions(env, payload, reference)
-        : await createWireInstructions(env, payload, reference);
+        ? await createCryptoInstructions(env, trusted, reference)
+        : await createWireInstructions(env, trusted, reference);
 
     instructions = created.instructions;
     warning = created.warning;
@@ -263,12 +277,12 @@ async function handleCheckout(env: Env, request: Request) {
         payload.method === "crypto"
           ? await createCryptoInstructions(
               { ...env, BACHS_API_KEY: undefined, BACHS_API_BASE: undefined },
-              payload,
+              trusted,
               reference
             )
           : await createWireInstructions(
               { ...env, BACHS_API_KEY: undefined, BACHS_API_BASE: undefined },
-              payload,
+              trusted,
               reference
             );
 
@@ -283,9 +297,27 @@ async function handleCheckout(env: Env, request: Request) {
     }
   }
 
-  const session = buildSession(payload, instructions, reference, warning);
+  const session = buildSession(trusted, instructions, reference, warning);
 
   await persistOrder(env, session);
+
+  // Cache the full session so GET /api/checkout/:id and "I have sent payment"
+  // work. Written in the same request as the order.
+  await env.DB.prepare(
+    `INSERT OR REPLACE INTO checkout_sessions
+       (id, reference, status, data, created_at, expires_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+  )
+    .bind(
+      session.id,
+      session.reference,
+      session.status,
+      JSON.stringify(session),
+      session.createdAt,
+      session.expiresAt
+    )
+    .run();
+
   await attachOrderToUser(env, request, {
     id: session.id,
     reference: session.reference,
@@ -431,8 +463,10 @@ async function hmacHex(secret: string, message: string) {
 async function verifyBachsWebhook(env: Env, request: Request, raw: string) {
   const secret = env.BACHS_WEBHOOK_SECRET;
 
+  // Fail closed: an unsigned webhook must never be accepted.
   if (!secret) {
-    return true;
+    console.error("BACHS_WEBHOOK_SECRET is not configured; rejecting webhook.");
+    return false;
   }
 
   const candidates: string[] = [];
@@ -541,7 +575,21 @@ async function handleWebhook(env: Env, request: Request) {
     return json({ ok: true, matched: true, status: "ignored" });
   }
 
-  const newStatus = status === "paid" ? "paid" : "submitted";
+  // Idempotency: ignore replayed webhook events so a stale event cannot
+  // overwrite a later fulfilment status (shipped/delivered).
+  if (event.id) {
+    try {
+      await env.DB.prepare(
+        "INSERT INTO webhook_events (id, type, created_at) VALUES (?1, ?2, ?3)"
+      )
+        .bind(event.id, event.type ?? "unknown", new Date().toISOString())
+        .run();
+    } catch {
+      return json({ ok: true, matched: true, duplicate: true });
+    }
+  }
+
+  const newStatus: PaymentStatus = status;
 
   await env.DB.prepare("UPDATE orders SET status = ?1 WHERE id = ?2")
     .bind(newStatus, orderRow.id)
@@ -599,29 +647,6 @@ async function handleOrders(env: Env, url: URL) {
     }>();
 
   return json({ orders: rows.results ?? [] });
-}
-
-async function handleVerifyEmail(request: Request, env: Env) {
-  const url = new URL(request.url);
-  const searchParams = url.searchParams;
-  const token = searchParams.get("token") as string;
-  const email = searchParams.get("email") as string;
-
-  if (!token || !email) {
-    return jsonWithCors({ error: "Missing token or email." }, request, env, 400);
-  }
-
-  const result = await env.DB.prepare(
-    "UPDATE users SET email_verified = 1 WHERE email = ?1 AND email_verified = 0"
-  )
-    .bind(email)
-    .run();
-
-  if ((result.meta?.changes ?? 0) === 0) {
-    return jsonWithCors({ alreadyVerified: true }, request, env);
-  }
-
-  return jsonWithCors({ verified: true }, request, env);
 }
 
 async function handleSendOTP(request: Request, env: Env) {
@@ -962,6 +987,41 @@ const worker = {
         return jsonWithCors(report, request, env, report.ok ? 200 : 503);
       }
 
+      /* ---------------- Rate limiting ---------------- */
+
+      // Applied to abuse-prone endpoints. OTP also has D1 per-UID caps.
+      const rateLimitedPaths: { match: RegExp; method: string; limit: number; window: number }[] = [
+        { match: /^\/api\/auth\/(login|register)$/, method: "POST", limit: 15, window: 300 },
+        { match: /^\/api\/auth\/send-otp$/, method: "POST", limit: 10, window: 300 },
+        { match: /^\/api\/checkout$/, method: "POST", limit: 10, window: 60 },
+        { match: /^\/api\/registrations$/, method: "POST", limit: 10, window: 300 },
+      ];
+
+      for (const rule of rateLimitedPaths) {
+        if (request.method === rule.method && rule.match.test(path)) {
+          const result = await rateLimit(
+            env,
+            `${rule.method}:${path}`,
+            clientIp(request),
+            rule.limit,
+            rule.window
+          );
+
+          if (!result.allowed) {
+            return jsonWithCors(
+              {
+                error: "Too many requests. Please try again shortly.",
+                code: "rate_limited",
+                retryAfter: result.retryAfter,
+              },
+              request,
+              env,
+              429
+            );
+          }
+        }
+      }
+
       /* ---------------- Public products ---------------- */
 
       if (request.method === "GET" && path === "/api/products") {
@@ -1080,6 +1140,30 @@ const worker = {
           }
 
           return jsonWithCors(user, request, env);
+        }
+
+        const adminUserVerifyMatch = path.match(
+          /^\/api\/admin\/users\/([^/]+)\/verify$/
+        );
+
+        if (request.method === "PATCH" && adminUserVerifyMatch) {
+          const uid = adminUserVerifyMatch[1];
+
+          await env.DB.prepare(
+            "UPDATE users SET email_verified = 1 WHERE id = ?1"
+          )
+            .bind(uid)
+            .run();
+
+          try {
+            const { auth: firebaseAuth } = await ensureInitialized(env);
+            await firebaseAuth.updateUser(uid, { emailVerified: true });
+          } catch {
+            // D1 is authoritative for the storefront; continue if Firebase
+            // could not be updated.
+          }
+
+          return jsonWithCors({ ok: true }, request, env);
         }
 
         /* ---- Admin allowlist ---- */
@@ -1212,6 +1296,9 @@ const worker = {
 
           await deleteProduct(env, product.id);
           await deleteImage(env, product.image);
+          for (const url of product.images ?? []) {
+            await deleteImage(env, url);
+          }
 
           return jsonWithCors({ ok: true }, request, env);
         }
@@ -1475,10 +1562,6 @@ const worker = {
       if (request.method === "GET" && path === "/api/orders") {
         return await handleOrders(env, url);
       }
-      if (request.method === "GET" && path === "/api/auth/verify") {
-        return await handleVerifyEmail(request, env);
-      }
-
       if (request.method === "POST" && path === "/api/auth/send-otp") {
         return await handleSendOTP(request, env);
       }

@@ -158,7 +158,8 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
       if (mode === "signin") {
         await signInWithEmail(email, password);
 
-        const failure = await signIn(email, password);
+        const idToken = await getIdToken();
+        const failure = await signIn(idToken);
 
         if (failure) {
           setErrors({ form: failure });
@@ -431,7 +432,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
           </label>
           {mode === "signin" && (
             <Link
-              href="/support"
+              href="/reset-password"
               className="text-[11px] font-semibold text-[#5865F2] transition-colors hover:text-[#4752C4]"
             >
               Forgot password?

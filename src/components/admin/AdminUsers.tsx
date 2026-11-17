@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
-import { fetchAdminUserStats, fetchAdminUsers, type AdminUser } from "@/lib/admin-api";
+import {
+  fetchAdminUserStats,
+  fetchAdminUsers,
+  verifyAdminUser,
+  type AdminUser,
+} from "@/lib/admin-api";
 
 export default function AdminUsers() {
   const toast = useToast();
@@ -13,6 +18,7 @@ export default function AdminUsers() {
   const [search, setSearch] = useState("");
   const [verified, setVerified] = useState("all");
   const [offset, setOffset] = useState(0);
+  const [selected, setSelected] = useState<AdminUser | null>(null);
   const LIMIT = 20;
 
   const load = useCallback(async () => {
@@ -43,7 +49,7 @@ export default function AdminUsers() {
   return (
     <div>
       <h1 className="text-2xl font-extrabold tracking-tight">Users</h1>
-      <p className="mt-1 text-sm text-[#5c5e66]">View accounts and their verification status.</p>
+      <p className="mt-1 text-sm text-[#5c5e66]">View accounts, verification status and activity.</p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <Card label="Total users" value={stats?.totalUsers?.toString() ?? "—"} />
@@ -85,6 +91,7 @@ export default function AdminUsers() {
                   <th className="px-4 py-3 font-semibold">Orders</th>
                   <th className="px-4 py-3 font-semibold">Products</th>
                   <th className="px-4 py-3 font-semibold">Joined</th>
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody>
@@ -108,6 +115,9 @@ export default function AdminUsers() {
                     <td className="px-4 py-3 text-center">{user.products}</td>
                     <td className="px-4 py-3 text-xs text-[#5c5e66]">
                       {new Date(user.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button type="button" onClick={() => setSelected(user)} className="text-sm font-semibold text-[#5865F2] hover:text-[#4752C4]">View</button>
                     </td>
                   </tr>
                 ))}
@@ -136,6 +146,63 @@ export default function AdminUsers() {
           >
             Next
           </button>
+        </div>
+      )}
+
+      {selected && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={() => setSelected(null)}>
+          <div className="h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-xl font-bold">{selected.name}</h2>
+                <p className="mt-1 text-sm text-[#5c5e66]">{selected.email}</p>
+              </div>
+              <button type="button" onClick={() => setSelected(null)} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#80848e] hover:bg-[#f0f4fa]" aria-label="Close">✕</button>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              <div className="rounded-xl border border-[#e4e9f0] bg-[#f8fafe] p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#80848e]">Account</p>
+                <dl className="mt-2 space-y-1.5 text-sm">
+                  <div className="flex justify-between"><dt className="text-[#80848e]">User ID</dt><dd className="max-w-[200px] truncate font-mono text-xs">{selected.id}</dd></div>
+                  <div className="flex justify-between"><dt className="text-[#80848e]">Tier</dt><dd className="font-semibold">{selected.tier}</dd></div>
+                  <div className="flex justify-between"><dt className="text-[#80848e]">Phone</dt><dd>{selected.phone || "—"}</dd></div>
+                  <div className="flex justify-between"><dt className="text-[#80848e]">Country</dt><dd>{selected.country || "—"}</dd></div>
+                  <div className="flex justify-between"><dt className="text-[#80848e]">Postal code</dt><dd>{selected.postalCode || "—"}</dd></div>
+                  <div className="flex justify-between"><dt className="text-[#80848e]">Joined</dt><dd>{new Date(selected.createdAt).toLocaleDateString()}</dd></div>
+                </dl>
+              </div>
+
+              <div className="rounded-xl border border-[#e4e9f0] bg-[#f8fafe] p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#80848e]">Activity</p>
+                <dl className="mt-2 space-y-1.5 text-sm">
+                  <div className="flex justify-between"><dt className="text-[#80848e]">Email status</dt><dd className="font-semibold">{selected.emailVerified ? "Verified" : "Unverified"}</dd></div>
+                  <div className="flex justify-between"><dt className="text-[#80848e]">Pending OTP</dt><dd>{selected.hasPendingOtp ? "Yes" : "No"}</dd></div>
+                  <div className="flex justify-between"><dt className="text-[#80848e]">Orders</dt><dd>{selected.orders}</dd></div>
+                  <div className="flex justify-between"><dt className="text-[#80848e]">Registered products</dt><dd>{selected.products}</dd></div>
+                </dl>
+              </div>
+
+              {!selected.emailVerified && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await verifyAdminUser(selected.id);
+                      toast.success("User marked as verified.");
+                      setSelected(null);
+                      await load();
+                    } catch (error) {
+                      toast.error((error as { error?: string }).error ?? "Could not verify user.");
+                    }
+                  }}
+                  className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-[#5865F2] px-5 text-sm font-semibold text-white hover:bg-[#4752C4]"
+                >
+                  Mark email as verified
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

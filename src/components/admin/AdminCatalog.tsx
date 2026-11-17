@@ -140,12 +140,17 @@ export default function AdminCatalog({ kind }: { kind: CatalogKind }) {
     }
   }
 
+  function removeImage(index: number) {
+    setForm((current) => ({ ...current, images: current.images.filter((_, i) => i !== index) }));
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setSaving(true);
 
     try {
       const payload: Record<string, unknown> = {
+        id: editing ?? (form.id || crypto.randomUUID()),
         name: form.name,
         tagline: form.tagline,
         description: form.description,
@@ -272,10 +277,12 @@ export default function AdminCatalog({ kind }: { kind: CatalogKind }) {
             <div className="space-y-3">
               <input type="file" accept="image/*" multiple onChange={handleImages} className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-[#eaf0f8] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-[#4752C4]" />
               {uploading && <p className="text-xs text-[#5865F2]">Uploading…</p>}
+              <p className="text-xs text-[#80848e]">{form.images.length}/3 images · select up to three at once</p>
               {form.images.map((url, index) => (
                 <div key={index} className="flex items-center gap-2">
-                  <span className="text-xs text-[#80848e]">{index === 0 ? "Large" : `Small ${index}`}</span>
+                  <span className="w-16 shrink-0 text-[11px] font-semibold text-[#80848e]">{index === 0 ? "Large" : `Small ${index}`}</span>
                   <input value={url} readOnly className={inputClass} />
+                  <button type="button" onClick={() => removeImage(index)} className="shrink-0 rounded-lg border border-[#d2dbe8] px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:border-red-400">Remove</button>
                 </div>
               ))}
             </div>

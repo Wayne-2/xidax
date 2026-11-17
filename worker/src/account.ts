@@ -15,9 +15,8 @@ export function json(payload: unknown, status = 200) {
     status,
     headers: {
       "content-type": "application/json",
-      "access-control-allow-origin": "*",
-      "access-control-allow-headers": "content-type, authorization",
-      "access-control-allow-methods": "GET,POST,PATCH,DELETE,OPTIONS",
+      // Strict CORS is applied by jsonWithCors() in index.ts. Handlers that
+      // still use json() directly are covered by the global Origin guard.
     },
   });
 }
@@ -41,7 +40,12 @@ async function requireUser(request: Request, env: Env) {
 
   if (!token) return null;
 
-  return findUserByToken(env, token);
+  const user = await findUserByToken(env, token);
+
+  // Email verification is a server-side requirement, not just a UI gate.
+  if (!user || !user.emailVerified) return null;
+
+  return user;
 }
 
 export async function handleRegister(request: Request, env: Env) {
@@ -102,13 +106,10 @@ export async function handleRegister(request: Request, env: Env) {
       try {
         const orphan = await firebaseAuth.getUserByEmail(email);
 
-        // Only adopt accounts that have never been verified. Adopting a
-        // verified account with a password we do not know would be unsafe.
+        // Only adopt accounts that have never been verified, and NEVER
+        // overwrite the password. An unverified orphan still belongs to
+        // whoever created it; only they can prove ownership via the OTP flow.
         if (!orphan.emailVerified) {
-          await firebaseAuth.updateUser(orphan.uid, {
-            password,
-            displayName: name,
-          });
           userId = orphan.uid;
         } else {
           return json({ error: "An account already uses that email." }, 409);
@@ -193,28 +194,32 @@ export async function handleLogin(request: Request, env: Env) {
 
   if (!body) return json({ error: "Invalid request." }, 400);
 
-  const email = text(body.email).toLowerCase();
-  const password = text(body.password);
+  // The client signs in with Firebase first and forwards the verified ID
+  // token. Never accept a raw email/password pair here: Firebase already
+  // verified the credentials, and trusting the email alone would allow
+  // anyone to obtain a session for any account.
+  const idToken = typeof body.idToken === "string" ? body.idToken.trim() : "";
 
-  if (!email || !password) {
-    return json({ error: "Enter your email and password." }, 400);
+  if (!idToken) {
+    return json({ error: "Authentication required." }, 401);
   }
 
   const { auth: firebaseAuth } = await ensureInitialized(env);
 
-  let userRecord;
+  let uid: string;
 
   try {
-    userRecord = await firebaseAuth.getUserByEmail(email);
+    const decoded = await firebaseAuth.verifyIdToken(idToken, true);
+    uid = decoded.uid;
   } catch {
-    return json({ error: "Those details do not match an account." }, 401);
+    return json({ error: "Invalid or expired session. Please sign in again." }, 401);
   }
 
   const row = await env.DB.prepare(
     `SELECT id, email, name, phone, country, postal_code, tier, bachs_customer_id, email_verified, created_at
        FROM users WHERE id = ?1`
   )
-    .bind(userRecord.uid)
+    .bind(uid)
     .first<{
       id: string;
       email: string;
@@ -230,6 +235,11 @@ export async function handleLogin(request: Request, env: Env) {
 
   if (!row) {
     return json({ error: "Account not found in our system." }, 404);
+  }
+
+  // Server-side verification gate: unverified accounts cannot use the app.
+  if (row.email_verified !== 1) {
+    return json({ error: "Please verify your email address first." }, 403);
   }
 
   const session = await createSession(env, row.id);
@@ -299,6 +309,22 @@ export async function handleUpdateMe(request: Request, env: Env) {
 
   if (!EMAIL_PATTERN.test(email)) {
     return json({ error: "Enter a valid email address." }, 400);
+  }
+
+  // Keep Firebase in sync before committing the D1 change so the two
+  // sources of truth cannot diverge.
+  const { auth: firebaseAuth } = await ensureInitialized(env);
+
+  try {
+    await firebaseAuth.updateUser(user.id, { email, displayName: name });
+  } catch (error) {
+    const code = (error as { code?: string }).code ?? "";
+
+    if (code === "auth/email-already-exists") {
+      return json({ error: "An account already uses that email." }, 409);
+    }
+
+    return json({ error: "Could not update your account details." }, 500);
   }
 
   await env.DB.prepare(

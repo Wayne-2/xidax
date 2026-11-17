@@ -1,15 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { resolveImageUrls, resolveImageUrl } from "@/lib/image-url";
+
+
 import LaptopCatalogue from "@/components/LaptopCatalogue";
-import { laptopCategories, laptops, featuredLaptopId, type Laptop } from "@/data/laptops";
+import CatalogEmptyState from "@/components/CatalogEmptyState";
+import { laptopCategories, featuredLaptopId, type Laptop } from "@/data/laptops";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_BASE_URL ||
   "https://generic-pcs-api.pcmarketweb.workers.dev"
 ).replace(/\/+$/, "");
 
-/** Uses D1 laptops when published, otherwise the hardcoded catalogue. */
+/** Uses published D1 laptops; shows an empty state until admin adds products. */
 export default function LiveLaptopCatalogue() {
   const [items, setItems] = useState<Laptop[] | null>(null);
 
@@ -19,11 +23,24 @@ export default function LiveLaptopCatalogue() {
     async function load() {
       try {
         const response = await fetch(`${API_BASE}/api/laptops`);
+        if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`);
+
         const payload = (await response.json()) as { items?: { data: Record<string, unknown> }[] };
 
         if (!cancelled && payload.items?.length) {
           setItems(
-            payload.items.map((item) => ({ ...item.data, id: String(item.data.id ?? "") }) as unknown as Laptop)
+            payload.items.map((item) => {
+              const data = item.data;
+              const images = Array.isArray(data.images)
+                ? resolveImageUrls(data.images as string[])
+                : [];
+              return {
+                ...data,
+                id: String(data.id ?? ""),
+                images: images.length ? images : undefined,
+                image: images[0] ?? (typeof data.image === "string" ? resolveImageUrl(data.image) : undefined),
+              } as unknown as Laptop;
+            })
           );
         } else if (!cancelled) {
           setItems([]);
@@ -35,7 +52,13 @@ export default function LiveLaptopCatalogue() {
 
     void load();
 
-    return () => { cancelled = true; };
+    const onFocus = () => void load();
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+    };
   }, []);
 
   if (items === null) {
@@ -46,17 +69,11 @@ export default function LiveLaptopCatalogue() {
     );
   }
 
-  const source: Laptop[] = items.length ? items : laptops;
+  const source: Laptop[] = items;
   const featured = source.find((l) => l.id === featuredLaptopId) ?? source[0];
 
   if (!featured) {
-    return (
-      <section className="bg-[#f0f4fa] py-16">
-        <div className="mx-auto max-w-7xl px-4 text-center text-sm text-[#5c5e66] sm:px-6 lg:px-8">
-          No laptops available yet.
-        </div>
-      </section>
-    );
+    return <CatalogEmptyState category="laptop" />;
   }
 
   return (

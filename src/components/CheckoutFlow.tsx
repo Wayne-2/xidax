@@ -59,6 +59,7 @@ function StepBadge({
 }
 
 export default function CheckoutFlow() {
+  const { token } = useAccount();
   const router = useRouter();
   const { items, subtotal, ready } = useCart();
   const { user } = useAccount();
@@ -175,7 +176,7 @@ export default function CheckoutFlow() {
         shipping,
         total,
         currency: "USD",
-      });
+      }, token);
 
       setSession(created);
       setNow(Date.now());

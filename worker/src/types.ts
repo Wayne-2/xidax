@@ -107,6 +107,8 @@ export type Env = {
   DB: D1Database;
   /** Cloudflare R2 bucket for uploaded product images. */
   MEDIA: R2Bucket;
+  /** KV namespace (also holds rate-limit keys with a ratelimit: prefix). */
+  SESSIONS: KVNamespace;
   /** JSON blob with the Firebase project config plus a service account key. */
   FIREBASE_CONFIG?: string;
   /** Secret pepper used when hashing email OTPs. */

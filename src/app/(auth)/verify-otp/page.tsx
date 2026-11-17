@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowIcon } from "@/components/BuildIcons";
 import { useToast } from "@/components/ToastProvider";
+import { loginAccount } from "@/lib/api";
 import {
   fetchOtpStatus,
   getFirebaseAuth,
@@ -94,7 +95,7 @@ export default function VerifyOtpPage() {
             setStatus("sent");
             setSecondsLeft(5 * 60);
             setCooldown(RESEND_COOLDOWN_SECONDS);
-            toast.error("We sent a 6-digit code to your email address.");
+            toast.success("We sent a 6-digit code to your email address.");
           }
         }
       } catch (err) {
@@ -131,19 +132,20 @@ export default function VerifyOtpPage() {
       if (currentUser) {
         await reload(currentUser).catch(() => undefined);
       }
-      const fresh = await getIdToken(null, true).catch(() => null);
+      const fresh = await getIdToken(null, true);
 
-      if (fresh) {
-        const decoded = decodeJwt(fresh);
-        if (decoded?.email_verified === true) {
-          toast.error("Email verified. Welcome to Generic PCs.");
-          router.replace("/profile");
-          return;
-        }
-      }
+      // Firebase is now verified. Exchange the fresh ID token for a D1
+      // session so /api/me* works in the storefront.
+      const session = await loginAccount(fresh);
 
-      toast.error("Email verified. Welcome to Generic PCS.");
-      router.replace("/profile");
+      window.localStorage.setItem("generic-pcs.session", session.token);
+
+      toast.success("Email verified. Welcome to Generic PCs.");
+
+      // Full navigation is intentional: it re-initialises AccountProvider
+      // with the freshly issued D1 session token.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.assign("/profile");
     } catch (err) {
       const apiError = err as OtpApiError;
       setStatus("sent");
@@ -286,7 +288,7 @@ export default function VerifyOtpPage() {
       lastAttemptedRef.current = null;
       setDigits(Array(OTP_LENGTH).fill(""));
       focusInput(0);
-      toast.error("We sent a new code to your email address.");
+      toast.success("We sent a new code to your email address.");
     } catch (err) {
       const apiError = err as OtpApiError;
       setStatus("sent");
@@ -443,18 +445,3 @@ export default function VerifyOtpPage() {
   );
 }
 
-function decodeJwt(token: string): Record<string, unknown> | null {
-  try {
-    const payload = token.split(".")[1];
-    if (!payload) return null;
-    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
-    const json =
-      typeof atob === "function"
-        ? atob(padded)
-        : Buffer.from(padded, "base64").toString("utf8");
-    return JSON.parse(json) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}

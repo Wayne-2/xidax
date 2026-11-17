@@ -343,3 +343,11 @@ export function setCatalogPublished(kind: CatalogKind, id: string, published: bo
     { method: "PATCH", body: JSON.stringify({ published }) }
   );
 }
+
+/** Admin action: mark a user's email as verified. */
+export function verifyAdminUser(id: string) {
+  return adminFetch<{ ok: boolean }>(
+    `/api/admin/users/${encodeURIComponent(id)}/verify`,
+    { method: "PATCH" }
+  );
+}

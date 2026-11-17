@@ -103,6 +103,7 @@ export default function AdminAdmins() {
         ) : admins.length === 0 ? (
           <div className="p-10 text-center text-sm text-[#5c5e66]">No admins yet.</div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-[#e4e9f0] bg-[#f8fafe] text-[11px] uppercase tracking-wide text-[#80848e]">
@@ -137,6 +138,7 @@ export default function AdminAdmins() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

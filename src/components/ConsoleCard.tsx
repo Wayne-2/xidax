@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
 import { useRegion } from "@/components/RegionProvider";
 import { useCart } from "@/components/CartProvider";
 import { cartItemFromConsole } from "@/data/cart";
@@ -8,7 +7,8 @@ import { type Console, type ConsoleCategory } from "@/data/consoles";
 import ConsoleArtwork from "@/components/ConsoleArtwork";
 import ProductImageGrid from "@/components/ProductImageGrid";
 import { CartIcon } from "@/components/ConsoleIcons";
-import { CheckIcon, ChevronDownIcon } from "@/components/BuildIcons";
+import { CheckIcon } from "@/components/BuildIcons";
+import ExpandableContent from "@/components/ExpandableContent";
 
 type ConsoleCardProps = {
   consoleItem: Console;
@@ -27,28 +27,6 @@ export default function ConsoleCard({
   const { items } = useCart();
   const accent = category.accent;
   const inStock = consoleItem.stock === "in-stock";
-  const [expanded, setExpanded] = useState(false);
-  const [overflowing, setOverflowing] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  const updateOverflow = useCallback(() => {
-    const el = contentRef.current;
-
-    if (!el) return;
-
-    setOverflowing(el.scrollHeight > el.clientHeight + 4);
-  }, []);
-
-  useEffect(() => {
-    updateOverflow();
-
-    const observer = new ResizeObserver(updateOverflow);
-
-    if (contentRef.current) observer.observe(contentRef.current);
-
-    return () => observer.disconnect();
-  }, [updateOverflow, consoleItem.id]);
-
   const discount = consoleItem.originalPrice
     ? Math.round((1 - consoleItem.price / consoleItem.originalPrice) * 100)
     : 0;
@@ -56,9 +34,7 @@ export default function ConsoleCard({
   return (
     <article
       data-console-card
-      className={`group flex h-full flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card transition-colors hover:border-[#5865F2]/60 ${
-        expanded ? "" : "max-h-[640px]"
-      }`}
+      className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card transition-colors hover:border-[#5865F2]/60"
     >
       <div className="relative aspect-[4/3] shrink-0 overflow-hidden bg-[#dce3ee]">
         <ProductImageGrid
@@ -89,12 +65,8 @@ export default function ConsoleCard({
       </div>
 
       <div className="flex flex-1 flex-col p-5">
-        <div
-          ref={contentRef}
-          className={`relative min-h-0 flex-1 space-y-2 overflow-hidden ${
-            expanded ? "" : "max-h-[290px]"
-          }`}
-        >
+        <ExpandableContent collapsedHeight={230} label="specs">
+          <div className="space-y-2">
           <h3 className="text-base font-semibold leading-snug text-[#2e3338]">
             {consoleItem.name}
           </h3>
@@ -123,10 +95,8 @@ export default function ConsoleCard({
             ))}
           </dl>
 
-          {!expanded && overflowing && (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#eaf0f8] to-transparent" />
-          )}
-        </div>
+          </div>
+        </ExpandableContent>
 
         <div className="mt-3 flex items-center justify-between gap-2">
           <div>
@@ -165,17 +135,6 @@ export default function ConsoleCard({
             {added ? "Added" : "Add"}
           </button>
         </div>
-
-        {(overflowing || expanded) && (
-          <button
-            type="button"
-            onClick={() => setExpanded((value) => !value)}
-            className="mt-3 inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-[#5865F2] hover:text-[#4752C4]"
-          >
-            {expanded ? "Show less" : "Show full specs"}
-            <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
-          </button>
-        )}
       </div>
     </article>
   );

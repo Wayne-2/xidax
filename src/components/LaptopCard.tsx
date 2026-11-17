@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
 import LaptopArtwork from "@/components/LaptopArtwork";
 import ProductImageGrid from "@/components/ProductImageGrid";
 import { CartIcon } from "@/components/ConsoleIcons";
-import { CheckIcon, ChevronDownIcon } from "@/components/BuildIcons";
+import { CheckIcon } from "@/components/BuildIcons";
+import ExpandableContent from "@/components/ExpandableContent";
 import { useRegion } from "@/components/RegionProvider";
 import { type Laptop, type LaptopCategory } from "@/data/laptops";
 
@@ -24,46 +24,10 @@ export default function LaptopCard({
   const { formatMoney } = useRegion();
   const accent = category.accent;
   const inStock = laptop.stock === "in-stock";
-  const [expanded, setExpanded] = useState(false);
-  const [overflowing, setOverflowing] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  const updateOverflow = useCallback(() => {
-    const element = contentRef.current;
-
-    if (!element) return;
-
-    setOverflowing(element.scrollHeight > element.clientHeight + 1);
-  }, []);
-
-  useEffect(() => {
-    const element = contentRef.current;
-
-    if (!element) return;
-
-    const handle = () => updateOverflow();
-    const frame = requestAnimationFrame(handle);
-    const observer = new ResizeObserver(handle);
-
-    observer.observe(element);
-    Array.from(element.children).forEach((child) =>
-      observer.observe(child as Element)
-    );
-    window.addEventListener("load", handle);
-
-    return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-      window.removeEventListener("load", handle);
-    };
-  }, [updateOverflow]);
-
   return (
     <article
       data-laptop-card
-      className={`group flex flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card transition-colors hover:border-[#5865F2]/60 hover:shadow-card-hover ${
-        expanded ? "aspect-auto sm:aspect-auto" : "aspect-[1/2] sm:aspect-auto"
-      }`}
+      className="group flex flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card transition-colors hover:border-[#5865F2]/60 hover:shadow-card-hover"
     >
       <div
         className={`relative aspect-[16/10] shrink-0 overflow-hidden ${
@@ -126,10 +90,8 @@ export default function LaptopCard({
         </span>
       </div>
 
-      <div
-        ref={contentRef}
-        className="relative flex flex-1 flex-col overflow-hidden p-6"
-      >
+      <ExpandableContent collapsedHeight={260} label="details">
+        <div className="flex flex-col p-6 pb-0">
         <h3 className="text-xl font-bold tracking-tight text-[#2e3338]">
           {laptop.name}
         </h3>
@@ -168,13 +130,8 @@ export default function LaptopCard({
           ))}
         </dl>
 
-        {overflowing && !expanded && (
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#eaf0f8] via-[#eaf0f8]/70 to-transparent"
-          />
-        )}
-      </div>
+        </div>
+      </ExpandableContent>
 
       <div className="shrink-0 p-6 pt-0">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -214,25 +171,6 @@ export default function LaptopCard({
               {added ? "In cart" : "Add to cart"}
             </button>
 
-            {(overflowing || expanded) && (
-              <button
-                type="button"
-                onClick={() => setExpanded((open) => !open)}
-                aria-expanded={expanded}
-                aria-label={
-                  expanded
-                    ? `Hide details for ${laptop.name}`
-                    : `Show all details for ${laptop.name}`
-                }
-                className="flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-[#d2dbe8] bg-[#f8fafe] text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338] sm:hidden"
-              >
-                <ChevronDownIcon
-                  className={`h-4 w-4 transition-transform duration-300 ${
-                    expanded ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
-            )}
           </div>
         </div>
       </div>

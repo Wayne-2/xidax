@@ -174,8 +174,9 @@ export function randomToken(length = 32) {
   crypto.getRandomValues(bytes);
   const hexChars = "0123456789abcdef";
   let token = "";
-  for (let i = 0; i < length * 2; i += 1) {
-    token += hexChars[bytes[i] % 16];
+  for (let i = 0; i < bytes.length; i += 1) {
+    token += hexChars[bytes[i] >> 4];
+    token += hexChars[bytes[i] & 0xf];
   }
   return token;
 }

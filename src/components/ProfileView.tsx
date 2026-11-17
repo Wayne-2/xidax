@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
 import { useAccount } from "@/components/AccountProvider";
+import { deleteAccount } from "@/lib/firebase-client";
+import { useToast } from "@/components/ToastProvider";
 import { useRegion } from "@/components/RegionProvider";
 import ProductRegistration from "@/components/ProductRegistration";
 import {
@@ -123,6 +125,7 @@ function SelectField({
 }
 
 export default function ProfileView() {
+  const toast = useToast();
   const router = useRouter();
   const {
     user,
@@ -137,6 +140,55 @@ export default function ProfileView() {
   const { region, formatMoney, formatDateTime, clock } = useRegion();
   const [saved, setSaved] = useState(false);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [profileDraft, setProfileDraft] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    country: "",
+    postalCode: "",
+  });
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Seed the draft once when the account loads; never overwrite it on every
+  // provider update, otherwise typing would snap back on slow responses.
+  useEffect(() => {
+    if (!user) return;
+
+    const timer = setTimeout(() => {
+      setProfileDraft((current) =>
+        current.name
+          ? current
+          : {
+              name: user.name,
+              email: user.email,
+              phone: user.phone,
+              country: user.country,
+              postalCode: user.postalCode,
+            }
+      );
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [user]);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, []);
+
+  function queueProfileSave(patch: Partial<typeof profileDraft>) {
+    const next = { ...profileDraft, ...patch };
+    setProfileDraft(next);
+
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+
+    saveTimer.current = setTimeout(() => {
+      updateProfile(next)
+        .then(markSaved)
+        .catch(() => toast.error("Could not save your changes. Please retry."));
+    }, 600);
+  }
 
   useEffect(() => {
     if (ready && !user) {
@@ -506,11 +558,8 @@ export default function ProfileView() {
                 </label>
                 <input
                   id="settings-name"
-                  value={user.name}
-                  onChange={(event) => {
-                    updateProfile({ name: event.target.value });
-                    markSaved();
-                  }}
+                  value={profileDraft.name}
+                  onChange={(event) => queueProfileSave({ name: event.target.value })}
                   className={fieldClass}
                 />
               </div>
@@ -525,11 +574,8 @@ export default function ProfileView() {
                 <input
                   id="settings-email"
                   type="email"
-                  value={user.email}
-                  onChange={(event) => {
-                    updateProfile({ email: event.target.value });
-                    markSaved();
-                  }}
+                  value={profileDraft.email}
+                  onChange={(event) => queueProfileSave({ email: event.target.value })}
                   className={fieldClass}
                 />
               </div>
@@ -543,11 +589,8 @@ export default function ProfileView() {
                 </label>
                 <input
                   id="settings-phone"
-                  value={user.phone}
-                  onChange={(event) => {
-                    updateProfile({ phone: event.target.value });
-                    markSaved();
-                  }}
+                  value={profileDraft.phone}
+                  onChange={(event) => queueProfileSave({ phone: event.target.value })}
                   className={fieldClass}
                 />
               </div>
@@ -563,12 +606,9 @@ export default function ProfileView() {
               <SelectField
                 id="settings-country"
                 label="Country"
-                value={user.country}
+                value={profileDraft.country}
                 options={countries.filter((option) => option !== "Other")}
-                onChange={(next) => {
-                  updateProfile({ country: next });
-                  markSaved();
-                }}
+                onChange={(next) => queueProfileSave({ country: next })}
               />
               <div>
                 <label
@@ -579,11 +619,8 @@ export default function ProfileView() {
                 </label>
                 <input
                   id="settings-postal"
-                  value={user.postalCode}
-                  onChange={(event) => {
-                    updateProfile({ postalCode: event.target.value });
-                    markSaved();
-                  }}
+                  value={profileDraft.postalCode}
+                  onChange={(event) => queueProfileSave({ postalCode: event.target.value })}
                   className={fieldClass}
                 />
               </div>
@@ -693,9 +730,20 @@ export default function ProfileView() {
       </section>
       <button
         type="button"
-        onClick={() => {
-          signOut();
-          router.push("/login");
+        onClick={async () => {
+          const confirmed = window.confirm(
+            "Permanently delete your account and all your data? This cannot be undone."
+          );
+          if (!confirmed) return;
+
+          try {
+            await deleteAccount();
+            toast.success("Your account has been deleted.");
+            await signOut();
+            router.push("/");
+          } catch (error) {
+            toast.error((error as { error?: string }).error ?? "Could not delete your account.");
+          }
         }}
         className="inline-flex h-11 touch-manipulation items-center justify-center gap-2 rounded-xl border border-[#DC2626]/30 bg-[#DC2626]/5 px-5 text-sm font-semibold text-[#B91C1C] transition-colors hover:bg-[#DC2626]/10"
       >

@@ -34,7 +34,7 @@ export default function ProductImageGrid({
 
   return (
     <>
-      <div className={`grid h-full w-full grid-cols-[1.7fr_1fr] gap-1 ${className}`}>
+      <div className={`grid h-full w-full grid-cols-[1.7fr_1fr] gap-1.5 ${className}`}>
         <div className={`relative h-full overflow-hidden bg-[#dce3ee] ${aspect}`}>
           <Tile
             src={tiles[0]}
@@ -43,7 +43,7 @@ export default function ProductImageGrid({
             onOpen={interactive ? () => setOpenIndex(0) : undefined}
           />
         </div>
-        <div className="grid grid-rows-2 gap-1">
+        <div className="grid grid-rows-2 gap-1.5">
           <div className="relative h-full overflow-hidden bg-[#dce3ee]">
             <Tile
               src={tiles[1]}
@@ -75,6 +75,49 @@ export default function ProductImageGrid({
   );
 }
 
+function ImageTile({
+  src,
+  alt,
+  fallback,
+  onOpen,
+}: {
+  src: string;
+  alt: string;
+  fallback?: ReactNode;
+  onOpen?: () => void;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center p-2">
+        {fallback ?? (
+          <div className="h-full w-full bg-gradient-to-br from-[#e4e9f0] to-[#d2dbe8]" />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`Preview ${alt}`}
+      className="absolute inset-0 h-full w-full cursor-zoom-in"
+      tabIndex={onOpen ? 0 : -1}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        className="h-full w-full object-cover"
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    </button>
+  );
+}
+
 function Tile({
   src,
   alt,
@@ -88,21 +131,12 @@ function Tile({
 }) {
   if (src) {
     return (
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-label={`Preview ${alt}`}
-        className="absolute inset-0 h-full w-full cursor-zoom-in"
-        tabIndex={onOpen ? 0 : -1}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={src}
-          alt={alt}
-          className="h-full w-full object-cover"
-          loading="lazy"
-        />
-      </button>
+      <ImageTile
+        src={src}
+        alt={alt}
+        fallback={fallback}
+        onOpen={onOpen}
+      />
     );
   }
 

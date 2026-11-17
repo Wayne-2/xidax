@@ -6,6 +6,7 @@ import {
   generateSixDigitOTP,
   hashOTP,
   safeCompare,
+  randomToken,
 } from "../src/auth";
 
 describe("generateSixDigitOTP", () => {
@@ -85,5 +86,21 @@ describe("OTP policy constants", () => {
 
   it("enforces a sixty second resend cooldown", () => {
     expect(OTP_RESEND_COOLDOWN_SECONDS).toBe(60);
+  });
+});
+
+describe("randomToken", () => {
+  it('returns exactly 2 characters per requested byte with no undefined suffix', () => {
+    for (const length of [1, 16, 32]) {
+      const token = randomToken(length);
+      expect(token).toHaveLength(length * 2);
+      expect(token).not.toContain("undefined");
+      expect(token).toMatch(/^[0-9a-f]+$/);
+    }
+  });
+
+  it("produces unique tokens", () => {
+    const tokens = new Set(Array.from({ length: 100 }, () => randomToken(32)));
+    expect(tokens.size).toBe(100);
   });
 });

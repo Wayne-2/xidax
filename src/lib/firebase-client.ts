@@ -195,3 +195,20 @@ export async function fetchOtpStatus(idToken: string): Promise<OtpStatus> {
 
   return (await response.json()) as OtpStatus;
 }
+
+/** Permanently deletes the signed-in Firebase account and all its data. */
+export async function deleteAccount(): Promise<void> {
+  const idToken = await getIdToken(null, true);
+
+  const response = await fetch(`${API_BASE}/api/auth/delete`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${idToken}` },
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    throw { error: payload?.error ?? "Could not delete your account.", status: response.status } satisfies OtpApiError;
+  }
+}

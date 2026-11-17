@@ -30,6 +30,7 @@ import {
 const TOKEN_KEY = "generic-pcs.session";
 
 type AccountContextValue = {
+  token: string | null;
   user: AccountUserPayload | null;
   settings: AccountSettingsPayload;
   orders: AccountOrderPayload[];
@@ -37,7 +38,7 @@ type AccountContextValue = {
   ready: boolean;
   busy: boolean;
   error: string;
-  signIn: (email: string, password: string) => Promise<string | null>;
+  signIn: (idToken: string) => Promise<string | null>;
   signUp: (input: {
     name: string;
     email: string;
@@ -127,7 +128,7 @@ export function AccountProvider({
       setOrders(orderResult.orders);
       setProducts(productResult.products);
     },
-    []
+    [toast]
   );
 
   useEffect(() => {
@@ -151,12 +152,12 @@ export function AccountProvider({
   }, [loadSession, readToken]);
 
   const signIn = useCallback(
-    async (email: string, password: string) => {
+    async (idToken: string) => {
       setBusy(true);
       setError("");
 
       try {
-        const result = await loginAccount(email, password);
+        const result = await loginAccount(idToken);
 
         window.localStorage.setItem(TOKEN_KEY, result.token);
         setToken(result.token);
@@ -339,6 +340,7 @@ export function AccountProvider({
 
   const value = useMemo<AccountContextValue>(
     () => ({
+      token,
       user,
       settings,
       orders,
@@ -357,6 +359,7 @@ export function AccountProvider({
       refresh,
     }),
     [
+      token,
       user,
       settings,
       orders,
