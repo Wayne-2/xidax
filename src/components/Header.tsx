@@ -43,10 +43,10 @@ export default function Header() {
           <Image
             src="/Genericpcs.png"
             alt="generic pcs"
-            width={497}
-            height={141}
+            width={1329}
+            height={292}
             priority
-            className="h-8 w-auto"
+            className="h-9 w-auto"
           />
         </Link>
 

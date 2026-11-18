@@ -38,9 +38,9 @@ export default function Footer() {
               <Image
                 src="/Genericpcs.png"
                 alt="generic pcs"
-                width={497}
-                height={141}
-                className="h-10 w-auto"
+                width={1329}
+                height={292}
+                className="h-12 w-auto"
               />
             </Link>
 
