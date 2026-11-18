@@ -32,6 +32,13 @@ import { parseFirebaseConfig } from "./auth";
 import { adminGuard } from "./admin-auth";
 import { findUserByToken } from "./auth";
 import {
+  addToCart,
+  clearCart,
+  getCart,
+  removeFromCart,
+  updateCartItem,
+} from "./cart";
+import {
   addAdmin,
   countAdmins,
   listAdmins,
@@ -1083,6 +1090,72 @@ const worker = {
             );
           }
         }
+      }
+
+      /* ---------------- Cart API ---------------- */
+
+      const cartId = request.headers.get("x-cart-id")?.trim() ?? "";
+
+      if (path.startsWith("/api/cart")) {
+        if (!cartId || cartId.length > 200) {
+          return jsonWithCors({ error: "Invalid cart identifier." }, request, env, 400);
+        }
+
+        // Resolve the signed-in user (if any) from the session token.
+        let userId: string | null = null;
+        const sessionToken = readToken(request);
+
+        if (sessionToken) {
+          const user = await findUserByToken(env, sessionToken);
+          userId = user?.id ?? null;
+        }
+
+        if (request.method === "GET" && path === "/api/cart") {
+          const items = await getCart(env, cartId, userId);
+          return jsonWithCors({ items }, request, env);
+        }
+
+        if (request.method === "POST" && path === "/api/cart") {
+          const body = await readJson(request);
+          if (!body) return jsonWithCors({ error: "Invalid request." }, request, env, 400);
+
+          const result = await addToCart(env, cartId, body.item ?? body, userId);
+          if ("error" in result) {
+            return jsonWithCors({ error: result.error }, request, env, 400);
+          }
+          return jsonWithCors(result, request, env);
+        }
+
+        if (request.method === "PATCH" && path === "/api/cart") {
+          const body = await readJson(request);
+          if (!body || typeof body.id !== "string") {
+            return jsonWithCors({ error: "Item id is required." }, request, env, 400);
+          }
+
+          const result = await updateCartItem(
+            env, cartId, body.id, Number(body.quantity), userId
+          );
+          if ("error" in result) {
+            return jsonWithCors({ error: result.error }, request, env, 400);
+          }
+          return jsonWithCors(result, request, env);
+        }
+
+        if (request.method === "DELETE" && path === "/api/cart") {
+          const result = await clearCart(env, cartId, userId);
+          return jsonWithCors(result, request, env);
+        }
+
+        const cartItemMatch = path.match(/^\/api\/cart\/([^/]+)$/);
+
+        if (request.method === "DELETE" && cartItemMatch) {
+          const result = await removeFromCart(
+            env, cartId, decodeURIComponent(cartItemMatch[1]), userId
+          );
+          return jsonWithCors(result, request, env);
+        }
+
+        return jsonWithCors({ error: "Not found." }, request, env, 404);
       }
 
       /* ---------------- Public products ---------------- */

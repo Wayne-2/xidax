@@ -73,7 +73,10 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
       setError("");
 
       try {
-        const response = await fetch(`${API_BASE}/api/${kind}/${encodeURIComponent(id)}`);
+        const endpoint = kind === "prebuilds" ? "products" : kind;
+        const response = await fetch(
+          `${API_BASE}/api/${endpoint}/${encodeURIComponent(id)}`
+        );
 
         if (!response.ok) throw new Error("Product not found.");
 

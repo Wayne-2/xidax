@@ -1,90 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import ConsoleArtwork from "@/components/ConsoleArtwork";
-import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
 import { useCart } from "@/components/CartProvider";
 import { useRegion } from "@/components/RegionProvider";
 import { useToast } from "@/components/ToastProvider";
-import LaptopArtwork from "@/components/LaptopArtwork";
-import {
-  cartItemFromConsole,
-  cartItemFromLaptop,
-    flatShippingRate,
-  freeShippingThreshold,
-  type CartItem,
-} from "@/data/cart";
-import { consoles, consoleCategories } from "@/data/consoles";
-import { laptops, laptopCategories } from "@/data/laptops";
-import { deliveryWindow } from "@/lib/regions";
-
-function TrashIcon({ className = "h-4 w-4" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13" />
-    </svg>
-  );
-}
-
-function ChevronIcon({ className = "h-4 w-4" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  );
-}
-
-function ItemThumbnail({ item }: { item: CartItem }) {
-  if (item.image) {
-    return (
-      <Image
-        src={item.image}
-        alt={item.name}
-        fill
-        sizes="112px"
-        className="object-cover"
-      />
-    );
-  }
-
-  if (item.kind === "laptop") {
-    return (
-      <LaptopArtwork
-        category={item.artCategory as "gaming" | "creator" | "business"}
-        accent={item.accent}
-        label={`${item.name} illustration`}
-      />
-    );
-  }
-
-  return (
-    <ConsoleArtwork
-      category={item.artCategory as "monitors" | "mice" | "keyboards"}
-      accent={item.accent}
-      label={`${item.name} illustration`}
-    />
-  );
-}
+import { CheckIcon } from "@/components/BuildIcons";
 
 export default function CartView() {
   const {
@@ -93,417 +14,218 @@ export default function CartView() {
     subtotal,
     promo,
     ready,
-    add,
     remove,
     setQuantity,
     clear,
     applyPromo,
     clearPromo,
   } = useCart();
-  const { formatMoney, formatBase, region, clock } = useRegion();
+
+  const { formatMoney } = useRegion();
   const toast = useToast();
   const [promoInput, setPromoInput] = useState("");
 
-  const discount = promo ? Math.round(subtotal * promo.rate) : 0;
-  const discounted = subtotal - discount;
-  const shipping =
-    items.length === 0 || discounted >= freeShippingThreshold
-      ? 0
-      : flatShippingRate;
-  const total = discounted + shipping;
-  const awayFromFree = Math.max(0, freeShippingThreshold - discounted);
-  const freeShippingProgress = Math.min(
-    100,
-    Math.round((discounted / freeShippingThreshold) * 100)
-  );
+  const discount = promo ? Math.round(subtotal * promo.rate * 100) / 100 : 0;
+  const discounted = Math.max(0, Math.round((subtotal - discount) * 100) / 100);
+  const shipping = items.length === 0 || discounted >= 99 ? 0 : 19;
+  const total = Math.round((discounted + shipping) * 100) / 100;
 
-  const suggestions = [
-    ...laptops.slice(0, 2).map((laptop) => ({
-      item: cartItemFromLaptop(
-        laptop,
-        laptopCategories.find((c) => c.id === laptop.category) ??
-          laptopCategories[0]
-      ),
-    })),
-    ...consoles.slice(0, 2).map((console) => ({
-      item: cartItemFromConsole(
-        console,
-        consoleCategories.find((c) => c.id === console.category) ??
-          consoleCategories[0]
-      ),
-    })),
-  ].filter(
-    (entry) => !items.some((item) => item.id === entry.item.id)
-  );
-
-  function handleApplyPromo() {
-    const error = applyPromo(promoInput);
-
-    if (error) {
-      toast.error(error);
-      return;
-    }
-
-    setPromoInput("");
-    toast.success("Promo code applied.");
+  if (!ready) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
+        <div className="h-40 animate-pulse rounded-2xl bg-[#dce3ee]" />
+      </div>
+    );
   }
 
-  return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
-      <nav
-        aria-label="Breadcrumb"
-        className="flex items-center gap-2 text-sm font-medium text-[#5c5e66]"
-      >
-        <Link href="/" className="transition-colors hover:text-[#5865F2]">
-          Home
-        </Link>
-        <span aria-hidden="true" className="text-[#80848e]">
-          /
-        </span>
-        <span className="text-[#2e3338]">Cart</span>
-      </nav>
-
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#5865F2]">
-            Your basket
+  if (items.length === 0) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-20 sm:px-6">
+        <div className="mx-auto max-w-md rounded-2xl border border-[#dce3ee] bg-white p-10 text-center shadow-card">
+          <h1 className="text-2xl font-extrabold text-[#2e3338]">Your cart is empty</h1>
+          <p className="mt-2 text-sm text-[#5c5e66]">
+            Browse the store and add something you like.
           </p>
-          <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-[#2e3338] sm:text-5xl">
-            CART
-          </h1>
-        </div>
-        {count > 0 && (
-          <p className="text-sm font-medium text-[#5c5e66]">
-            {count} {count === 1 ? "item" : "items"} · {formatMoney(subtotal)}
-          </p>
-        )}
-      </div>
-
-      {!ready ? (
-        <div className="mt-8 h-40 animate-pulse rounded-2xl bg-[#eaf0f8]" />
-      ) : items.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-[#d2dbe8] bg-[#eaf0f8] px-6 py-14 text-center">
-          <h2 className="text-xl font-bold tracking-tight text-[#2e3338]">
-            Your cart is empty
-          </h2>
-          <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-[#5c5e66]">
-            Pick a prebuild, configure a machine or add the consoles that
-            finish the setup.
-          </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Link
-              href="/prebuilds"
-              className="inline-flex h-11 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
-            >
-              Shop prebuilds
-              <ArrowIcon className="h-4 w-4" />
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            <Link href="/prebuilds" className="rounded-xl bg-[#5865F2] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#4752C4]">
+              Prebuilds
             </Link>
-            <Link
-              href="/laptops"
-              className="inline-flex h-11 touch-manipulation items-center justify-center rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-semibold text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338]"
-            >
-              Browse laptops
+            <Link href="/laptops" className="rounded-xl border border-[#d2dbe8] px-5 py-2.5 text-sm font-semibold text-[#5c5e66] hover:border-[#5865F2]/50">
+              Laptops
             </Link>
-            <Link
-              href="/consoles"
-              className="inline-flex h-11 touch-manipulation items-center justify-center rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-semibold text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338]"
-            >
+            <Link href="/consoles" className="rounded-xl border border-[#d2dbe8] px-5 py-2.5 text-sm font-semibold text-[#5c5e66] hover:border-[#5865F2]/50">
               Consoles
             </Link>
           </div>
         </div>
-      ) : (
-        <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
-          <div className="min-w-0 space-y-4">
-            <ul className="space-y-4">
-              {items.map((item) => (
-                <li
-                  key={item.id}
-                  className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-4 sm:p-5"
-                >
-                  <div className="flex gap-4">
-                    <div
-                      className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#d2dbe8] bg-[#dce3ee] p-2 sm:h-28 sm:w-28"
-                    >
-                      <ItemThumbnail item={item} />
-                    </div>
+      </div>
+    );
+  }
 
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#80848e]">
-                            {item.category}
-                          </p>
-                          <Link
-                            href={item.href}
-                            className="mt-1 block truncate text-base font-bold tracking-tight text-[#2e3338] transition-colors hover:text-[#5865F2]"
-                          >
-                            {item.name}
-                          </Link>
-                          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[#5c5e66]">
-                            {item.meta}
-                          </p>
-                        </div>
+  return (
+    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:py-14">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-[#2e3338]">Cart</h1>
+          <p className="mt-1 text-sm text-[#5c5e66]">{count} item{count === 1 ? "" : "s"}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            clear();
+            toast.error("Cart cleared.");
+          }}
+          className="text-sm font-semibold text-[#B91C1C] hover:text-[#991B1B]"
+        >
+          Clear cart
+        </button>
+      </div>
 
-                        <button
-                          type="button"
-                          onClick={() => remove(item.id)}
-                          aria-label={`Remove ${item.name} from cart`}
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#80848e] transition-colors hover:bg-[#DC2626]/10 hover:text-[#B91C1C]"
-                        >
-                          <TrashIcon className="h-4 w-4" />
-                        </button>
-                      </div>
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <ul className="space-y-3">
+          {items.map((item) => (
+            <li
+              key={item.id}
+              className="flex gap-4 rounded-2xl border border-[#dce3ee] bg-white p-4 shadow-card"
+            >
+              <Link
+                href={item.href}
+                className="h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-[#f0f4fa]"
+              >
+                {item.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase tracking-wide text-[#80848e]">
+                    {item.kind}
+                  </span>
+                )}
+              </Link>
 
-                      <div className="mt-auto flex flex-wrap items-end justify-between gap-3 pt-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center rounded-lg border border-[#d2dbe8] bg-[#f8fafe] shadow-card">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setQuantity(item.id, item.quantity - 1)
-                              }
-                              aria-label={`Decrease quantity of ${item.name}`}
-                              className="flex h-9 w-9 items-center justify-center text-[#5c5e66] transition-colors hover:text-[#2e3338]"
-                            >
-                              <span aria-hidden="true">−</span>
-                            </button>
-                            <span className="w-8 text-center text-sm font-semibold text-[#2e3338]">
-                              {item.quantity}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setQuantity(item.id, item.quantity + 1)
-                              }
-                              aria-label={`Increase quantity of ${item.name}`}
-                              className="flex h-9 w-9 items-center justify-center text-[#5c5e66] transition-colors hover:text-[#2e3338]"
-                            >
-                              <span aria-hidden="true">+</span>
-                            </button>
-                          </div>
-
-                          <span className="text-xs text-[#80848e]">
-                            {formatMoney(item.price)} each
-                          </span>
-                        </div>
-
-                        <span className="text-lg font-bold tracking-tight text-[#2e3338]">
-                          {formatMoney(item.price * item.quantity)}
-                        </span>
-                      </div>
-                    </div>
+              <div className="flex min-w-0 flex-1 flex-col justify-between gap-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Link href={item.href} className="block truncate font-semibold text-[#2e3338] hover:text-[#5865F2]">
+                      {item.name}
+                    </Link>
+                    <p className="mt-0.5 truncate text-xs text-[#80848e]">{item.meta}</p>
                   </div>
-                </li>
-              ))}
-            </ul>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      remove(item.id);
+                      toast.error(`${item.name} removed from cart.`);
+                    }}
+                    aria-label={`Remove ${item.name} from cart`}
+                    className="shrink-0 text-lg leading-none text-[#B91C1C] hover:text-[#991B1B]"
+                  >
+                    ✕
+                  </button>
+                </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#d2dbe8] bg-[#eaf0f8] shadow-card px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="inline-flex items-center rounded-lg border border-[#d2dbe8]">
+                    <button
+                      type="button"
+                      onClick={() => setQuantity(item.id, item.quantity - 1)}
+                      aria-label={`Decrease quantity of ${item.name}`}
+                      className="h-8 w-9 text-lg text-[#5c5e66] hover:text-[#2e3338]"
+                    >
+                      −
+                    </button>
+                    <span className="w-8 text-center text-sm font-semibold">{item.quantity}</span>
+                    <button
+                      type="button"
+                      onClick={() => setQuantity(item.id, item.quantity + 1)}
+                      aria-label={`Increase quantity of ${item.name}`}
+                      className="h-8 w-9 text-lg text-[#5c5e66] hover:text-[#2e3338]"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <span className="font-bold text-[#2e3338]">
+                    {formatMoney(item.price * item.quantity)}
+                  </span>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        <aside className="h-fit rounded-2xl border border-[#dce3ee] bg-white p-5 shadow-card lg:sticky lg:top-24">
+          <h2 className="text-lg font-bold text-[#2e3338]">Summary</h2>
+
+          <dl className="mt-4 space-y-2 text-sm">
+            <div className="flex justify-between">
+              <dt className="text-[#5c5e66]">Subtotal</dt>
+              <dd className="font-semibold">{formatMoney(subtotal)}</dd>
+            </div>
+            {promo && discount > 0 && (
+              <div className="flex justify-between text-[#15803D]">
+                <dt className="flex items-center gap-1"><CheckIcon className="h-3.5 w-3.5" /> {promo.code}</dt>
+                <dd className="font-semibold">−{formatMoney(discount)}</dd>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <dt className="text-[#5c5e66]">Shipping</dt>
+              <dd className="font-semibold">{shipping === 0 ? "Free" : formatMoney(shipping)}</dd>
+            </div>
+            <div className="flex justify-between border-t border-[#dce3ee] pt-3 text-base font-bold">
+              <dt>Total</dt>
+              <dd>{formatMoney(total)}</dd>
+            </div>
+          </dl>
+
+          <div className="mt-4">
+            <label htmlFor="promo" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-[#80848e]">
+              Promo code
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="promo"
+                value={promoInput}
+                onChange={(e) => setPromoInput(e.target.value)}
+                placeholder="PCM-ABC123"
+                className="h-10 min-w-0 flex-1 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-3 text-sm uppercase outline-none focus:border-[#5865F2]"
+              />
               <button
                 type="button"
-                onClick={clear}
-                className="text-xs font-semibold text-[#5c5e66] transition-colors hover:text-[#B91C1C]"
+                onClick={() => {
+                  const error = applyPromo(promoInput);
+                  if (error) {
+                    toast.error(error);
+                    return;
+                  }
+                  setPromoInput("");
+                  toast.success("Promo applied.");
+                }}
+                className="h-10 rounded-xl border border-[#d2dbe8] px-4 text-sm font-semibold text-[#5c5e66] hover:border-[#5865F2]/50"
               >
-                Empty cart
+                Apply
               </button>
-              <Link
-                href="/prebuilds"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#5865F2] transition-colors hover:text-[#4752C4]"
-              >
-                Continue shopping
-                <ArrowIcon className="h-3.5 w-3.5" />
-              </Link>
             </div>
-
-            {suggestions.length > 0 && (
-              <section className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-4 sm:p-5">
-                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
-                  Complete your setup
-                </h2>
-
-                <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {suggestions.map(({ item }) => (
-                    <li
-                      key={item.id}
-                      className="flex items-center gap-3 rounded-xl border border-[#dce3ee] bg-[#f8fafe] shadow-card p-3"
-                    >
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#d2dbe8] bg-[#dce3ee] p-1.5">
-                        <ItemThumbnail item={item} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-[#2e3338]">
-                          {item.name}
-                        </p>
-                        <p className="truncate text-xs text-[#5c5e66]">
-                          {item.category} · {formatMoney(item.price)}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => add(item)}
-                        aria-label={`Add ${item.name} to cart`}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#5865F2] text-white transition-colors hover:bg-[#4752C4]"
-                      >
-                        <span aria-hidden="true" className="text-lg leading-none">
-                          +
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </section>
+            {promo && (
+              <button
+                type="button"
+                onClick={() => {
+                  clearPromo();
+                  toast.error("Promo removed.");
+                }}
+                className="mt-2 text-xs font-semibold text-[#B91C1C]"
+              >
+                Remove promo
+              </button>
             )}
           </div>
 
-          <aside className="min-w-0 rounded-2xl border border-[#5865F2]/25 bg-[#eaf0f8] shadow-card p-5 sm:p-6 lg:sticky lg:top-24">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
-              Order summary
-            </h2>
-
-            {awayFromFree > 0 && (
-              <div className="mt-4 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] shadow-card p-3">
-                <p className="text-xs leading-relaxed text-[#5c5e66]">
-                  Add{" "}
-                  <span className="font-semibold text-[#2e3338]">
-                    {formatMoney(awayFromFree)}
-                  </span>{" "}
-                  more for free shipping.
-                </p>
-                <div
-                  className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#dce3ee]"
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuemax={freeShippingThreshold}
-                  aria-valuenow={discounted}
-                  aria-label="Progress to free shipping"
-                >
-                  <div
-                    className="h-full rounded-full bg-[#5865F2] transition-[width] duration-300"
-                    style={{ width: `${freeShippingProgress}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            <dl className="mt-5 space-y-3 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <dt className="text-[#5c5e66]">Subtotal</dt>
-                <dd className="font-semibold text-[#2e3338]">
-                  {formatMoney(subtotal)}
-                </dd>
-              </div>
-
-              {promo && (
-                <div className="flex items-center justify-between gap-3">
-                  <dt className="flex items-center gap-1.5 text-[#15803D]">
-                    <CheckIcon className="h-3.5 w-3.5" />
-                    {promo.code}
-                  </dt>
-                  <dd className="font-semibold text-[#15803D]">
-                    −{formatMoney(discount)}
-                  </dd>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between gap-3">
-                <dt className="text-[#5c5e66]">Shipping</dt>
-                <dd className="font-semibold text-[#2e3338]">
-                  {shipping === 0 ? "Free" : formatMoney(shipping)}
-                </dd>
-              </div>
-
-              <div className="flex items-center justify-between gap-3 border-t border-[#d2dbe8] pt-3">
-                <dt className="text-base font-bold text-[#2e3338]">Total</dt>
-                <dd className="text-right">
-                  <span className="block text-xl font-bold tracking-tight text-[#2e3338]">
-                    {formatMoney(total)}
-                  </span>
-                  {region.currency !== "USD" && (
-                    <span className="mt-0.5 block text-[11px] text-[#80848e]">
-                      {formatBase(total)} charged
-                    </span>
-                  )}
-                </dd>
-              </div>
-            </dl>
-
-            <div className="mt-5">
-              <label
-                htmlFor="promo"
-                className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
-              >
-                Your promo code
-              </label>
-              <p className="mb-2 text-xs text-[#80848e]">
-                {promo
-                  ? "Your assigned promo is applied automatically. Enter the code below to confirm it."
-                  : "Sign in to an account with an assigned promo to unlock a discount."}
-              </p>
-              <div className="flex gap-2">
-                <input
-                  id="promo"
-                  value={promoInput}
-                  onChange={(event) => setPromoInput(event.target.value)}
-                  placeholder="PCM-ABC123"
-                  className="h-11 min-w-0 flex-1 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-3.5 text-sm uppercase text-[#2e3338] outline-none transition-colors placeholder:text-[#80848e] focus:border-[#5865F2]"
-                />
-                <button
-                  type="button"
-                  onClick={handleApplyPromo}
-                  className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-4 text-sm font-semibold text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338]"
-                >
-                  Apply
-                </button>
-              </div>
-              {promo && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    clearPromo();
-                    setPromoInput("");
-                    toast.error("Promo code removed.");
-                  }}
-                  className="mt-2 text-xs font-semibold text-[#B91C1C] hover:text-[#991B1B]"
-                >
-                  Remove promo code
-                </button>
-              )}
-            </div>
-
-            <Link
-              href="/checkout"
-              className="mt-5 inline-flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
-            >
-              Checkout · {formatMoney(total)}
-              <ArrowIcon className="h-4 w-4" />
-            </Link>
-
-            <p className="mt-3 text-center text-[11px] leading-relaxed text-[#80848e]">
-              {region.currency !== "USD"
-                ? `${formatBase(total)} is charged at checkout. `
-                : ""}
-              Taxes calculated at checkout. 3-year warranty and lifetime
-              labour coverage included.
-            </p>
-
-            <details className="mt-4 group rounded-xl border border-[#d2dbe8] bg-[#f8fafe] shadow-card px-3.5 py-2.5">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-semibold text-[#5c5e66]">
-                Shipping &amp; returns
-                <ChevronIcon className="h-4 w-4 transition-transform group-open:rotate-180" />
-              </summary>
-              <p className="mt-2 text-xs leading-relaxed text-[#5c5e66]">
-                Free tracked shipping over {formatMoney(freeShippingThreshold)}.
-                Prebuilt machines leave the workshop in 1–3 business days and
-                reach {region.country} in {deliveryWindow(region)}, and every
-                order can be returned within 30 days.
-              </p>
-              <p className="mt-2 text-[11px] leading-relaxed text-[#80848e]">
-                Your local time is {clock.label} ({region.timeZone}).
-              </p>
-            </details>
-          </aside>
-        </div>
-      )}
+          <Link
+            href="/checkout"
+            className="mt-5 flex h-12 items-center justify-center rounded-xl bg-[#5865F2] text-sm font-semibold text-white hover:bg-[#4752C4]"
+          >
+            Checkout · {formatMoney(total)}
+          </Link>
+        </aside>
+      </div>
     </div>
   );
 }

@@ -271,6 +271,7 @@ export async function accountRequest<T>(
     method?: string;
     body?: unknown;
     token?: string | null;
+    headersInit?: Record<string, string>;
   } = {}
 ): Promise<T> {
   return send<T>(
@@ -280,6 +281,7 @@ export async function accountRequest<T>(
       ...(options.body === undefined
         ? {}
         : { body: JSON.stringify(options.body) }),
+      ...(options.headersInit ? { headers: options.headersInit } : {}),
     },
     "We could not reach your account. Please try again.",
     options.token
@@ -406,4 +408,82 @@ export async function fetchMyPromo(token: string) {
   return accountRequest<{ promo: UserPromoPayload | null }>("/api/me/promo", {
     token,
   });
+}
+
+/* ---------------- Server-backed cart ---------------- */
+
+function cartHeaders(token?: string | null): Record<string, string> {
+  const cartId = getCartId();
+  const headers: Record<string, string> = { "x-cart-id": cartId };
+
+  if (token) headers.authorization = `Bearer ${token}`;
+
+  return headers;
+}
+
+/** Stable client-generated cart identifier. */
+export function getCartId(): string {
+  if (typeof window === "undefined") return "";
+
+  const key = "genericpcs.cart.id";
+  let id = window.localStorage.getItem(key);
+
+  if (!id) {
+    id = crypto.randomUUID();
+    window.localStorage.setItem(key, id);
+  }
+
+  return id;
+}
+
+export async function fetchCart(token?: string | null) {
+  return accountRequest<{ items: import("@/data/cart").CartItem[] }>(
+    "/api/cart",
+    { token, headersInit: cartHeaders(token) }
+  ).catch(() => ({ items: [] as import("@/data/cart").CartItem[] }));
+}
+
+export async function addToCartRemote(
+  item: import("@/data/cart").CartItem,
+  token?: string | null
+) {
+  return accountRequest<{ items: import("@/data/cart").CartItem[] }>(
+    "/api/cart",
+    {
+      method: "POST",
+      body: { item },
+      token,
+      headersInit: cartHeaders(token),
+    }
+  );
+}
+
+export async function updateCartItemRemote(
+  id: string,
+  quantity: number,
+  token?: string | null
+) {
+  return accountRequest<{ items: import("@/data/cart").CartItem[] }>(
+    "/api/cart",
+    {
+      method: "PATCH",
+      body: { id, quantity },
+      token,
+      headersInit: cartHeaders(token),
+    }
+  );
+}
+
+export async function removeFromCartRemote(id: string, token?: string | null) {
+  return accountRequest<{ items: import("@/data/cart").CartItem[] }>(
+    `/api/cart/${encodeURIComponent(id)}`,
+    { method: "DELETE", token, headersInit: cartHeaders(token) }
+  );
+}
+
+export async function clearCartRemote(token?: string | null) {
+  return accountRequest<{ items: import("@/data/cart").CartItem[] }>(
+    "/api/cart",
+    { method: "DELETE", token, headersInit: cartHeaders(token) }
+  );
 }

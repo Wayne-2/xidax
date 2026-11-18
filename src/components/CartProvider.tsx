@@ -9,16 +9,19 @@ import {
   useState,
 } from "react";
 import type { CartItem } from "@/data/cart";
+import {
+  addToCartRemote,
+  clearCartRemote,
+  fetchCart,
+  removeFromCartRemote,
+  updateCartItemRemote,
+} from "@/lib/api";
 import { fetchMyPromo } from "@/lib/api";
 import { useAccount } from "@/components/AccountProvider";
 
-const CART_KEY = "genericpcs.cart";
 const PROMO_KEY = "genericpcs.promo";
 
-export type AppliedPromo = {
-  code: string;
-  rate: number;
-};
+export type AppliedPromo = { code: string; rate: number };
 
 type CartContextValue = {
   items: CartItem[];
@@ -43,28 +46,29 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [promo, setPromo] = useState<AppliedPromo | null>(null);
   const [ready, setReady] = useState(false);
 
+  // Load cart from the Worker.
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      try {
-        const stored = window.localStorage.getItem(CART_KEY);
+    if (!accountReady) return;
 
-        if (stored) {
-          setItems(JSON.parse(stored) as CartItem[]);
-        }
+    let cancelled = false;
 
-      } catch {
-        window.localStorage.removeItem(CART_KEY);
-        window.localStorage.removeItem(PROMO_KEY);
-      }
+    fetchCart(token)
+      .then((result) => {
+        if (!cancelled) setItems(result.items ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setReady(true);
+      });
 
-      setReady(true);
-    }, 0);
+    return () => {
+      cancelled = true;
+    };
+  }, [accountReady, token]);
 
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  // Load the signed-in user's assigned promo from the server. This is the
-  // authoritative source; the cart only uses it for display.
+  // Load the signed-in user's assigned promo.
   useEffect(() => {
     if (!accountReady) return;
 
@@ -83,7 +87,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
 
         if (result.promo?.active && result.promo.discount > 0) {
-          setPromo({ code: result.promo.code, rate: result.promo.discount / 100 });
+          setPromo({
+            code: result.promo.code,
+            rate: result.promo.discount / 100,
+          });
         } else {
           setPromo(null);
           window.localStorage.removeItem(PROMO_KEY);
@@ -98,24 +105,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     };
   }, [accountReady, token]);
 
-  const persist = useCallback((next: CartItem[]) => {
-    setItems(next);
-    window.localStorage.setItem(CART_KEY, JSON.stringify(next));
-  }, []);
-
   const applyPromo = useCallback(
     (rawCode: string): string | null => {
       const code = rawCode.trim().toUpperCase();
 
       if (!code) return "Enter a promo code.";
-
       if (!promo) return "Sign in to use a promo code.";
-
       if (promo.code.toUpperCase() !== code) {
         return "That code is not assigned to your account.";
       }
 
-      // The rate already came from the server.
       window.localStorage.setItem(PROMO_KEY, JSON.stringify(promo));
       return null;
     },
@@ -126,6 +125,70 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setPromo(null);
     window.localStorage.removeItem(PROMO_KEY);
   }, []);
+
+  const sync = useCallback(
+    (next: CartItem[]) => {
+      setItems(next);
+    },
+    []
+  );
+
+  const add = useCallback(
+    (item: CartItem) => {
+      addToCartRemote(item, token)
+        .then((result) => sync(result.items))
+        .catch(() => {
+          // Offline fallback: update locally so the UI still responds.
+          setItems((current) => {
+            const existing = current.find((entry) => entry.id === item.id);
+            return existing
+              ? current.map((entry) =>
+                  entry.id === item.id
+                    ? { ...entry, quantity: entry.quantity + 1 }
+                    : entry
+                )
+              : [...current, { ...item, quantity: 1 }];
+          });
+        });
+    },
+    [token, sync]
+  );
+
+  const remove = useCallback(
+    (id: string) => {
+      removeFromCartRemote(id, token)
+        .then((result) => sync(result.items))
+        .catch(() => {
+          setItems((current) => current.filter((entry) => entry.id !== id));
+        });
+    },
+    [token, sync]
+  );
+
+  const setQuantity = useCallback(
+    (id: string, quantity: number) => {
+      updateCartItemRemote(id, quantity, token)
+        .then((result) => sync(result.items))
+        .catch(() => {
+          setItems((current) => {
+            if (quantity <= 0) {
+              return current.filter((entry) => entry.id !== id);
+            }
+            return current.map((entry) =>
+              entry.id === id ? { ...entry, quantity } : entry
+            );
+          });
+        });
+    },
+    [token, sync]
+  );
+
+  const clear = useCallback(() => {
+    clearCartRemote(token)
+      .then((result) => sync(result.items))
+      .catch(() => setItems([]));
+    clearPromo();
+  }, [token, sync, clearPromo]);
 
   const value = useMemo<CartContextValue>(() => {
     const count = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -142,40 +205,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       ready,
       applyPromo,
       clearPromo,
-      add: (item: CartItem) => {
-        const existing = items.find((entry) => entry.id === item.id);
-
-        persist(
-          existing
-            ? items.map((entry) =>
-                entry.id === item.id
-                  ? { ...entry, quantity: entry.quantity + 1 }
-                  : entry
-              )
-            : [...items, { ...item, quantity: 1 }]
-        );
-      },
-      remove: (id: string) => persist(items.filter((entry) => entry.id !== id)),
-      setQuantity: (id: string, quantity: number) => {
-        if (quantity <= 0) {
-          persist(items.filter((entry) => entry.id !== id));
-          return;
-        }
-
-        persist(
-          items.map((entry) =>
-            entry.id === id ? { ...entry, quantity } : entry
-          )
-        );
-      },
-      clear: () => {
-        persist([]);
-        clearPromo();
-      },
+      add,
+      remove,
+      setQuantity,
+      clear,
       quantityOf: (id: string) =>
         items.find((entry) => entry.id === id)?.quantity ?? 0,
     };
-  }, [items, ready, persist, promo, applyPromo, clearPromo]);
+  }, [items, ready, promo, applyPromo, clearPromo, add, remove, setQuantity, clear]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
