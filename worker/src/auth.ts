@@ -220,6 +220,10 @@ export async function findUserByToken(env: Env, token: string) {
 
   if (!row) return null;
 
+  // Authoritative gate: a session token never grants access until the email
+  // is verified, even if a token was issued earlier.
+  if (row.email_verified !== 1) return null;
+
   return rowToStoredUser(row);
 }
 

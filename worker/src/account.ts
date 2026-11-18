@@ -40,12 +40,10 @@ async function requireUser(request: Request, env: Env) {
 
   if (!token) return null;
 
-  const user = await findUserByToken(env, token);
-
-  // Email verification is a server-side requirement, not just a UI gate.
-  if (!user || !user.emailVerified) return null;
-
-  return user;
+  // Reading one's own account data is safe for unverified users too — they
+  // need it to complete verification. Spending money is gated separately at
+  // checkout.
+  return findUserByToken(env, token);
 }
 
 export async function handleRegister(request: Request, env: Env) {
@@ -74,15 +72,40 @@ export async function handleRegister(request: Request, env: Env) {
 
   const { auth: firebaseAuth } = await ensureInitialized(env);
 
-  // If D1 already has a fully registered user, this is a genuine duplicate.
+  // If D1 already has a user, allow resuming an unverified registration
+  // (the previous attempt may have failed before OTP). Verified accounts are
+  // genuine duplicates.
   const existingUser = await env.DB.prepare(
-    "SELECT id FROM users WHERE email = ?1"
+    "SELECT id, email_verified FROM users WHERE email = ?1"
   )
     .bind(email)
-    .first<{ id: string }>();
+    .first<{ id: string; email_verified: number }>();
 
   if (existingUser) {
-    return json({ error: "An account already uses that email." }, 409);
+    if (existingUser.email_verified === 1) {
+      return json({ error: "An account already uses that email." }, 409);
+    }
+
+    // Reuse the unverified account. Still NO session — the user must prove
+    // ownership via OTP before any app session is issued.
+    return json(
+      {
+        needsVerification: true,
+        email,
+        user: {
+          id: existingUser.id,
+          email,
+          name,
+          phone,
+          country,
+          postalCode,
+          tier: "Member",
+          emailVerified: false,
+          createdAt: new Date().toISOString(),
+        },
+      },
+      200
+    );
   }
 
   let userId: string;
@@ -165,12 +188,12 @@ export async function handleRegister(request: Request, env: Env) {
     memberSince: new Date().getFullYear().toString(),
   });
 
-  const session = await createSession(env, userId);
-
+  // No app session is issued here. The account is unverified; only the OTP
+  // exchange may grant a session.
   return json(
     {
-      token: session.token,
-      expiresAt: session.expiresAt,
+      needsVerification: true,
+      email,
       user: {
         id: userId,
         email,
@@ -207,10 +230,12 @@ export async function handleLogin(request: Request, env: Env) {
   const { auth: firebaseAuth } = await ensureInitialized(env);
 
   let uid: string;
+  let firebaseVerified = false;
 
   try {
     const decoded = await firebaseAuth.verifyIdToken(idToken, true);
     uid = decoded.uid;
+    firebaseVerified = decoded.email_verified === true;
   } catch {
     return json({ error: "Invalid or expired session. Please sign in again." }, 401);
   }
@@ -237,8 +262,9 @@ export async function handleLogin(request: Request, env: Env) {
     return json({ error: "Account not found in our system." }, 404);
   }
 
-  // Server-side verification gate: unverified accounts cannot use the app.
-  if (row.email_verified !== 1) {
+  // Both sources of truth must agree: the Firebase token and our D1 row.
+  // No session is granted until email ownership is proven via OTP.
+  if (row.email_verified !== 1 || !firebaseVerified) {
     return json({ error: "Please verify your email address first." }, 403);
   }
 

@@ -294,8 +294,10 @@ export async function registerAccount(payload: {
   postalCode: string;
   password: string;
 }) {
+  // Registration never returns a session — OTP verification must happen first.
   return accountRequest<{
-    token: string;
+    needsVerification: true;
+    email: string;
     user: AccountUserPayload;
   }>("/api/auth/register", { method: "POST", body: payload });
 }

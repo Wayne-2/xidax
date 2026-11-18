@@ -30,6 +30,7 @@ import { corsHeaders, isOriginAllowed } from "./cors";
 import { runConfigCheck } from "./config-check";
 import { parseFirebaseConfig } from "./auth";
 import { adminGuard } from "./admin-auth";
+import { findUserByToken } from "./auth";
 import {
   addAdmin,
   countAdmins,
@@ -240,6 +241,21 @@ function randomReference() {
 }
 
 async function handleCheckout(env: Env, request: Request) {
+  // Checkout spends money, so email verification is required here (not on
+  // ordinary account reads). Resolve identity from the verified session.
+  const sessionToken = readToken(request);
+
+  if (sessionToken) {
+    const user = await findUserByToken(env, sessionToken);
+
+    if (!user || !user.emailVerified) {
+      return json(
+        { error: "Please verify your email address before checking out." },
+        403
+      );
+    }
+  }
+
   const payload = (await request.json()) as CheckoutRequest;
 
   if (!isValidRequest(payload)) {
@@ -1009,7 +1025,7 @@ async function handleDeleteAccount(request: Request, env: Env) {
 }
 
 const worker = {
-  async fetch(request: Request, env: Env) {
+  async handleFetch(request: Request, env: Env) {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, "");
 
@@ -1779,6 +1795,24 @@ const worker = {
         500
       );
     }
+  },
+
+  async fetch(request: Request, env: Env) {
+    // Add CORS headers to EVERY response, including handlers that use the
+    // plain json() helper. Without this, browsers reject responses from
+    // cross-origin calls even though the Worker processed them successfully.
+    const response = await this.handleFetch(request, env);
+    const headers = new Headers(response.headers);
+
+    for (const [name, value] of Object.entries(corsHeaders(request, env))) {
+      headers.set(name, value);
+    }
+
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
   },
 
   async scheduled(event: ScheduledEvent, env: Env) {

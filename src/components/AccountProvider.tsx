@@ -106,6 +106,8 @@ export function AccountProvider({
 
       const account = await fetchAccount(activeToken);
 
+      // Defense in depth: a token for an unverified account must never keep
+      // the user signed in. (The OTP flow issues a fresh session after success.)
       if (account.user.emailVerified === false) {
         window.localStorage.removeItem(TOKEN_KEY);
         setToken(null);
@@ -113,7 +115,6 @@ export function AccountProvider({
         setSettings(defaultSettings);
         setOrders([]);
         setProducts([]);
-        toast.error("Please verify your email address to continue.");
         return;
       }
 
@@ -196,11 +197,9 @@ export function AccountProvider({
       setError("");
 
       try {
-        const result = await registerAccount(input);
-
-        window.localStorage.setItem(TOKEN_KEY, result.token);
-        setToken(result.token);
-        await loadSession(result.token);
+        // No session is stored here. Registration only creates an unverified
+        // account; the OTP page issues the session after verification.
+        await registerAccount(input);
 
         return null;
       } catch (requestError) {
