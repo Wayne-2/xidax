@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
+import UserPromoManager from "@/components/admin/UserPromoManager";
 import {
   fetchAdminUserStats,
   fetchAdminUsers,
@@ -182,6 +183,8 @@ export default function AdminUsers() {
                   <div className="flex justify-between"><dt className="text-[#80848e]">Registered products</dt><dd>{selected.products}</dd></div>
                 </dl>
               </div>
+
+              <UserPromoManager uid={selected.id} />
 
               {!selected.emailVerified && (
                 <button

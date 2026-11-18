@@ -392,3 +392,16 @@ export async function updateAccountSettings(
 }
 
 export { cryptoNetworks };
+
+export type UserPromoPayload = {
+  code: string;
+  discount: number;
+  active: boolean;
+};
+
+/** Returns the signed-in user's assigned promo, if any. */
+export async function fetchMyPromo(token: string) {
+  return accountRequest<{ promo: UserPromoPayload | null }>("/api/me/promo", {
+    token,
+  });
+}

@@ -9,6 +9,8 @@ import {
   useState,
 } from "react";
 import type { CartItem } from "@/data/cart";
+import { fetchMyPromo } from "@/lib/api";
+import { useAccount } from "@/components/AccountProvider";
 
 const CART_KEY = "genericpcs.cart";
 const PROMO_KEY = "genericpcs.promo";
@@ -36,6 +38,7 @@ type CartContextValue = {
 const CartContext = createContext<CartContextValue | null>(null);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
+  const { token, ready: accountReady } = useAccount();
   const [items, setItems] = useState<CartItem[]>([]);
   const [promo, setPromo] = useState<AppliedPromo | null>(null);
   const [ready, setReady] = useState(false);
@@ -49,11 +52,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           setItems(JSON.parse(stored) as CartItem[]);
         }
 
-        const storedPromo = window.localStorage.getItem(PROMO_KEY);
-
-        if (storedPromo) {
-          setPromo(JSON.parse(storedPromo) as AppliedPromo);
-        }
       } catch {
         window.localStorage.removeItem(CART_KEY);
         window.localStorage.removeItem(PROMO_KEY);
@@ -64,6 +62,41 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     return () => window.clearTimeout(timer);
   }, []);
+
+  // Load the signed-in user's assigned promo from the server. This is the
+  // authoritative source; the cart only uses it for display.
+  useEffect(() => {
+    if (!accountReady) return;
+
+    if (!token) {
+      const timer = window.setTimeout(() => {
+        setPromo(null);
+        window.localStorage.removeItem(PROMO_KEY);
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+
+    let cancelled = false;
+
+    fetchMyPromo(token)
+      .then((result) => {
+        if (cancelled) return;
+
+        if (result.promo?.active && result.promo.discount > 0) {
+          setPromo({ code: result.promo.code, rate: result.promo.discount / 100 });
+        } else {
+          setPromo(null);
+          window.localStorage.removeItem(PROMO_KEY);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPromo(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accountReady, token]);
 
   const persist = useCallback((next: CartItem[]) => {
     setItems(next);
@@ -76,28 +109,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       if (!code) return "Enter a promo code.";
 
-      // Promos are issued per product. Find the best active promo attached to
-      // an item currently in the cart.
-      let best: AppliedPromo | null = null;
+      if (!promo) return "Sign in to use a promo code.";
 
-      for (const item of items) {
-        if (!item.promoEnabled || !item.promoCode) continue;
-        if (item.promoCode.toUpperCase() !== code) continue;
-
-        const rate = Number(item.promoDiscount ?? 0) / 100;
-
-        if (rate <= 0 || rate > 1) continue;
-
-        if (!best || rate > best.rate) best = { code, rate };
+      if (promo.code.toUpperCase() !== code) {
+        return "That code is not assigned to your account.";
       }
 
-      if (!best) return "That code is not valid for your cart.";
-
-      setPromo(best);
-      window.localStorage.setItem(PROMO_KEY, JSON.stringify(best));
+      // The rate already came from the server.
+      window.localStorage.setItem(PROMO_KEY, JSON.stringify(promo));
       return null;
     },
-    [items]
+    [promo]
   );
 
   const clearPromo = useCallback(() => {

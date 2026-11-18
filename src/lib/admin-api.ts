@@ -365,3 +365,47 @@ export function generatePromoCode() {
     method: "POST",
   });
 }
+
+/* ---------------- User promos ---------------- */
+
+export type UserPromo = {
+  uid: string;
+  code: string;
+  discount: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function fetchUserPromo(uid: string) {
+  return adminFetch<{ promo: UserPromo | null }>(
+    `/api/admin/users/${encodeURIComponent(uid)}/promo`
+  );
+}
+
+export function assignUserPromo(uid: string, code: string, discount: number) {
+  return adminFetch<{ promo: UserPromo }>(
+    `/api/admin/users/${encodeURIComponent(uid)}/promo`,
+    { method: "POST", body: JSON.stringify({ code, discount }) }
+  );
+}
+
+export function deleteUserPromo(uid: string) {
+  return adminFetch<{ ok: boolean }>(
+    `/api/admin/users/${encodeURIComponent(uid)}/promo`,
+    { method: "DELETE" }
+  );
+}
+
+export function setUserPromoActive(uid: string, active: boolean) {
+  return adminFetch<{ ok: boolean; active: boolean }>(
+    `/api/admin/users/${encodeURIComponent(uid)}/promo/active`,
+    { method: "PATCH", body: JSON.stringify({ active }) }
+  );
+}
+
+export function generateUserPromoCode() {
+  return adminFetch<{ code: string }>("/api/admin/promo-code", {
+    method: "POST",
+  });
+}

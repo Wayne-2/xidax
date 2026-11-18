@@ -432,8 +432,13 @@ export default function CartView() {
                 htmlFor="promo"
                 className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
               >
-                Promo code
+                Your promo code
               </label>
+              <p className="mb-2 text-xs text-[#80848e]">
+                {promo
+                  ? "Your assigned promo is applied automatically. Enter the code below to confirm it."
+                  : "Sign in to an account with an assigned promo to unlock a discount."}
+              </p>
               <div className="flex gap-2">
                 <input
                   id="promo"

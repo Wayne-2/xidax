@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
 import ProductImageGrid from "@/components/ProductImageGrid";
 import TaggedSpecsInput, { type Spec } from "@/components/admin/TaggedSpecsInput";
-import PromoFieldsInput from "@/components/admin/PromoFieldsInput";
 import { specsToSummary } from "@/data/spec-tags";
 import {
   createProduct,
@@ -298,14 +297,6 @@ export default function AdminProducts() {
             <Checkbox label="Published" checked={form.published} onChange={(v) => setForm({ ...form, published: v })} />
           </div>
 
-          <PromoFieldsInput
-            value={{
-              promoCode: form.promoCode,
-              promoDiscount: form.promoDiscount,
-              promoEnabled: form.promoEnabled,
-            }}
-            onChange={(promo) => setForm({ ...form, ...promo })}
-          />
 
           <Field label="Product images (up to 3 — first is the large one)">
             <div className="space-y-3">

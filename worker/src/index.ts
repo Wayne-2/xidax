@@ -59,8 +59,15 @@ import {
 } from "./admin-products";
 import { deleteImage, serveImage, uploadImage } from "./images";
 import { recomputeCheckoutTotals } from "./pricing";
-import { lookupPromo, roundMoney } from "./promo";
-import { generatePromoCode } from "./admin-products";
+import { roundMoney } from "./promo";
+import {
+  assignUserPromo,
+  deleteUserPromo,
+  generateUserPromoCode,
+  getUserPromo,
+  getUserPromoByCode,
+  setUserPromoActive,
+} from "./user-promo";
 import { clientIp, rateLimit } from "./rate-limit";
 import {
   deleteCatalogItem,
@@ -247,17 +254,29 @@ async function handleCheckout(env: Env, request: Request) {
     return json({ error: priced.error }, 400);
   }
 
-  // Resolve any promo against D1. The discount rate always comes from the
-  // stored product record, never from the client.
+  // Resolve any promo against D1. Promos are assigned to users by admins and
+  // apply to every purchase. The rate comes from the server, never the client.
   let promoCode = "";
   let discount = 0;
 
   if (typeof payload.promoCode === "string" && payload.promoCode.trim()) {
-    const promo = await lookupPromo(env, payload.promoCode, priced.lines.map((l) => l.id));
+    // The promo must belong to the authenticated user. Resolve identity from
+    // the verified session token, never from the checkout body.
+    const token = readToken(request);
 
-    if (promo) {
-      promoCode = promo.code;
-      discount = roundMoney((priced.subtotal * promo.discount) / 100);
+    if (token) {
+      try {
+        const { auth } = await ensureInitialized(env);
+        const uid = (await auth.verifyIdToken(token, true)).uid;
+        const promo = await getUserPromoByCode(env, uid, payload.promoCode);
+
+        if (promo) {
+          promoCode = promo.code;
+          discount = roundMoney((priced.subtotal * promo.discount) / 100);
+        }
+      } catch {
+        // Invalid/expired token: promo simply does not apply.
+      }
     }
   }
 
@@ -1137,6 +1156,32 @@ const worker = {
         return jsonWithCors({ item }, request, env);
       }
 
+      if (request.method === "GET" && path === "/api/me/promo") {
+        const token = readToken(request);
+
+        if (!token) {
+          return jsonWithCors({ error: "Not signed in." }, request, env, 401);
+        }
+
+        const { auth } = await ensureInitialized(env);
+
+        let uid: string;
+
+        try {
+          uid = (await auth.verifyIdToken(token, true)).uid;
+        } catch {
+          return jsonWithCors({ error: "Invalid session." }, request, env, 401);
+        }
+
+        const promo = await getUserPromo(env, uid);
+
+        return jsonWithCors(
+          { promo: promo?.active ? promo : null },
+          request,
+          env
+        );
+      }
+
       /* ---------------- Admin API ---------------- */
 
       if (path.startsWith("/api/admin/")) {
@@ -1220,6 +1265,67 @@ const worker = {
           }
 
           return jsonWithCors(user, request, env);
+        }
+
+        /* ---- User promos ---- */
+
+        const adminUserPromoMatch = path.match(
+          /^\/api\/admin\/users\/([^/]+)\/promo$/
+        );
+
+        if (request.method === "GET" && adminUserPromoMatch) {
+          const promo = await getUserPromo(env, adminUserPromoMatch[1]);
+          return jsonWithCors({ promo }, request, env);
+        }
+
+        if (request.method === "POST" && adminUserPromoMatch) {
+          const body = await readJson(request);
+
+          if (!body || typeof body.code !== "string") {
+            return jsonWithCors({ error: "Code is required." }, request, env, 400);
+          }
+
+          const result = await assignUserPromo(
+            env,
+            adminUserPromoMatch[1],
+            body.code,
+            Number(body.discount)
+          );
+
+          if ("error" in result) {
+            return jsonWithCors({ error: result.error }, request, env, 400);
+          }
+
+          return jsonWithCors({ promo: result }, request, env, 201);
+        }
+
+        if (request.method === "DELETE" && adminUserPromoMatch) {
+          await deleteUserPromo(env, adminUserPromoMatch[1]);
+          return jsonWithCors({ ok: true }, request, env);
+        }
+
+        const adminUserPromoActiveMatch = path.match(
+          /^\/api\/admin\/users\/([^/]+)\/promo\/active$/
+        );
+
+        if (request.method === "PATCH" && adminUserPromoActiveMatch) {
+          const body = await readJson(request);
+
+          if (!body || typeof body.active !== "boolean") {
+            return jsonWithCors({ error: "active must be a boolean." }, request, env, 400);
+          }
+
+          const updated = await setUserPromoActive(
+            env,
+            adminUserPromoActiveMatch[1],
+            body.active
+          );
+
+          if (!updated) {
+            return jsonWithCors({ error: "No promo assigned." }, request, env, 404);
+          }
+
+          return jsonWithCors({ ok: true, active: body.active }, request, env);
         }
 
         const adminUserVerifyMatch = path.match(
@@ -1306,7 +1412,7 @@ const worker = {
         /* ---- Products ---- */
 
         if (request.method === "POST" && path === "/api/admin/promo-code") {
-          return jsonWithCors({ code: generatePromoCode() }, request, env);
+          return jsonWithCors({ code: generateUserPromoCode() }, request, env);
         }
 
         if (request.method === "GET" && path === "/api/admin/products") {

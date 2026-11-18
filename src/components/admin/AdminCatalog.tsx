@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
 import ProductImageGrid from "@/components/ProductImageGrid";
 import TaggedSpecsInput, { type Spec } from "@/components/admin/TaggedSpecsInput";
-import PromoFieldsInput from "@/components/admin/PromoFieldsInput";
 import {
   deleteCatalogItem,
   fetchCatalog,
@@ -286,14 +285,6 @@ export default function AdminCatalog({ kind }: { kind: CatalogKind }) {
             </Field>
           </div>
 
-          <PromoFieldsInput
-            value={{
-              promoCode: form.promoCode,
-              promoDiscount: form.promoDiscount,
-              promoEnabled: form.promoEnabled,
-            }}
-            onChange={(promo) => setForm({ ...form, ...promo })}
-          />
 
           <Field label="Images (up to 3 — first is the large one)">
             <div className="space-y-3">
