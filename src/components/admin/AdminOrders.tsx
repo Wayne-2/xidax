@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
 import {
+  fetchAdminOrder,
   fetchAdminOrderStats,
   fetchAdminOrders,
   updateAdminOrderStatus,
@@ -44,10 +45,19 @@ function prettyStatus(status: string) {
 }
 
 function money(amount: number, currency = "USD") {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currency || "USD",
-  }).format(amount);
+  const code = /^[A-Za-z]{3}$/.test(currency ?? "") ? currency.toUpperCase() : "USD";
+
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: code,
+    }).format(Number.isFinite(amount) ? amount : 0);
+  } catch {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(Number.isFinite(amount) ? amount : 0);
+  }
 }
 
 export default function AdminOrders() {
@@ -56,24 +66,39 @@ export default function AdminOrders() {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<AdminOrder | null>(null);
   const LIMIT = 20;
 
+  const loadStats = useCallback(async () => {
+    try {
+      const orderStats = await fetchAdminOrderStats();
+      setStats(orderStats);
+    } catch {
+      // The list will surface the error; stats are secondary.
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadStats(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadStats]);
+
   const load = useCallback(async () => {
     setLoading(true);
+    setError("");
     try {
-      const [list, orderStats] = await Promise.all([
-        fetchAdminOrders({ status: statusFilter, search, limit: LIMIT, offset }),
-        fetchAdminOrderStats(),
-      ]);
+      const list = await fetchAdminOrders({ status: statusFilter, search, limit: LIMIT, offset });
       setOrders(list.orders);
       setTotal(list.total);
-      setStats(orderStats);
-    } catch (error) {
-      toast.error((error as { error?: string }).error ?? "Could not load orders.");
+    } catch (err) {
+      const message = (err as { error?: string }).error ?? "Could not load orders.";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -84,14 +109,32 @@ export default function AdminOrders() {
     return () => window.clearTimeout(timer);
   }, [load]);
 
+  async function refreshOrder(order: AdminOrder) {
+    try {
+      const [fresh] = await Promise.all([
+        fetchAdminOrder(order.id),
+        loadStats(),
+      ]);
+      setSelected(fresh);
+    } catch {
+      await load();
+    }
+  }
+
   async function handleStatusChange(order: AdminOrder, newStatus: string) {
+    if (pendingStatus || order.status === newStatus) return;
+
+    setPendingStatus(order.id);
+
     try {
       await updateAdminOrderStatus(order.id, newStatus);
       toast.success(`Order ${order.reference} marked ${prettyStatus(newStatus).toLowerCase()}.`);
       setSelected(null);
       await load();
-    } catch (error) {
-      toast.error((error as { error?: string }).error ?? "Could not update order.");
+    } catch (err) {
+      toast.error((err as { error?: string }).error ?? "Could not update order.");
+    } finally {
+      setPendingStatus(null);
     }
   }
 
@@ -106,7 +149,7 @@ export default function AdminOrders() {
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <Card label="Total orders" value={stats?.totalOrders?.toString() ?? "—"} />
         <Card label="Revenue" value={stats ? money(stats.revenue) : "—"} />
-        <Card label="Awaiting payment" value={stats?.byStatus?.find((s) => s.status === "awaiting_payment")?.count?.toString() ?? "0"} />
+        <Card label="Awaiting payment" value={stats ? (stats.byStatus?.find((s) => s.status === "awaiting_payment")?.count?.toString() ?? "0") : "—"} />
       </div>
 
       <div className="mt-6 flex flex-wrap gap-3">
@@ -128,10 +171,25 @@ export default function AdminOrders() {
       </div>
 
       <div className="mt-5 overflow-hidden rounded-2xl border border-[#dce3ee] bg-white shadow-card">
-        {loading ? (
+        {error ? (
+          <div className="p-10 text-center">
+            <p className="text-sm font-semibold text-[#B91C1C]">Could not load orders.</p>
+            <p className="mt-1 text-sm text-[#5c5e66]">{error}</p>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="mt-4 inline-flex h-10 items-center rounded-lg bg-[#5865F2] px-5 text-sm font-semibold text-white hover:bg-[#4752C4]"
+            >
+              Retry
+            </button>
+          </div>
+        ) : loading ? (
           <div className="p-10 text-center text-sm text-[#5c5e66]">Loading orders…</div>
         ) : orders.length === 0 ? (
-          <div className="p-10 text-center text-sm text-[#5c5e66]">No orders found.</div>
+          <div className="p-10 text-center">
+            <p className="text-sm font-semibold text-[#2e3338]">No orders found.</p>
+            <p className="mt-1 text-sm text-[#5c5e66]">Try adjusting the filters or search.</p>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -195,7 +253,17 @@ export default function AdminOrders() {
                 <h2 className="text-xl font-bold">{selected.reference}</h2>
                 <p className="mt-1 text-xs text-[#80848e]">{new Date(selected.createdAt).toLocaleString()}</p>
               </div>
-              <button type="button" onClick={() => setSelected(null)} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#80848e] hover:bg-[#f0f4fa]" aria-label="Close">✕</button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => void refreshOrder(selected)}
+                  className="flex h-8 items-center rounded-lg px-2 text-xs font-semibold text-[#5865F2] hover:bg-[#5865F2]/10"
+                  aria-label="Refresh order"
+                >
+                  Refresh
+                </button>
+                <button type="button" onClick={() => setSelected(null)} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#80848e] hover:bg-[#f0f4fa]" aria-label="Close">✕</button>
+              </div>
             </div>
 
             <div className="mt-6 space-y-4">
@@ -204,11 +272,16 @@ export default function AdminOrders() {
                 <p className="mt-1 font-semibold">{selected.name}</p>
                 <p className="text-sm text-[#5c5e66]">{selected.email}</p>
                 {selected.phone && <p className="text-sm text-[#5c5e66]">{selected.phone}</p>}
+                {selected.country && <p className="text-sm text-[#5c5e66]">{selected.country}</p>}
+                <p className="mt-2 break-all font-mono text-[10px] text-[#80848e]">ID: {selected.id}</p>
               </div>
 
               <div className="rounded-xl border border-[#e4e9f0] bg-[#f8fafe] p-4">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-[#80848e]">Items</p>
                 <div className="mt-2 space-y-2">
+                  {selected.lines.length === 0 && (
+                    <p className="text-sm text-[#80848e]">No line items recorded.</p>
+                  )}
                   {selected.lines.map((line) => (
                     <div key={line.id} className="flex justify-between text-sm">
                       <span>{line.quantity} × {line.name}</span>
@@ -238,7 +311,8 @@ export default function AdminOrders() {
                       key={s}
                       type="button"
                       onClick={() => handleStatusChange(selected, s)}
-                      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      disabled={pendingStatus !== null || selected.status === s}
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                         selected.status === s
                           ? "border-[#5865F2] bg-[#5865F2] text-white"
                           : "border-[#d2dbe8] bg-white text-[#5c5e66] hover:border-[#5865F2]/50"

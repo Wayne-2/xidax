@@ -1,6 +1,6 @@
 "use client";
 
-import { getFirebaseApp } from "@/lib/firebase-client";
+import { getFirebaseAppAsync } from "@/lib/firebase-client";
 
 /**
  * Google Analytics for the storefront.
@@ -28,7 +28,7 @@ export async function loadAnalytics(): Promise<unknown | null> {
 
   try {
     const { getAnalytics } = await import("firebase/analytics");
-    const analytics = getAnalytics(getFirebaseApp());
+    const analytics = getAnalytics(await getFirebaseAppAsync());
     loaded = true;
     return analytics;
   } catch (error) {

@@ -130,7 +130,7 @@ export async function listAdminOrders(
       email: row.email,
       name: row.name,
       phone: row.phone,
-      country: row.country ?? row.postal_code ?? null,
+      country: row.country ?? null,
       method: row.method,
       network: row.network,
       subtotal: row.subtotal,
@@ -209,7 +209,7 @@ export async function getAdminOrder(
     email: row.email,
     name: row.name,
     phone: row.phone,
-    country: row.country ?? row.postal_code ?? null,
+    country: row.country ?? null,
     method: row.method,
     network: row.network,
     subtotal: row.subtotal,
@@ -254,6 +254,17 @@ export async function updateAdminOrderStatus(
     )
       .bind(status, id)
       .run();
+
+    // Keep the cached checkout session in sync so GET /api/checkout/:id
+    // reflects admin changes. json_set works on the JSON data column.
+    await env.DB.prepare(
+      `UPDATE checkout_sessions
+          SET status = ?1,
+              data = json_set(data, '$.status', ?1)
+        WHERE id = ?2`
+    )
+      .bind(status, id)
+      .run();
   }
 
   return { ok: true, notFound: !changed };
@@ -263,9 +274,12 @@ export async function updateAdminOrderStatus(
 export async function getAdminOrderStats(env: Env) {
   const [totals, byStatus, recent] = await Promise.all([
     env.DB.prepare(
-      `SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS revenue
+      `SELECT
+         COUNT(*) AS count,
+         COALESCE(SUM(CASE WHEN status IN ('paid','processing','shipped','delivered') THEN total ELSE 0 END), 0) AS revenue,
+         COALESCE(SUM(total), 0) AS orderValue
          FROM orders`
-    ).first<{ count: number; revenue: number }>(),
+    ).first<{ count: number; revenue: number; orderValue: number }>(),
     env.DB.prepare(
       `SELECT status, COUNT(*) AS count FROM orders GROUP BY status`
     ).all<{ status: string; count: number }>(),
@@ -277,6 +291,7 @@ export async function getAdminOrderStats(env: Env) {
   return {
     totalOrders: totals?.count ?? 0,
     revenue: totals?.revenue ?? 0,
+    orderValue: totals?.orderValue ?? 0,
     byStatus: byStatus.results ?? [],
     recent: recent.results ?? [],
   };

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  FREE_SHIPPING_THRESHOLD,
   FLAT_SHIPPING_RATE,
   recomputeCheckoutTotals,
 } from "../src/pricing";

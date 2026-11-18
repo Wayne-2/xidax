@@ -25,34 +25,101 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-export function isFirebaseClientConfigured() {
-  return Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
-}
-
 let app: FirebaseApp | null = null;
 let authInstance: Auth | null = null;
+let configPromise: Promise<Record<string, string>> | null = null;
 
-export function getFirebaseApp(): FirebaseApp {
-  if (app) return app;
+function hasConfig(config: Record<string, string | undefined>) {
+  return Boolean(config.apiKey && config.projectId && config.appId);
+}
 
-  if (!isFirebaseClientConfigured()) {
-    throw new Error(
-      "Firebase client is not configured. Set NEXT_PUBLIC_FIREBASE_* environment variables."
-    );
+/**
+ * Loads the Firebase web config at runtime from the API Worker.
+ *
+ * Firebase web config is public by design. Fetching it at runtime avoids
+ * breakages when a site build is produced without the NEXT_PUBLIC_* env vars.
+ * Build-time values are used as a first choice, so nothing changes in dev.
+ */
+async function loadFirebaseConfig(): Promise<Record<string, string>> {
+  if (!configPromise) {
+    configPromise = (async () => {
+      let runtime: Record<string, string> = {};
+
+      try {
+        const response = await fetch(`${API_BASE}/api/config`);
+        if (response.ok) {
+          const payload = (await response.json()) as {
+            firebase?: Record<string, string>;
+          };
+          runtime = payload.firebase ?? {};
+        }
+      } catch {
+        // Use build-time values if the API is unreachable.
+      }
+
+      const merged: Record<string, string> = {};
+
+      for (const key of Object.keys(firebaseConfig)) {
+        const buildValue = firebaseConfig[key as keyof typeof firebaseConfig];
+        merged[key] = buildValue || runtime[key] || "";
+      }
+
+      if (!hasConfig(merged)) {
+        throw new Error(
+          "Firebase client is not configured. Check the API Worker FIREBASE_CONFIG secret."
+        );
+      }
+
+      return merged;
+    })();
   }
 
-  app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+  return configPromise;
+}
+
+/** Initialises Firebase with runtime-loaded config. Safe to call repeatedly. */
+export async function initFirebase(): Promise<FirebaseApp> {
+  if (app) return app;
+
+  const config = await loadFirebaseConfig();
+
+  app = getApps().length ? getApps()[0] : initializeApp(config);
   authInstance = getAuth(app);
 
   return app;
 }
 
-export function getFirebaseAuth(): Auth {
-  getFirebaseApp();
-  if (!authInstance) {
-    authInstance = getAuth(app!);
+/** Synchronous accessor. Call initFirebase() first in async contexts. */
+export function getFirebaseApp(): FirebaseApp {
+  if (app) return app;
+
+  if (hasConfig(firebaseConfig)) {
+    app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+    authInstance = getAuth(app);
+    return app;
   }
-  return authInstance;
+
+  throw new Error("Firebase not initialised. Call initFirebase() first.");
+}
+
+export async function getFirebaseAppAsync(): Promise<FirebaseApp> {
+  return initFirebase();
+}
+
+export async function getFirebaseAuthAsync(): Promise<Auth> {
+  await initFirebase();
+  return authInstance!;
+}
+
+/** Synchronous accessor for already-initialised auth. */
+export function getFirebaseAuth(): Auth {
+  if (!authInstance) getFirebaseApp();
+  return authInstance!;
+}
+
+/** True when build-time config exists (used only to skip early warnings). */
+export function isFirebaseClientConfigured() {
+  return hasConfig(firebaseConfig);
 }
 
 const API_BASE = (
@@ -99,7 +166,7 @@ async function otpRequest<T>(
 
 /** Returns a fresh Firebase ID token for the signed-in user. */
 export async function getIdToken(user?: User | null, forceRefresh = false): Promise<string> {
-  const auth = getFirebaseAuth();
+  const auth = await getFirebaseAuthAsync();
   const current = user ?? auth.currentUser;
 
   if (!current) {
@@ -115,7 +182,7 @@ export async function signUpWithEmail(
   displayName?: string
 ) {
   const credential = await createUserWithEmailAndPassword(
-    getFirebaseAuth(),
+    await getFirebaseAuthAsync(),
     email,
     password
   );
@@ -129,7 +196,7 @@ export async function signUpWithEmail(
 
 export async function signInWithEmail(email: string, password: string) {
   const credential = await signInWithEmailAndPassword(
-    getFirebaseAuth(),
+    await getFirebaseAuthAsync(),
     email,
     password
   );
@@ -138,11 +205,11 @@ export async function signInWithEmail(email: string, password: string) {
 }
 
 export async function signOutFirebase() {
-  await signOut(getFirebaseAuth());
+  await signOut(await getFirebaseAuthAsync());
 }
 
 export async function requestPasswordReset(email: string) {
-  await sendPasswordResetEmail(getFirebaseAuth(), email);
+  await sendPasswordResetEmail(await getFirebaseAuthAsync(), email);
 }
 
 export { isSignInWithEmailLink, onAuthStateChanged, reload };

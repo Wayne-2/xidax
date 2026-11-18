@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
 import ProductImageGrid from "@/components/ProductImageGrid";
+import TaggedSpecsInput, { type Spec } from "@/components/admin/TaggedSpecsInput";
+import { specsToSummary } from "@/data/spec-tags";
 import {
   createProduct,
   deleteProduct,
@@ -35,6 +37,7 @@ export default function AdminProducts() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState<ProductInput>(EMPTY_FORM);
+  const [specDraft, setSpecDraft] = useState<Spec[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -58,6 +61,7 @@ export default function AdminProducts() {
   function startCreate() {
     setEditing(null);
     setForm({ ...EMPTY_FORM });
+    setSpecDraft([]);
   }
 
   function startEdit(product: Product) {
@@ -76,7 +80,25 @@ export default function AdminProducts() {
       featuredOrder: product.featuredOrder,
       published: product.published,
     });
-    const images = product.images?.length ? product.images : product.image ? [product.image] : [];
+    setSpecDraft(parseLegacySpecs(product.specs));
+  }
+
+  function parseLegacySpecs(raw: string): Spec[] {
+    if (!raw) return [];
+
+    return raw
+      .split(" · ")
+      .map((part) => {
+        const separator = part.indexOf(":");
+        if (separator > 0) {
+          return {
+            label: part.slice(0, separator).trim(),
+            value: part.slice(separator + 1).trim(),
+          };
+        }
+        return { label: "Details", value: part.trim() };
+      })
+      .filter((spec) => spec.value);
   }
 
   async function handleFiles(event: React.ChangeEvent<HTMLInputElement>) {
@@ -127,11 +149,16 @@ export default function AdminProducts() {
     setSaving(true);
 
     try {
+      const payload = {
+        ...form,
+        specs: specsToSummary(specDraft) || form.specs,
+      };
+
       if (editing) {
-        await updateProduct(editing.id, form);
+        await updateProduct(editing.id, payload);
         toast.success("Product updated.");
       } else {
-        await createProduct(form);
+        await createProduct(payload);
         toast.success("Product published.");
       }
 
@@ -227,15 +254,11 @@ export default function AdminProducts() {
             </Field>
           </div>
 
-          <Field label="Specs (one line, shown on the card)">
-            <textarea
-              value={form.specs}
-              onChange={(e) => setForm({ ...form, specs: e.target.value })}
-              rows={2}
-              className={inputClass}
-              required
-            />
-          </Field>
+          <TaggedSpecsInput
+            kind="prebuild"
+            specs={specDraft}
+            onChange={setSpecDraft}
+          />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Price (USD)">

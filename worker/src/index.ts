@@ -28,6 +28,7 @@ import {
 } from "./types";
 import { corsHeaders, isOriginAllowed } from "./cors";
 import { runConfigCheck } from "./config-check";
+import { parseFirebaseConfig } from "./auth";
 import { adminGuard } from "./admin-auth";
 import {
   addAdmin,
@@ -1029,6 +1030,18 @@ const worker = {
         return jsonWithCors({ products }, request, env);
       }
 
+      const publicProductMatch = path.match(/^\/api\/products\/([^/]+)$/);
+
+      if (request.method === "GET" && publicProductMatch) {
+        const product = await getProduct(env, publicProductMatch[1]);
+
+        if (!product || !product.published) {
+          return jsonWithCors({ error: "Product not found." }, request, env, 404);
+        }
+
+        return jsonWithCors({ product }, request, env);
+      }
+
       const imageMatch = path.match(/^\/api\/images\/(.+)$/);
 
       if (request.method === "GET" && imageMatch) {
@@ -1047,6 +1060,31 @@ const worker = {
         return response;
       }
 
+      /* ---------------- Public web config ---------------- */
+
+      if (request.method === "GET" && path === "/api/config") {
+        let webConfig: Record<string, string> = {};
+
+        if (env.FIREBASE_CONFIG) {
+          try {
+            const parsed = parseFirebaseConfig(env.FIREBASE_CONFIG);
+            webConfig = {
+              apiKey: parsed.apiKey ?? "",
+              authDomain: parsed.authDomain ?? "",
+              projectId: parsed.projectId ?? "",
+              storageBucket: parsed.storageBucket ?? "",
+              messagingSenderId: parsed.messagingSenderId ?? "",
+              appId: parsed.appId ?? "",
+              measurementId: parsed.measurementId ?? "",
+            };
+          } catch {
+            // Fall through with an empty config.
+          }
+        }
+
+        return jsonWithCors({ firebase: webConfig }, request, env);
+      }
+
       /* ---------------- Public catalogs ---------------- */
 
       const publicCatalogMatch = path.match(/^\/api\/(laptops|consoles)$/);
@@ -1055,6 +1093,21 @@ const worker = {
         const kind = publicCatalogMatch[1] as CatalogKind;
         const items = await listCatalogItems(env, kind, true);
         return jsonWithCors({ items }, request, env);
+      }
+
+      const publicCatalogItemMatch = path.match(
+        /^\/api\/(laptops|consoles)\/([^/]+)$/
+      );
+
+      if (request.method === "GET" && publicCatalogItemMatch) {
+        const kind = publicCatalogItemMatch[1] as CatalogKind;
+        const item = await getCatalogItem(env, kind, publicCatalogItemMatch[2]);
+
+        if (!item || !item.published) {
+          return jsonWithCors({ error: "Product not found." }, request, env, 404);
+        }
+
+        return jsonWithCors({ item }, request, env);
       }
 
       /* ---------------- Admin API ---------------- */

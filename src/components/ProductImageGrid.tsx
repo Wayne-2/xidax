@@ -16,14 +16,12 @@ export default function ProductImageGrid({
   alt,
   fallback,
   className = "",
-  aspect = "aspect-[4/3]",
   interactive = true,
 }: {
   images?: string[];
   alt: string;
   fallback?: ReactNode;
   className?: string;
-  aspect?: string;
   interactive?: boolean;
 }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
@@ -35,7 +33,7 @@ export default function ProductImageGrid({
   return (
     <>
       <div className={`grid h-full w-full grid-cols-[1.7fr_1fr] gap-1.5 ${className}`}>
-        <div className={`relative h-full overflow-hidden bg-[#dce3ee] ${aspect}`}>
+        <div className="relative h-full min-h-0 overflow-hidden bg-[#dce3ee]">
           <Tile
             src={tiles[0]}
             alt={alt}
@@ -43,8 +41,8 @@ export default function ProductImageGrid({
             onOpen={interactive ? () => setOpenIndex(0) : undefined}
           />
         </div>
-        <div className="grid grid-rows-2 gap-1.5">
-          <div className="relative h-full overflow-hidden bg-[#dce3ee]">
+        <div className="grid h-full min-h-0 grid-rows-2 gap-1.5">
+          <div className="relative h-full min-h-0 overflow-hidden bg-[#dce3ee]">
             <Tile
               src={tiles[1]}
               alt={alt}
@@ -52,7 +50,7 @@ export default function ProductImageGrid({
               onOpen={interactive ? () => setOpenIndex(Math.min(1, unique.length - 1)) : undefined}
             />
           </div>
-          <div className="relative h-full overflow-hidden bg-[#dce3ee]">
+          <div className="relative h-full min-h-0 overflow-hidden bg-[#dce3ee]">
             <Tile
               src={tiles[2]}
               alt={alt}

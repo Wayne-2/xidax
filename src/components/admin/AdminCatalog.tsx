@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
 import ProductImageGrid from "@/components/ProductImageGrid";
+import TaggedSpecsInput, { type Spec } from "@/components/admin/TaggedSpecsInput";
 import {
   deleteCatalogItem,
   fetchCatalog,
@@ -13,7 +14,6 @@ import {
   type CatalogKind,
 } from "@/lib/admin-api";
 
-type Spec = { label: string; value: string };
 
 type Form = {
   id: string;
@@ -288,23 +288,11 @@ export default function AdminCatalog({ kind }: { kind: CatalogKind }) {
             </div>
           </Field>
 
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">Specs</span>
-              <button type="button" onClick={() => setForm({ ...form, specs: [...form.specs, { label: "", value: "" }] })} className="text-xs font-semibold text-[#5865F2]">+ Add spec</button>
-            </div>
-            {form.specs.map((spec, index) => (
-              <div key={index} className="mb-2 flex gap-2">
-                <input value={spec.label} onChange={(e) => {
-                  const next = [...form.specs]; next[index] = { ...spec, label: e.target.value }; setForm({ ...form, specs: next });
-                }} placeholder="Label" className={inputClass} />
-                <input value={spec.value} onChange={(e) => {
-                  const next = [...form.specs]; next[index] = { ...spec, value: e.target.value }; setForm({ ...form, specs: next });
-                }} placeholder="Value" className={inputClass} />
-                <button type="button" onClick={() => setForm({ ...form, specs: form.specs.filter((_, i) => i !== index) })} className="text-red-600">×</button>
-              </div>
-            ))}
-          </div>
+          <TaggedSpecsInput
+            kind={isLaptop ? "laptop" : "console"}
+            specs={form.specs}
+            onChange={(specs) => setForm({ ...form, specs })}
+          />
 
           <div>
             <div className="mb-2 flex items-center justify-between">

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SlidersIcon } from "@/components/ConsoleIcons";
 import ExpandableContent from "@/components/ExpandableContent";
 import ProductImageGrid from "@/components/ProductImageGrid";
@@ -43,9 +44,12 @@ export default function PrebuildCard({ product }: { product: Prebuild }) {
       <div className="flex flex-1 flex-col gap-3 p-5">
         <ExpandableContent collapsedHeight={150} label="details">
           <div className="space-y-3">
-            <h3 className="text-base font-semibold leading-snug text-[#2e3338]">
+            <Link
+              href={`/prebuilds/${product.id}`}
+              className="block text-base font-semibold leading-snug text-[#2e3338] transition-colors hover:text-[#5865F2]"
+            >
               {product.name}
-            </h3>
+            </Link>
             <p className="text-sm leading-relaxed text-[#5c5e66]">
               {product.specs}
             </p>
@@ -65,6 +69,13 @@ export default function PrebuildCard({ product }: { product: Prebuild }) {
             </span>
           </div>
         </div>
+
+        <Link
+          href={`/prebuilds/${product.id}`}
+          className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#5865F2] hover:text-[#4752C4]"
+        >
+          View details →
+        </Link>
 
         <div className="mt-3 flex items-center gap-2 sm:hidden">
           <button

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import LaptopArtwork from "@/components/LaptopArtwork";
 import ProductImageGrid from "@/components/ProductImageGrid";
 import { CartIcon } from "@/components/ConsoleIcons";
@@ -92,9 +93,9 @@ export default function LaptopCard({
 
       <ExpandableContent collapsedHeight={260} label="details">
         <div className="flex flex-col p-6 pb-0">
-        <h3 className="text-xl font-bold tracking-tight text-[#2e3338]">
+        <Link href={`/laptops/${laptop.id}`} className="block text-xl font-bold tracking-tight text-[#2e3338] transition-colors hover:text-[#5865F2]">
           {laptop.name}
-        </h3>
+        </Link>
         <p className="mt-1 text-sm font-medium" style={{ color: accent }}>
           {laptop.tagline}
         </p>
@@ -132,6 +133,15 @@ export default function LaptopCard({
 
         </div>
       </ExpandableContent>
+
+      <div className="shrink-0 px-6 pb-2">
+        <Link
+          href={`/laptops/${laptop.id}`}
+          className="inline-flex items-center gap-1 text-xs font-semibold text-[#5865F2] hover:text-[#4752C4]"
+        >
+          View details →
+        </Link>
+      </div>
 
       <div className="shrink-0 p-6 pt-0">
         <div className="flex flex-wrap items-end justify-between gap-3">

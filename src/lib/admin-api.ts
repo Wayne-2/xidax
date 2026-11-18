@@ -44,6 +44,7 @@ export type AdminOrderList = {
 export type AdminOrderStats = {
   totalOrders: number;
   revenue: number;
+  orderValue: number;
   byStatus: { status: string; count: number }[];
   recent: { created_at: string; total: number }[];
 };

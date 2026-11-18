@@ -8,7 +8,7 @@ import { useToast } from "@/components/ToastProvider";
 import { loginAccount } from "@/lib/api";
 import {
   fetchOtpStatus,
-  getFirebaseAuth,
+  getFirebaseAuthAsync,
   getIdToken,
   reload,
   resendOtp,
@@ -128,7 +128,7 @@ export default function VerifyOtpPage() {
       await verifyOtp(idToken, value);
 
       // Refresh the Firebase session so emailVerified reflects the new state
-      const currentUser = getFirebaseAuth().currentUser;
+      const currentUser = (await getFirebaseAuthAsync()).currentUser;
       if (currentUser) {
         await reload(currentUser).catch(() => undefined);
       }

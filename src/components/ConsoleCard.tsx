@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRegion } from "@/components/RegionProvider";
 import { useCart } from "@/components/CartProvider";
 import { cartItemFromConsole } from "@/data/cart";
@@ -67,9 +68,9 @@ export default function ConsoleCard({
       <div className="flex flex-1 flex-col p-5">
         <ExpandableContent collapsedHeight={230} label="specs">
           <div className="space-y-2">
-          <h3 className="text-base font-semibold leading-snug text-[#2e3338]">
-            {consoleItem.name}
-          </h3>
+          <Link href={`/consoles/${consoleItem.id}`} className="block text-base font-semibold leading-snug text-[#2e3338] transition-colors hover:text-[#5865F2]">
+              {consoleItem.name}
+            </Link>
           <p className="text-xs font-semibold uppercase tracking-wide text-[#5865F2]">
             {consoleItem.tagline}
           </p>
@@ -97,6 +98,13 @@ export default function ConsoleCard({
 
           </div>
         </ExpandableContent>
+
+        <Link
+          href={`/consoles/${consoleItem.id}`}
+          className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#5865F2] hover:text-[#4752C4]"
+        >
+          View details →
+        </Link>
 
         <div className="mt-3 flex items-center justify-between gap-2">
           <div>

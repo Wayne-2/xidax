@@ -8,14 +8,14 @@ import {
   type Auth,
   type User,
 } from "firebase/auth";
-import { getFirebaseApp } from "@/lib/firebase-client";
+import { getFirebaseAppAsync } from "@/lib/firebase-client";
 import { fetchAdminUserStats } from "@/lib/admin-api";
 
 const ADMIN_SESSION_KEY = "genericpcs.admin.session";
 
 /** Returns the Firebase Auth instance for the shared project. */
-function adminAuth(): Auth {
-  return getAuth(getFirebaseApp());
+async function adminAuth(): Promise<Auth> {
+  return getAuth(await getFirebaseAppAsync());
 }
 
 /** True only when the dedicated admin sign-in flow has been completed. */
@@ -48,7 +48,7 @@ export async function verifyAdminAccess(): Promise<void> {
 
 /** Signs in through the dedicated admin flow and records the admin session. */
 export async function adminSignIn(email: string, password: string) {
-  await signInWithEmailAndPassword(adminAuth(), email.trim(), password);
+  await signInWithEmailAndPassword(await adminAuth(), email.trim(), password);
   await verifyAdminAccess();
   setAdminSession();
 }
@@ -56,15 +56,18 @@ export async function adminSignIn(email: string, password: string) {
 /** Signs out of Firebase and clears the admin session flag. */
 export async function adminSignOut() {
   clearAdminSession();
-  await signOut(adminAuth());
+  await signOut(await adminAuth());
 }
 
 /** Observes Firebase auth state for the admin flow. */
-export function observeAdminAuth(callback: (user: User | null) => void) {
-  return onAuthStateChanged(adminAuth(), callback);
+export async function observeAdminAuth(
+  callback: (user: User | null) => void
+): Promise<() => void> {
+  const auth = await adminAuth();
+  return onAuthStateChanged(auth, callback);
 }
 
 /** Returns the signed-in Firebase user, if any. */
-export function currentAdminUser(): User | null {
-  return adminAuth().currentUser;
+export async function currentAdminUser(): Promise<User | null> {
+  return (await adminAuth()).currentUser;
 }

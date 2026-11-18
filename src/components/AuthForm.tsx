@@ -10,7 +10,7 @@ import { friendlyError } from "@/lib/errors";
 import { countries } from "@/data/account";
 import {
   getIdToken,
-  isFirebaseClientConfigured,
+  initFirebase,
   sendOtp,
   signInWithEmail,
 } from "@/lib/firebase-client";
@@ -148,10 +148,10 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
     setSubmitting(true);
 
     try {
-      if (!isFirebaseClientConfigured()) {
-        toast.error(
-          "Sign in is temporarily unavailable. Please try again in a moment."
-        );
+      try {
+        await initFirebase();
+      } catch {
+        toast.error("Sign in is temporarily unavailable. Please try again in a moment.");
         return;
       }
 

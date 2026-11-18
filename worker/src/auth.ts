@@ -67,6 +67,7 @@ export function parseFirebaseConfig(raw: string): {
   storageBucket?: string;
   messagingSenderId?: string;
   appId?: string;
+  measurementId?: string;
   clientEmail?: string;
   privateKey?: string;
 } {
@@ -119,6 +120,7 @@ export function parseFirebaseConfig(raw: string): {
     storageBucket: pick("storageBucket", "storage_bucket"),
     messagingSenderId: pick("messagingSenderId", "messaging_sender_id"),
     appId: pick("appId", "app_id"),
+    measurementId: pick("measurementId", "measurement_id"),
     clientEmail: pick("clientEmail", "client_email"),
     privateKey,
   };
