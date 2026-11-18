@@ -17,6 +17,9 @@ export type CartItem = {
   accent: string;
   artCategory: string;
   image?: string;
+  promoCode?: string | null;
+  promoDiscount?: number;
+  promoEnabled?: boolean;
 };
 
 export const freeShippingThreshold = 99;
@@ -39,6 +42,9 @@ export function cartItemFromLaptop(
     accent: category.accent,
     artCategory: laptop.category,
     image: laptop.image,
+    promoCode: laptop.promoCode ?? null,
+    promoDiscount: laptop.promoDiscount ?? 0,
+    promoEnabled: laptop.promoEnabled === true,
   };
 }
 
@@ -59,6 +65,9 @@ export function cartItemFromConsole(
     accent: category.accent,
     artCategory: console.category,
     image: console.images?.[0],
+    promoCode: console.promoCode ?? null,
+    promoDiscount: console.promoDiscount ?? 0,
+    promoEnabled: console.promoEnabled === true,
   };
 }
 
@@ -76,6 +85,9 @@ export function cartItemFromPrebuild(prebuild: Prebuild): CartItem {
     accent: prebuild.brand === "intel" ? "#0068B5" : "#C8102E",
     artCategory: prebuild.brand,
     image: prebuild.image,
+    promoCode: prebuild.promoCode ?? null,
+    promoDiscount: prebuild.promoDiscount ?? 0,
+    promoEnabled: prebuild.promoEnabled === true,
   };
 }
 

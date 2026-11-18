@@ -35,6 +35,9 @@ export type Console = {
   stock: "in-stock" | "built-to-order";
   specs: { label: string; value: string }[];
   highlights: string[];
+  promoCode?: string | null;
+  promoDiscount?: number;
+  promoEnabled?: boolean;
 };
 
 export const consoleCategories: ConsoleCategory[] = [

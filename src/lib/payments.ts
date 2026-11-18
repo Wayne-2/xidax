@@ -78,6 +78,7 @@ export type CheckoutRequest = {
   shipping: number;
   total: number;
   currency: string;
+  promoCode?: string;
 };
 
 export type CheckoutSession = {

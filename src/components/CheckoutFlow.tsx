@@ -61,7 +61,7 @@ function StepBadge({
 export default function CheckoutFlow() {
   const { token } = useAccount();
   const router = useRouter();
-  const { items, subtotal, ready } = useCart();
+  const { items, subtotal, promo, ready } = useCart();
   const { user } = useAccount();
   const { region, formatMoney, formatBase, clock, setCountry: setRegionCountry } =
     useRegion();
@@ -79,8 +79,10 @@ export default function CheckoutFlow() {
   const [session, setSession] = useState<CheckoutSession | null>(null);
   const [now, setNow] = useState(0);
 
-  const shipping = subtotal >= 99 || subtotal === 0 ? 0 : 19;
-  const total = subtotal + shipping;
+  const discount = promo ? Math.round(subtotal * promo.rate * 100) / 100 : 0;
+  const discountedSubtotal = Math.max(0, Math.round((subtotal - discount) * 100) / 100);
+  const shipping = discountedSubtotal >= 99 || discountedSubtotal === 0 ? 0 : 19;
+  const total = Math.round((discountedSubtotal + shipping) * 100) / 100;
   const selectedMethod: PaymentMethod = method ?? region.payment;
   const countryValue = country ?? user?.country ?? region.country;
 
@@ -176,6 +178,7 @@ export default function CheckoutFlow() {
         shipping,
         total,
         currency: "USD",
+        promoCode: promo?.code,
       }, token);
 
       setSession(created);
@@ -731,6 +734,16 @@ export default function CheckoutFlow() {
                 {formatMoney(subtotal)}
               </dd>
             </div>
+            {promo && discount > 0 && (
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-[#15803D]">
+                  Promo {promo.code} ({Math.round(promo.rate * 100)}% off)
+                </dt>
+                <dd className="font-semibold text-[#15803D]">
+                  −{formatMoney(discount)}
+                </dd>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-3">
               <dt className="text-[#5c5e66]">Shipping</dt>
               <dd className="font-semibold text-[#2e3338]">

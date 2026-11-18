@@ -68,6 +68,7 @@ export type CheckoutRequest = {
   shipping: number;
   total: number;
   currency: string;
+  promoCode?: string;
 };
 
 export type CheckoutSession = {
@@ -81,6 +82,8 @@ export type CheckoutSession = {
   shipping: number;
   total: number;
   currency: string;
+  discount: number;
+  promoCode?: string;
   lines: CheckoutLine[];
   details: CheckoutDetails;
   instructions: PaymentInstructions;

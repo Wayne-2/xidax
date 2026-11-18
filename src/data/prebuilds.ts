@@ -12,6 +12,9 @@ export type Prebuild = {
   stock: PrebuildStock;
   flagship: boolean;
   specs: string;
+  promoCode?: string | null;
+  promoDiscount?: number;
+  promoEnabled?: boolean;
 };
 
 export const prebuilds: Prebuild[] = [

@@ -59,6 +59,8 @@ import {
 } from "./admin-products";
 import { deleteImage, serveImage, uploadImage } from "./images";
 import { recomputeCheckoutTotals } from "./pricing";
+import { lookupPromo, roundMoney } from "./promo";
+import { generatePromoCode } from "./admin-products";
 import { clientIp, rateLimit } from "./rate-limit";
 import {
   deleteCatalogItem,
@@ -170,8 +172,8 @@ async function persistOrder(env: Env, session: CheckoutSession) {
   await env.DB.prepare(
     `INSERT OR REPLACE INTO orders
        (id, reference, checkout_id, email, name, phone, country, postal_code,
-        method, network, subtotal, shipping, total, currency, status, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)`
+        method, network, subtotal, shipping, discount, total, currency, promo_code, status, created_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)`
   )
     .bind(
       session.id,
@@ -188,8 +190,10 @@ async function persistOrder(env: Env, session: CheckoutSession) {
         : null,
       session.subtotal,
       session.shipping,
+      session.discount,
       session.total,
       session.currency,
+      session.promoCode ?? null,
       session.status,
       session.createdAt
     )
@@ -243,12 +247,33 @@ async function handleCheckout(env: Env, request: Request) {
     return json({ error: priced.error }, 400);
   }
 
+  // Resolve any promo against D1. The discount rate always comes from the
+  // stored product record, never from the client.
+  let promoCode = "";
+  let discount = 0;
+
+  if (typeof payload.promoCode === "string" && payload.promoCode.trim()) {
+    const promo = await lookupPromo(env, payload.promoCode, priced.lines.map((l) => l.id));
+
+    if (promo) {
+      promoCode = promo.code;
+      discount = roundMoney((priced.subtotal * promo.discount) / 100);
+    }
+  }
+
+  const discountedSubtotal = roundMoney(Math.max(0, priced.subtotal - discount));
+  const shipping =
+    discountedSubtotal >= 99 || discountedSubtotal === 0
+      ? 0
+      : priced.shipping;
+
   const trusted: CheckoutRequest = {
     ...payload,
     lines: priced.lines,
-    subtotal: priced.subtotal,
-    shipping: priced.shipping,
-    total: priced.total,
+    subtotal: roundMoney(discountedSubtotal + discount),
+    shipping,
+    total: roundMoney(discountedSubtotal + shipping),
+    promoCode: promoCode || undefined,
   };
 
   if (payload.method === "crypto") {
@@ -299,6 +324,8 @@ async function handleCheckout(env: Env, request: Request) {
   }
 
   const session = buildSession(trusted, instructions, reference, warning);
+  session.discount = discount;
+  session.promoCode = promoCode || undefined;
 
   await persistOrder(env, session);
 
@@ -1277,6 +1304,10 @@ const worker = {
         }
 
         /* ---- Products ---- */
+
+        if (request.method === "POST" && path === "/api/admin/promo-code") {
+          return jsonWithCors({ code: generatePromoCode() }, request, env);
+        }
 
         if (request.method === "GET" && path === "/api/admin/products") {
           const products = await listAllProducts(env);

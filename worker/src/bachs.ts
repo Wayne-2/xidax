@@ -471,6 +471,8 @@ export function buildSession(
     shipping: request.shipping,
     total: request.total,
     currency: request.currency,
+    discount: 0,
+    promoCode: request.promoCode,
     lines: request.lines,
     details: request.details,
     instructions,

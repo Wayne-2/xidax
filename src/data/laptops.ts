@@ -27,6 +27,9 @@ export type Laptop = {
   stock: "in-stock" | "built-in-order";
   specs: LaptopSpec[];
   highlights: string[];
+  promoCode?: string | null;
+  promoDiscount?: number;
+  promoEnabled?: boolean;
 };
 
 export const laptopCategories: LaptopCategory[] = [

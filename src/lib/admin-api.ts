@@ -212,6 +212,9 @@ export type Product = {
   specs: string;
   featured: boolean;
   featuredOrder: number;
+  promoCode: string | null;
+  promoDiscount: number;
+  promoEnabled: boolean;
   published: boolean;
   createdAt: string;
   updatedAt: string;
@@ -229,6 +232,9 @@ export type ProductInput = {
   specs: string;
   featured: boolean;
   featuredOrder: number;
+  promoCode: string | null;
+  promoDiscount: number;
+  promoEnabled: boolean;
   published: boolean;
 };
 
@@ -351,4 +357,11 @@ export function verifyAdminUser(id: string) {
     `/api/admin/users/${encodeURIComponent(id)}/verify`,
     { method: "PATCH" }
   );
+}
+
+/** Asks the Worker to generate a unique promo code. */
+export function generatePromoCode() {
+  return adminFetch<{ code: string }>("/api/admin/promo-code", {
+    method: "POST",
+  });
 }

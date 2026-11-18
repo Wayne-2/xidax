@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
 import ProductImageGrid from "@/components/ProductImageGrid";
 import TaggedSpecsInput, { type Spec } from "@/components/admin/TaggedSpecsInput";
+import PromoFieldsInput from "@/components/admin/PromoFieldsInput";
 import { specsToSummary } from "@/data/spec-tags";
 import {
   createProduct,
@@ -28,6 +29,9 @@ const EMPTY_FORM: ProductInput = {
   specs: "",
   featured: false,
   featuredOrder: 0,
+  promoCode: null,
+  promoDiscount: 10,
+  promoEnabled: false,
   published: true,
 };
 
@@ -78,6 +82,9 @@ export default function AdminProducts() {
       specs: product.specs,
       featured: product.featured,
       featuredOrder: product.featuredOrder,
+      promoCode: product.promoCode,
+      promoDiscount: product.promoDiscount || 10,
+      promoEnabled: product.promoEnabled,
       published: product.published,
     });
     setSpecDraft(parseLegacySpecs(product.specs));
@@ -290,6 +297,15 @@ export default function AdminProducts() {
             <Checkbox label="Featured" checked={form.featured} onChange={(v) => setForm({ ...form, featured: v })} />
             <Checkbox label="Published" checked={form.published} onChange={(v) => setForm({ ...form, published: v })} />
           </div>
+
+          <PromoFieldsInput
+            value={{
+              promoCode: form.promoCode,
+              promoDiscount: form.promoDiscount,
+              promoEnabled: form.promoEnabled,
+            }}
+            onChange={(promo) => setForm({ ...form, ...promo })}
+          />
 
           <Field label="Product images (up to 3 — first is the large one)">
             <div className="space-y-3">

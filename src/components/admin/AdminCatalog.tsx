@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
 import ProductImageGrid from "@/components/ProductImageGrid";
 import TaggedSpecsInput, { type Spec } from "@/components/admin/TaggedSpecsInput";
+import PromoFieldsInput from "@/components/admin/PromoFieldsInput";
 import {
   deleteCatalogItem,
   fetchCatalog,
@@ -28,6 +29,9 @@ type Form = {
   images: string[];
   specs: Spec[];
   highlights: string[];
+  promoCode: string | null;
+  promoDiscount: number;
+  promoEnabled: boolean;
 };
 
 const EMPTY: Form = {
@@ -43,6 +47,9 @@ const EMPTY: Form = {
   images: [],
   specs: [],
   highlights: [],
+  promoCode: null,
+  promoDiscount: 10,
+  promoEnabled: false,
 };
 
 // Standard values come from the card templates; the admin selects these
@@ -113,6 +120,9 @@ export default function AdminCatalog({ kind }: { kind: CatalogKind }) {
         ? (d.specs as Spec[]).map((s) => ({ label: String(s.label ?? ""), value: String(s.value ?? "") }))
         : [],
       highlights: Array.isArray(d.highlights) ? (d.highlights as string[]).map(String) : [],
+      promoCode: d.promoCode ? String(d.promoCode) : null,
+      promoDiscount: Number(d.promoDiscount ?? 10),
+      promoEnabled: d.promoEnabled === true,
     });
   }
 
@@ -162,6 +172,9 @@ export default function AdminCatalog({ kind }: { kind: CatalogKind }) {
         images: form.images,
         specs: form.specs.filter((s) => s.label && s.value),
         highlights: form.highlights.filter(Boolean),
+        promoCode: form.promoCode,
+        promoDiscount: form.promoDiscount,
+        promoEnabled: form.promoEnabled && Boolean(form.promoCode),
       };
 
       await saveCatalogItem(kind, payload, editing ?? (form.id || undefined));
@@ -272,6 +285,15 @@ export default function AdminCatalog({ kind }: { kind: CatalogKind }) {
               </select>
             </Field>
           </div>
+
+          <PromoFieldsInput
+            value={{
+              promoCode: form.promoCode,
+              promoDiscount: form.promoDiscount,
+              promoEnabled: form.promoEnabled,
+            }}
+            onChange={(promo) => setForm({ ...form, ...promo })}
+          />
 
           <Field label="Images (up to 3 — first is the large one)">
             <div className="space-y-3">

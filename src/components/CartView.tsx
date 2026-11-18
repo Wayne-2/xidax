@@ -12,8 +12,7 @@ import LaptopArtwork from "@/components/LaptopArtwork";
 import {
   cartItemFromConsole,
   cartItemFromLaptop,
-  cartPromoCodes,
-  flatShippingRate,
+    flatShippingRate,
   freeShippingThreshold,
   type CartItem,
 } from "@/data/cart";
@@ -88,15 +87,22 @@ function ItemThumbnail({ item }: { item: CartItem }) {
 }
 
 export default function CartView() {
-  const { items, count, subtotal, ready, add, remove, setQuantity, clear } =
-    useCart();
+  const {
+    items,
+    count,
+    subtotal,
+    promo,
+    ready,
+    add,
+    remove,
+    setQuantity,
+    clear,
+    applyPromo,
+    clearPromo,
+  } = useCart();
   const { formatMoney, formatBase, region, clock } = useRegion();
   const toast = useToast();
   const [promoInput, setPromoInput] = useState("");
-  const [promo, setPromo] = useState<{ code: string; rate: number } | null>(
-    null
-  );
-  const [promoError, setPromoError] = useState("");
 
   const discount = promo ? Math.round(subtotal * promo.rate) : 0;
   const discounted = subtotal - discount;
@@ -130,26 +136,16 @@ export default function CartView() {
     (entry) => !items.some((item) => item.id === entry.item.id)
   );
 
-  function applyPromo() {
-    const code = promoInput.trim().toUpperCase();
+  function handleApplyPromo() {
+    const error = applyPromo(promoInput);
 
-    if (!code) {
-      setPromoError("Enter a promo code.");
+    if (error) {
+      toast.error(error);
       return;
     }
 
-    const rate = cartPromoCodes[code];
-
-    if (!rate) {
-      setPromo(null);
-      setPromoError("That code is not valid.");
-      return;
-    }
-
-    setPromo({ code, rate });
-    setPromoError("");
     setPromoInput("");
-    toast.success(`${code} applied. Nice.`);
+    toast.success("Promo code applied.");
   }
 
   return (
@@ -443,19 +439,29 @@ export default function CartView() {
                   id="promo"
                   value={promoInput}
                   onChange={(event) => setPromoInput(event.target.value)}
-                  placeholder="PCM10"
+                  placeholder="PCM-ABC123"
                   className="h-11 min-w-0 flex-1 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-3.5 text-sm uppercase text-[#2e3338] outline-none transition-colors placeholder:text-[#80848e] focus:border-[#5865F2]"
                 />
                 <button
                   type="button"
-                  onClick={applyPromo}
+                  onClick={handleApplyPromo}
                   className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-4 text-sm font-semibold text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#2e3338]"
                 >
                   Apply
                 </button>
               </div>
-              {promoError && (
-                <p className="mt-1.5 text-xs text-[#B91C1C]">{promoError}</p>
+              {promo && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearPromo();
+                    setPromoInput("");
+                    toast.error("Promo code removed.");
+                  }}
+                  className="mt-2 text-xs font-semibold text-[#B91C1C] hover:text-[#991B1B]"
+                >
+                  Remove promo code
+                </button>
               )}
             </div>
 
