@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SlidersIcon } from "@/components/ConsoleIcons";
 import ExpandableContent from "@/components/ExpandableContent";
+import SpecList from "@/components/SpecList";
 import ProductImageGrid from "@/components/ProductImageGrid";
 import { useCart } from "@/components/CartProvider";
 import { useRegion } from "@/components/RegionProvider";
@@ -50,9 +51,10 @@ export default function PrebuildCard({ product }: { product: Prebuild }) {
             >
               {product.name}
             </Link>
-            <p className="text-sm leading-relaxed text-[#5c5e66]">
-              {product.specs}
-            </p>
+            <SpecList
+              items={product.specs.split(" · ")}
+              className="pt-1"
+            />
           </div>
         </ExpandableContent>
 

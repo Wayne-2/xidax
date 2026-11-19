@@ -126,7 +126,7 @@ export default function AdminCatalog({ kind }: { kind: CatalogKind }) {
   }
 
   async function handleImages(event: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []).slice(0, 3);
+    const files = Array.from(event.target.files ?? []).slice(0, 20);
 
     if (files.length === 0) return;
 
@@ -286,11 +286,11 @@ export default function AdminCatalog({ kind }: { kind: CatalogKind }) {
           </div>
 
 
-          <Field label="Images (up to 3 — first is the large one)">
+          <Field label="Images (up to 20 — first is the large one)">
             <div className="space-y-3">
               <input type="file" accept="image/*" multiple onChange={handleImages} className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-[#eaf0f8] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-[#4752C4]" />
               {uploading && <p className="text-xs text-[#5865F2]">Uploading…</p>}
-              <p className="text-xs text-[#80848e]">{form.images.length}/3 images · select up to three at once</p>
+              <p className="text-xs text-[#80848e]">{form.images.length}/20 images · select up to twenty at once</p>
               {form.images.map((url, index) => (
                 <div key={index} className="flex items-center gap-2">
                   <span className="w-16 shrink-0 text-[11px] font-semibold text-[#80848e]">{index === 0 ? "Large" : `Small ${index}`}</span>

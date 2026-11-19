@@ -10,6 +10,7 @@ import ProductImageGrid from "@/components/ProductImageGrid";
 import { CartIcon } from "@/components/ConsoleIcons";
 import { CheckIcon } from "@/components/BuildIcons";
 import ExpandableContent from "@/components/ExpandableContent";
+import SpecList from "@/components/SpecList";
 
 type ConsoleCardProps = {
   consoleItem: Console;
@@ -78,25 +79,14 @@ export default function ConsoleCard({
             {consoleItem.description}
           </p>
 
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 pt-1">
-            {consoleItem.highlights.map((highlight) => (
-              <div key={highlight} className="flex items-start gap-1.5 text-xs text-[#5c5e66]">
-                <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#16A34A]" />
-                <span>{highlight}</span>
-              </div>
-            ))}
+          <SpecList items={consoleItem.highlights} columns className="pt-1" />
           </div>
 
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 pt-2 text-xs">
-            {consoleItem.specs.map((spec) => (
-              <div key={spec.label} className="flex justify-between gap-2 border-b border-[#dce3ee] pb-1">
-                <dt className="text-[#80848e]">{spec.label}</dt>
-                <dd className="text-right font-medium text-[#2e3338]">{spec.value}</dd>
-              </div>
-            ))}
-          </dl>
-
-          </div>
+          <SpecList
+            items={consoleItem.specs.map((spec) => `${spec.label}: ${spec.value}`)}
+            columns
+            className="pt-2"
+          />
         </ExpandableContent>
 
         <Link

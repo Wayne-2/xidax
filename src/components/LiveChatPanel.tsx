@@ -1,126 +1,174 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
-import { CloseIcon, SendIcon } from "@/components/SupportIcons";
+import {
+  fetchChatHistory,
+  sendChatMessage,
+  type ChatMessagePayload,
+} from "@/lib/api";
+import { CloseIcon, SendIcon, ChatIcon } from "@/components/SupportIcons";
 
-type Message = {
-  id: number;
-  from: "agent" | "user";
-  text: string;
-};
+const QUICK_REPLIES = [
+  "Shipping options",
+  "Track my order",
+  "Return policy",
+  "Payment methods",
+  "Product specs",
+  "Talk to a human",
+];
 
-type LiveChatPanelProps = {
+export default function LiveChatPanel({
+  open,
+  onClose,
+}: {
   open: boolean;
   onClose: () => void;
-};
-
-export default function LiveChatPanel({ open, onClose }: LiveChatPanelProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 1,
-      from: "agent",
-      text: "Hi there. You have reached generic pcs support. Tell us what you need help with and we will pick it up right away.",
-    },
-  ]);
+}) {
+  const [messages, setMessages] = useState<ChatMessagePayload[]>([]);
   const [draft, setDraft] = useState("");
-  const [typing, setTyping] = useState(false);
-  const toast = useToast();
+  const [sending, setSending] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>(QUICK_REPLIES);
+  const [loading, setLoading] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const counter = useRef(1);
+  const toast = useToast();
 
-  useEffect(() => {
-    if (open) {
-      inputRef.current?.focus();
-    }
-  }, [open]);
-
-  useEffect(() => {
-    const list = listRef.current;
-
-    if (list) {
-      list.scrollTop = list.scrollHeight;
-    }
-  }, [messages, typing]);
-
+  // Load conversation when the panel opens.
   useEffect(() => {
     if (!open) return;
 
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
+    let cancelled = false;
 
-    window.addEventListener("keydown", handleKey);
+    const timer = window.setTimeout(() => {
+      if (!cancelled) setLoading(true);
+    }, 0);
 
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [open, onClose]);
+    fetchChatHistory()
+      .then((result) => {
+        if (!cancelled) setMessages(result.messages ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMessages([
+            {
+              id: "local-greeting",
+              role: "assistant",
+              text: "Hi! I'm the Generic PCs assistant. How can I help?",
+              createdAt: new Date().toISOString(),
+            },
+          ]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [open]);
+
+  // Focus the input and scroll to the newest message.
+  useEffect(() => {
+    if (!open) return;
+
+    const timer = window.setTimeout(() => inputRef.current?.focus(), 80);
+
+    return () => window.clearTimeout(timer);
+  }, [open]);
 
   useEffect(() => {
-    return () => {
-      if (replyTimer.current) {
-        clearTimeout(replyTimer.current);
-      }
+    listRef.current?.scrollTo({
+      top: listRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [messages, sending]);
+
+  // Close on Escape.
+  useEffect(() => {
+    if (!open) return;
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
     };
-  }, []);
 
-  function sendMessage(event: React.FormEvent) {
-    event.preventDefault();
-    const text = draft.trim();
+    window.addEventListener("keydown", onKey);
 
-    if (!text) {
-      toast.info("Write a message first.");
-      return;
-    }
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
 
-    counter.current += 1;
-    setMessages((current) => [...current, { id: counter.current, from: "user", text }]);
-    setDraft("");
-    setTyping(true);
+  const send = useCallback(
+    async (text: string) => {
+      const question = text.trim();
 
-    if (replyTimer.current) {
-      clearTimeout(replyTimer.current);
-    }
+      if (!question || sending) return;
 
-    replyTimer.current = setTimeout(() => {
-      counter.current += 1;
-      setTyping(false);
+      setDraft("");
+      setSending(true);
+
+      // Optimistic user bubble.
       setMessages((current) => [
         ...current,
         {
-          id: counter.current,
-          from: "agent",
-          text: "Thanks, we have that. A technician will reply here shortly — usually within three minutes.",
+          id: `temp-${Date.now()}`,
+          role: "user",
+          text: question,
+          createdAt: new Date().toISOString(),
         },
       ]);
-    }, 900);
-  }
+
+      try {
+        const result = await sendChatMessage(question);
+
+        setMessages((current) => [
+          ...current.filter((message) => !message.id.startsWith("temp-")),
+          {
+            id: `reply-${Date.now()}`,
+            role: "assistant",
+            text: result.answer,
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+
+        if (result.suggestions?.length) setSuggestions(result.suggestions);
+      } catch {
+        toast.error("Could not reach the assistant. Please try again.");
+      } finally {
+        setSending(false);
+      }
+    },
+    [sending, toast]
+  );
 
   if (!open) return null;
 
   return (
     <div
       role="dialog"
-      aria-label="Live chat with generic pcs support"
-      className="animate-chat-in fixed bottom-4 right-4 z-50 flex max-h-[min(30rem,calc(100vh-2rem))] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-[#d2dbe8] bg-[#f8fafe] shadow-2xl"
+      aria-modal="true"
+      aria-label="Support chat"
+      className="animate-chat-in fixed bottom-4 right-4 z-[70] flex h-[480px] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-white shadow-2xl sm:bottom-6 sm:right-6"
     >
-      <div className="flex items-center gap-3 bg-[#2e3338] px-4 py-3 text-white">
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#5865F2] text-xs font-bold">
-          PC
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold">generic pcs Support</p>
-          <p className="flex items-center gap-1.5 text-[11px] text-white/70">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#34D399]" />
-            Online now
-          </p>
+      <div className="flex shrink-0 items-center justify-between bg-[#2e3338] px-4 py-3 text-white">
+        <div className="flex items-center gap-2">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#5865F2]">
+            <ChatIcon className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold">Generic PCs support</p>
+            <p className="flex items-center gap-1.5 text-[11px] text-white/70">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#34D399]" />
+              Online now
+            </p>
+          </div>
         </div>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close live chat"
-          className="flex h-8 w-8 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+          aria-label="Close chat"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 transition-colors hover:bg-white/10 hover:text-white"
         >
           <CloseIcon className="h-4 w-4" />
         </button>
@@ -130,60 +178,78 @@ export default function LiveChatPanel({ open, onClose }: LiveChatPanelProps) {
         ref={listRef}
         role="log"
         aria-live="polite"
-        className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4"
+        className="flex-1 space-y-3 overflow-y-auto bg-[#f8fafe] px-3 py-4"
       >
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex max-w-[85%] flex-col gap-1 ${
-              message.from === "user" ? "self-end items-end" : "self-start"
-            }`}
-          >
-            {message.from === "user" && (
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#eaf0f8] text-[10px] font-bold text-[#5c5e66]">
-                {message.from === "user" ? "You" : "PS"}
-              </span>
-            )}
-            <p
-              className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
-                message.from === "user"
-                  ? "bg-[#5865F2] text-white"
-                  : "border border-[#dce3ee] bg-[#eaf0f8] text-[#2e3338]"
-              }`}
+        {loading ? (
+          <p className="text-center text-sm text-[#80848e]">Loading chat…</p>
+        ) : (
+          messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
             >
-              {message.text}
-            </p>
-          </div>
-        ))}
+              <div
+                className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-card ${
+                  message.role === "user"
+                    ? "bg-[#5865F2] text-white"
+                    : "border border-[#dce3ee] bg-white text-[#2e3338]"
+                }`}
+              >
+                {message.text}
+              </div>
+            </div>
+          ))
+        )}
 
-        {typing && (
-          <p className="self-start rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card px-3.5 py-2.5 text-sm text-[#5c5e66]">
-            Typing…
-          </p>
+        {sending && (
+          <div className="flex justify-start">
+            <div className="rounded-2xl border border-[#dce3ee] bg-white px-3.5 py-2.5 text-sm text-[#80848e] shadow-card">
+              Typing…
+            </div>
+          </div>
         )}
       </div>
 
-      <form onSubmit={sendMessage} className="flex items-center gap-2 border-t border-[#dce3ee] p-3">
-        <label htmlFor="chat-message" className="sr-only">
-          Message
-        </label>
-        <input
-          id="chat-message"
-          ref={inputRef}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder="Type your message…"
-          className="h-10 min-w-0 flex-1 rounded-lg border border-[#d2dbe8] bg-[#f0f4fa] px-3 text-sm text-[#2e3338] outline-none transition-colors placeholder:text-[#80848e] focus:border-[#5865F2]"
-        />
-        <button
-          type="submit"
-          aria-label="Send message"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#5865F2] text-white transition-colors hover:bg-[#4752C4] disabled:opacity-50"
-          disabled={!draft.trim()}
+      <div className="shrink-0 border-t border-[#dce3ee] bg-white px-3 pb-3 pt-2">
+        <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              onClick={() => send(suggestion)}
+              disabled={sending}
+              className="shrink-0 rounded-full border border-[#d2dbe8] bg-[#f0f4fa] px-2.5 py-1 text-[11px] font-semibold text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 hover:text-[#4752C4] disabled:opacity-50"
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
+
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void send(draft);
+          }}
+          className="flex gap-2"
         >
-          <SendIcon className="h-4 w-4" />
-        </button>
-      </form>
+          <input
+            ref={inputRef}
+            id="chat-message"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="Ask us anything…"
+            className="h-10 min-w-0 flex-1 rounded-xl border border-[#d2dbe8] bg-[#f0f4fa] px-3 text-sm outline-none transition-colors focus:border-[#5865F2]"
+          />
+          <button
+            type="submit"
+            disabled={sending || !draft.trim()}
+            aria-label="Send message"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#5865F2] text-white transition-colors hover:bg-[#4752C4] disabled:opacity-50"
+          >
+            <SendIcon className="h-4 w-4" />
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

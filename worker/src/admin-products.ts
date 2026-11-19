@@ -143,7 +143,7 @@ export function validateProductInput(
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const image = typeof body.image === "string" ? body.image.trim() : "";
   const images = Array.isArray(body.images)
-    ? body.images.filter((item): item is string => typeof item === "string").slice(0, 3)
+    ? body.images.filter((item): item is string => typeof item === "string").slice(0, 20)
     : [];
   const brand = typeof body.brand === "string" ? body.brand.trim() : "";
   const stock = typeof body.stock === "string" ? body.stock.trim() : "";

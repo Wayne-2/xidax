@@ -32,6 +32,13 @@ import { parseFirebaseConfig } from "./auth";
 import { adminGuard } from "./admin-auth";
 import { findUserByToken } from "./auth";
 import {
+  answerQuestion,
+  appendMessage,
+  clearMessages,
+  greetingMessage,
+  listMessages,
+} from "./chat";
+import {
   addToCart,
   clearCart,
   getCart,
@@ -1090,6 +1097,56 @@ const worker = {
             );
           }
         }
+      }
+
+      /* ---------------- Support chat ---------------- */
+
+      const chatSession = request.headers.get("x-chat-session")?.trim() ?? "";
+
+      if (path.startsWith("/api/chat")) {
+        if (!chatSession || chatSession.length > 200) {
+          return jsonWithCors(
+            { error: "Invalid chat session." },
+            request,
+            env,
+            400
+          );
+        }
+
+        if (request.method === "GET" && path === "/api/chat") {
+          let messages = await listMessages(env, chatSession);
+
+          if (messages.length === 0) {
+            const greeting = greetingMessage();
+            await appendMessage(env, chatSession, "assistant", greeting);
+            messages = await listMessages(env, chatSession);
+          }
+
+          return jsonWithCors({ messages }, request, env);
+        }
+
+        if (request.method === "POST" && path === "/api/chat") {
+          const body = await readJson(request);
+          const question = typeof body?.message === "string" ? body.message.trim() : "";
+
+          if (!question) {
+            return jsonWithCors({ error: "Write a message first." }, request, env, 400);
+          }
+
+          await appendMessage(env, chatSession, "user", question);
+
+          const result = answerQuestion(question);
+          await appendMessage(env, chatSession, "assistant", result.answer);
+
+          return jsonWithCors(result, request, env);
+        }
+
+        if (request.method === "DELETE" && path === "/api/chat") {
+          await clearMessages(env, chatSession);
+          return jsonWithCors({ ok: true }, request, env);
+        }
+
+        return jsonWithCors({ error: "Not found." }, request, env, 404);
       }
 
       /* ---------------- Cart API ---------------- */

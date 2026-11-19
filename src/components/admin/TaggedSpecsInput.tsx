@@ -39,11 +39,11 @@ export default function TaggedSpecsInput({
         <span className="text-[11px] text-[#80848e]">{specs.length} set</span>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3 space-y-2">
         <select
           value={tag}
           onChange={(e) => setTag(e.target.value)}
-          className="h-10 min-w-[160px] flex-1 rounded-xl border border-[#d2dbe8] bg-white px-3 text-sm outline-none focus:border-[#5865F2]"
+          className="h-10 w-full rounded-xl border border-[#d2dbe8] bg-white px-3 text-sm outline-none focus:border-[#5865F2]"
         >
           <option value="">Select a spec tag…</option>
           {available.map((item) => (
@@ -52,29 +52,31 @@ export default function TaggedSpecsInput({
             </option>
           ))}
         </select>
-        <input
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              add();
+        <div className="flex gap-2">
+          <input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                add();
+              }
+            }}
+            placeholder={
+              tags.find((item) => item.label === tag)?.placeholder ||
+              "Enter the specific detail"
             }
-          }}
-          placeholder={
-            tags.find((item) => item.label === tag)?.placeholder ||
-            "Enter the specific detail"
-          }
-          className="h-10 min-w-[200px] flex-[2] rounded-xl border border-[#d2dbe8] bg-white px-3 text-sm outline-none focus:border-[#5865F2]"
-        />
-        <button
-          type="button"
-          onClick={add}
-          disabled={!tag || !value.trim()}
-          className="inline-flex h-10 items-center rounded-xl bg-[#5865F2] px-4 text-sm font-semibold text-white hover:bg-[#4752C4] disabled:opacity-50"
-        >
-          Add
-        </button>
+            className="h-10 min-w-0 flex-1 rounded-xl border border-[#d2dbe8] bg-white px-3 text-sm outline-none focus:border-[#5865F2]"
+          />
+          <button
+            type="button"
+            onClick={add}
+            disabled={!tag || !value.trim()}
+            className="inline-flex h-10 shrink-0 items-center rounded-xl bg-[#5865F2] px-4 text-sm font-semibold text-white hover:bg-[#4752C4] disabled:opacity-50"
+          >
+            Add
+          </button>
+        </div>
       </div>
 
       {specs.length > 0 && (

@@ -108,7 +108,7 @@ export default function AdminProducts() {
   }
 
   async function handleFiles(event: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []).slice(0, 3);
+    const files = Array.from(event.target.files ?? []).slice(0, 20);
 
     if (files.length === 0) return;
 
@@ -131,7 +131,7 @@ export default function AdminProducts() {
       }));
 
 
-      toast.success(`${uploaded.length} image${uploaded.length > 1 ? "s" : ""} uploaded (max 3).`);
+      toast.success(`${uploaded.length} image${uploaded.length > 1 ? "s" : ""} uploaded (max 20).`);
     } catch (error) {
       toast.error((error as { error?: string }).error ?? "Could not upload images.");
     } finally {
@@ -298,7 +298,7 @@ export default function AdminProducts() {
           </div>
 
 
-          <Field label="Product images (up to 3 — first is the large one)">
+          <Field label="Product images (up to 20 — first is the large one)">
             <div className="space-y-3">
               <input
                 type="file"
@@ -309,7 +309,7 @@ export default function AdminProducts() {
               />
               {uploading && <p className="text-xs text-[#5865F2]">Uploading…</p>}
               <p className="text-xs text-[#80848e]">
-                {form.images.length}/3 images · select up to three at once
+                {form.images.length}/20 images · select up to twenty at once
               </p>
 
               {form.images.map((url, index) => (

@@ -4,8 +4,8 @@ import { useState } from "react";
 import ImageLightbox from "@/components/ImageLightbox";
 
 /**
- * Product gallery for detail pages. The first image is the hero; remaining
- * images tile beside it. Every image opens the full-screen viewer.
+ * Product gallery for detail pages. The first image is the hero; the rest
+ * tile in a responsive grid. Every image opens the full-screen viewer.
  */
 export default function ProductGallery({
   images,
@@ -33,12 +33,12 @@ export default function ProductGallery({
 
   return (
     <>
-      <div className="grid gap-1.5 md:grid-cols-[1.6fr_1fr]">
+      <div className="space-y-1.5">
         <button
           type="button"
           onClick={() => setOpenIndex(0)}
           aria-label={`Preview ${name} — image 1`}
-          className="relative aspect-[4/3] overflow-hidden rounded-l-2xl bg-[#dce3ee] md:rounded-l-2xl md:rounded-r-none"
+          className="relative block aspect-[16/10] w-full overflow-hidden rounded-t-2xl bg-[#dce3ee]"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -49,14 +49,14 @@ export default function ProductGallery({
         </button>
 
         {rest.length > 0 && (
-          <div className="grid grid-cols-2 gap-1.5 md:grid-cols-1 md:grid-rows-2">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4">
             {rest.map((src, index) => (
               <button
                 key={`${src}-${index}`}
                 type="button"
                 onClick={() => setOpenIndex(index + 1)}
                 aria-label={`Preview ${name} — image ${index + 2}`}
-                className="relative aspect-[4/3] overflow-hidden bg-[#dce3ee] md:aspect-auto"
+                className="relative aspect-[4/3] overflow-hidden bg-[#dce3ee] last:rounded-b-2xl"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -70,6 +70,10 @@ export default function ProductGallery({
           </div>
         )}
       </div>
+
+      <p className="mt-2 text-center text-xs text-[#80848e]">
+        {images.length} image{images.length === 1 ? "" : "s"} · tap any image for a full preview
+      </p>
 
       {openIndex !== null && (
         <ImageLightbox

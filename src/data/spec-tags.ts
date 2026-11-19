@@ -13,6 +13,7 @@ export const SPEC_TAGS: Record<ProductKind, SpecTag[]> = {
   prebuild: [
     { label: "Processor", placeholder: "Intel Core i7-14700K" },
     { label: "Graphics card", placeholder: "GeForce RTX 4070 12GB" },
+    { label: "FPS", placeholder: "144 FPS on Ultra settings" },
     { label: "Memory", placeholder: "32GB DDR5 6000MHz" },
     { label: "Storage", placeholder: "1TB NVMe SSD" },
     { label: "Motherboard", placeholder: "Z790 ATX" },
@@ -25,6 +26,7 @@ export const SPEC_TAGS: Record<ProductKind, SpecTag[]> = {
   laptop: [
     { label: "Processor", placeholder: "Intel Core i9-14900HX" },
     { label: "Graphics card", placeholder: "GeForce RTX 4080 Laptop" },
+    { label: "FPS", placeholder: "120 FPS on High settings" },
     { label: "Memory", placeholder: "32GB DDR5 5600MHz" },
     { label: "Storage", placeholder: "2TB NVMe SSD" },
     { label: "Display", placeholder: '16" QHD+ 240Hz' },

@@ -6,6 +6,7 @@ import ProductImageGrid from "@/components/ProductImageGrid";
 import { CartIcon } from "@/components/ConsoleIcons";
 import { CheckIcon } from "@/components/BuildIcons";
 import ExpandableContent from "@/components/ExpandableContent";
+import SpecList from "@/components/SpecList";
 import { useRegion } from "@/components/RegionProvider";
 import { type Laptop, type LaptopCategory } from "@/data/laptops";
 
@@ -103,33 +104,13 @@ export default function LaptopCard({
           {laptop.description}
         </p>
 
-        <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-          {laptop.highlights.map((highlight) => (
-            <li
-              key={highlight}
-              className="flex items-start gap-2 text-xs leading-relaxed text-[#5c5e66]"
-            >
-              <span
-                aria-hidden="true"
-                className="mt-2 h-px w-3 shrink-0 bg-[#5865F2]/50"
-              />
-              <span>{highlight}</span>
-            </li>
-          ))}
-        </ul>
+        <SpecList items={laptop.highlights} columns className="mt-4" />
 
-        <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] shadow-card p-4">
-          {laptop.specs.map((spec) => (
-            <div key={spec.label} className="min-w-0">
-              <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
-                {spec.label}
-              </dt>
-              <dd className="mt-0.5 truncate text-xs font-semibold text-[#2e3338]">
-                {spec.value}
-              </dd>
-            </div>
-          ))}
-        </dl>
+        <SpecList
+          items={laptop.specs.map((spec) => `${spec.label}: ${spec.value}`)}
+          columns
+          className="mt-5 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] p-4"
+        />
 
         </div>
       </ExpandableContent>

@@ -11,7 +11,6 @@ import { useRegion } from "@/components/RegionProvider";
 import ProductRegistration from "@/components/ProductRegistration";
 import {
   languages,
-  savedItems,
   type AccountOrderStatus,
 } from "@/data/account";
 import { currencyLabel } from "@/lib/regions";
@@ -309,7 +308,6 @@ export default function ProfileView() {
           <div className="grid grid-cols-3 gap-3 sm:gap-6">
             {[
               { value: orders.length, label: "Orders" },
-              { value: savedItems.length, label: "Saved" },
               { value: "24/7", label: "Support" },
             ].map((stat) => (
               <div key={stat.label} className="text-center">
@@ -403,35 +401,6 @@ export default function ProfileView() {
         </section>
 
         <div className="min-w-0 space-y-6">
-          <section className="min-w-0 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-5 sm:p-6">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
-              Saved for later
-            </h2>
-
-            <ul className="mt-4 space-y-3">
-              {savedItems.map((item) => (
-                <li key={item.id}>
-                  <Link
-                    href={item.href}
-                    className="group flex items-center justify-between gap-3 rounded-xl border border-[#dce3ee] bg-[#f8fafe] shadow-card p-3 transition-colors hover:border-[#5865F2]/50 hover:shadow-card-hover"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold text-[#2e3338]">
-                        {item.name}
-                      </span>
-                      <span className="block truncate text-xs text-[#5c5e66]">
-                        {item.kind} · {item.detail}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-sm font-bold text-[#5865F2]">
-                      {formatMoney(item.price)}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-
           <section className="min-w-0 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-5 sm:p-6">
             <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
               Account details

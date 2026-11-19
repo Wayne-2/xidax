@@ -487,3 +487,54 @@ export async function clearCartRemote(token?: string | null) {
     { method: "DELETE", token, headersInit: cartHeaders(token) }
   );
 }
+
+/* ---------------- Support chat ---------------- */
+
+export type ChatMessagePayload = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  createdAt: string;
+};
+
+function chatHeaders(): Record<string, string> {
+  return { "x-chat-session": getChatSessionId() };
+}
+
+export function getChatSessionId(): string {
+  if (typeof window === "undefined") return "";
+
+  const key = "genericpcs.chat.session";
+  let id = window.localStorage.getItem(key);
+
+  if (!id) {
+    id = crypto.randomUUID();
+    window.localStorage.setItem(key, id);
+  }
+
+  return id;
+}
+
+export async function fetchChatHistory() {
+  return accountRequest<{ messages: ChatMessagePayload[] }>("/api/chat", {
+    headersInit: chatHeaders(),
+  });
+}
+
+export async function sendChatMessage(message: string) {
+  return accountRequest<{
+    answer: string;
+    suggestions: string[];
+  }>("/api/chat", {
+    method: "POST",
+    body: { message },
+    headersInit: chatHeaders(),
+  });
+}
+
+export async function clearChatHistory() {
+  return accountRequest<{ ok: boolean }>("/api/chat", {
+    method: "DELETE",
+    headersInit: chatHeaders(),
+  });
+}
