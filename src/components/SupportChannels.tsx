@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import LiveChatPanel from "@/components/LiveChatPanel";
+import { useChat } from "@/components/ChatProvider";
 import {
   supportChannels,
   supportEmail,
@@ -9,7 +8,7 @@ import {
 } from "@/data/support";
 
 export default function SupportChannels() {
-  const [chatOpen, setChatOpen] = useState(false);
+  const { openChat } = useChat();
 
   return (
     <>
@@ -69,7 +68,7 @@ export default function SupportChannels() {
               {channel.id === "chat" && (
                 <button
                   type="button"
-                  onClick={() => setChatOpen(true)}
+                  onClick={openChat}
                   className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#5865F2] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
                 >
                   {channel.action}
@@ -79,8 +78,6 @@ export default function SupportChannels() {
           </article>
         ))}
       </div>
-
-      <LiveChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
     </>
   );
 }

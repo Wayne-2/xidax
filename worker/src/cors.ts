@@ -46,7 +46,11 @@ export function corsHeaders(
 
   const headers: Record<string, string> = {
     "access-control-allow-methods": "GET,POST,PATCH,DELETE,OPTIONS",
-    "access-control-allow-headers": "content-type, authorization",
+    // Custom headers used by the browser: x-cart-id (cart) and
+    // x-chat-session (support chat). Missing these makes the CORS preflight
+    // fail, so those requests are blocked before they reach the Worker.
+    "access-control-allow-headers":
+      "content-type, authorization, x-cart-id, x-chat-session",
     "access-control-max-age": "86400",
     vary: "Origin",
   };

@@ -20,6 +20,7 @@ import { fetchMyPromo } from "@/lib/api";
 import { useAccount } from "@/components/AccountProvider";
 
 const PROMO_KEY = "genericpcs.promo";
+const CACHE_KEY = "genericpcs.cart.cache";
 
 export type AppliedPromo = { code: string; rate: number };
 
@@ -52,12 +53,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     let cancelled = false;
 
+    // Render the cached cart immediately so a refresh never looks empty.
+    const cacheTimer = window.setTimeout(() => {
+      try {
+        const cached = window.localStorage.getItem(CACHE_KEY);
+        if (cached && !cancelled) setItems(JSON.parse(cached) as CartItem[]);
+      } catch {
+        // Ignore malformed cache.
+      }
+    }, 0);
+
     fetchCart(token)
       .then((result) => {
-        if (!cancelled) setItems(result.items ?? []);
+        if (!cancelled) {
+          setItems(result.items ?? []);
+          window.localStorage.setItem(CACHE_KEY, JSON.stringify(result.items ?? []));
+        }
       })
       .catch(() => {
-        if (!cancelled) setItems([]);
+        // Keep the cached items on failure instead of clearing the cart.
       })
       .finally(() => {
         if (!cancelled) setReady(true);
@@ -65,6 +79,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(cacheTimer);
     };
   }, [accountReady, token]);
 
@@ -126,12 +141,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     window.localStorage.removeItem(PROMO_KEY);
   }, []);
 
-  const sync = useCallback(
-    (next: CartItem[]) => {
-      setItems(next);
-    },
-    []
-  );
+  const sync = useCallback((next: CartItem[]) => {
+    setItems(next);
+    window.localStorage.setItem(CACHE_KEY, JSON.stringify(next));
+  }, []);
 
   const add = useCallback(
     (item: CartItem) => {
@@ -186,7 +199,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const clear = useCallback(() => {
     clearCartRemote(token)
       .then((result) => sync(result.items))
-      .catch(() => setItems([]));
+      .catch(() => {
+        setItems([]);
+        window.localStorage.removeItem(CACHE_KEY);
+      });
     clearPromo();
   }, [token, sync, clearPromo]);
 

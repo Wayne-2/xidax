@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "@fontsource-variable/oxanium";
 import { AccountProvider } from "@/components/AccountProvider";
 import { CartProvider } from "@/components/CartProvider";
+import { ChatProvider } from "@/components/ChatProvider";
+import ChatLauncher from "@/components/ChatLauncher";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import OfflineBanner from "@/components/OfflineBanner";
 import { RegionProvider } from "@/components/RegionProvider";
@@ -36,8 +38,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <AccountProvider>
               <RegionProvider>
                 <CartProvider>
-                  <OfflineBanner />
-                  {children}
+                  <ChatProvider>
+                    <OfflineBanner />
+                    {children}
+                    <ChatLauncher />
+                  </ChatProvider>
                 </CartProvider>
               </RegionProvider>
             </AccountProvider>
