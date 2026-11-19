@@ -11,22 +11,12 @@ import RegionMenu from "@/components/RegionMenu";
 import MobileNav from "@/components/MobileNav";
 import NavLinks from "@/components/NavLinks";
 
-function UserIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-5 w-5"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 20c0-3.5 3.6-6 8-6s8 2.5 8 6" />
-    </svg>
-  );
+function truncateEmail(email: string, max = 18) {
+  if (email.length <= max) return email;
+  const [local, domain] = email.split("@");
+  if (!domain) return `${email.slice(0, max - 1)}…`;
+  const keepLocal = Math.min(local.length, 6);
+  return `${local.slice(0, keepLocal)}…@${domain}`;
 }
 
 export default function Header() {
@@ -34,7 +24,6 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { user } = useAccount();
   const { count: cartCount, ready: cartReady } = useCart();
-  const accountHref = user ? "/profile" : "/login";
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[#dce3ee] bg-[#f0f4fa]/85 text-[#2e3338] backdrop-blur">
@@ -72,13 +61,35 @@ export default function Header() {
             }}
           />
           <RegionMenu className="hidden sm:block" />
-          <Link
-            href={accountHref}
-            aria-label={user ? "Your profile" : "Sign in"}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-[#5c5e66] transition-colors hover:bg-black/5 hover:text-[#2e3338]"
-          >
-            <UserIcon />
-          </Link>
+
+          {user ? (
+            <Link
+              href="/profile"
+              title={user.email}
+              className="hidden max-w-[160px] items-center gap-2 rounded-full border border-[#d2dbe8] bg-white px-3 py-1.5 text-xs font-semibold text-[#2e3338] transition-colors hover:border-[#5865F2]/50 hover:text-[#5865F2] sm:flex"
+            >
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#5865F2]/10 text-[10px] font-bold text-[#5865F2]">
+                {user.email.slice(0, 1).toUpperCase()}
+              </span>
+              <span className="truncate">{truncateEmail(user.email)}</span>
+            </Link>
+          ) : (
+            <div className="hidden items-center gap-2 sm:flex">
+              <Link
+                href="/login"
+                className="inline-flex h-9 items-center rounded-full px-3.5 text-sm font-semibold text-[#5c5e66] transition-colors hover:bg-black/5 hover:text-[#2e3338]"
+              >
+                Log in
+              </Link>
+              <Link
+                href="/signup"
+                className="inline-flex h-9 items-center rounded-full bg-[#5865F2] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
+              >
+                Sign up
+              </Link>
+            </div>
+          )}
+
           <Link
             href="/cart"
             aria-label={cartCount > 0 ? `Cart, ${cartCount} items` : "Cart"}
@@ -93,7 +104,6 @@ export default function Header() {
           </Link>
           <MobileNav
             open={menuOpen}
-            accountHref={accountHref}
             onOpenChange={(next) => {
               setMenuOpen(next);
 

@@ -6,13 +6,13 @@ import { useEffect, useRef } from "react";
 import { CartIcon } from "@/components/ConsoleIcons";
 import { UserIcon } from "@/components/SupportIcons";
 import { useCart } from "@/components/CartProvider";
+import { useAccount } from "@/components/AccountProvider";
 import RegionMenu from "@/components/RegionMenu";
 import { navItems } from "@/data/navigation";
 
 type MobileNavProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  accountHref: string;
 };
 
 function MenuIcon({ className = "h-5 w-5" }: { className?: string }) {
@@ -35,10 +35,15 @@ function MenuIcon({ className = "h-5 w-5" }: { className?: string }) {
 export default function MobileNav({
   open,
   onOpenChange,
-  accountHref,
 }: MobileNavProps) {
   const pathname = usePathname() ?? "";
   const { count: cartCount } = useCart();
+  const { user } = useAccount();
+  const emailLabel = user
+    ? user.email.length > 22
+      ? `${user.email.slice(0, 12)}…${user.email.slice(-6)}`
+      : user.email
+    : "";
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -127,18 +132,47 @@ export default function MobileNav({
             </ul>
 
             <ul className="divide-y divide-[#dce3ee] border-t border-[#d2dbe8]">
-              <li>
-                <Link
-                  href={accountHref}
-                  onClick={() => onOpenChange(false)}
-                  className="flex items-center gap-3 py-3.5 pl-4 text-[15px] font-semibold text-[#2e3338] transition-colors hover:text-[#5865F2]"
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#eaf0f8] text-[#5c5e66]">
-                    <UserIcon className="h-4 w-4" />
-                  </span>
-                  Account
-                </Link>
-              </li>
+              {user ? (
+                <li>
+                  <Link
+                    href="/profile"
+                    onClick={() => onOpenChange(false)}
+                    className="flex items-center gap-3 py-3.5 pl-4 text-[15px] font-semibold text-[#2e3338] transition-colors hover:text-[#5865F2]"
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#5865F2]/10 text-[#5865F2]">
+                      <UserIcon className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0 truncate">{emailLabel}</span>
+                  </Link>
+                </li>
+              ) : (
+                <>
+                  <li>
+                    <Link
+                      href="/login"
+                      onClick={() => onOpenChange(false)}
+                      className="flex items-center gap-3 py-3.5 pl-4 text-[15px] font-semibold text-[#2e3338] transition-colors hover:text-[#5865F2]"
+                    >
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#eaf0f8] text-[#5c5e66]">
+                        <UserIcon className="h-4 w-4" />
+                      </span>
+                      Log in
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/signup"
+                      onClick={() => onOpenChange(false)}
+                      className="flex items-center gap-3 py-3.5 pl-4 text-[15px] font-semibold text-[#5865F2] transition-colors hover:text-[#4752C4]"
+                    >
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#5865F2]/10 text-[#5865F2]">
+                        <UserIcon className="h-4 w-4" />
+                      </span>
+                      Sign up
+                    </Link>
+                  </li>
+                </>
+              )}
               <li>
                 <Link
                   href="/cart"
