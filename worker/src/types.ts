@@ -112,6 +112,8 @@ export type Env = {
   MEDIA: R2Bucket;
   /** KV namespace (also holds rate-limit keys with a ratelimit: prefix). */
   SESSIONS: KVNamespace;
+  /** Cloudflare Workers AI binding for the support chatbot. */
+  AI: Ai;
   /** JSON blob with the Firebase project config plus a service account key. */
   FIREBASE_CONFIG?: string;
   /** Secret pepper used when hashing email OTPs. */

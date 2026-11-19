@@ -37,5 +37,9 @@ id = "f6cc58992677400581984356fa837ba7"
 binding = "MEDIA"
 bucket_name = "genericpcs-media"
 
+# Workers AI for the support chatbot (FAQ answers).
+[ai]
+binding = "AI"
+
 [triggers]
 crons = ["0 * * * *"]

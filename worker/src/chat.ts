@@ -16,6 +16,7 @@ type Intent = {
 
 const SUPPORT_EMAIL = "hello@genericpcs.com";
 const SUPPORT_PHONE = "+1-202-555-0147";
+const AI_MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8";
 
 const INTENTS: Intent[] = [
   {
@@ -80,6 +81,8 @@ const INTENTS: Intent[] = [
   },
 ];
 
+const DEFAULT_SUGGESTIONS = ["Shipping options", "Track my order", "Talk to a human"];
+
 const FALLBACKS: { answer: string; suggestions: string[] }[] = [
   {
     answer: "I'm not completely sure about that one. I can help with orders, shipping, returns, warranty, payments, verification and product specs — or I can connect you with the support team.",
@@ -90,6 +93,14 @@ const FALLBACKS: { answer: string; suggestions: string[] }[] = [
     suggestions: ["Talk to a human", "Payment methods", "Return policy"],
   },
 ];
+
+/** The FAQ knowledge base, formatted as grounded context for the AI. */
+const FAQ_CONTEXT = `You are the support assistant for Generic PCs, a retailer of custom gaming PCs, laptops and monitors. Answer the customer's question using ONLY the facts below. Be friendly, concise (2-4 sentences), and never invent information not in this FAQ. If the question is outside these facts, say you don't know and suggest contacting the support team at ${SUPPORT_EMAIL}.
+
+FAQ:
+${INTENTS.map((intent, index) => `${index + 1}. ${intent.name.replace(/_/g, " ")}: ${intent.answer}`).join("\n")}
+
+Contact: ${SUPPORT_EMAIL} | ${SUPPORT_PHONE}`;
 
 function matchIntent(question: string): Intent | null {
   const text = question.toLowerCase().trim();
@@ -113,19 +124,78 @@ function matchIntent(question: string): Intent | null {
   return bestScore > 0 ? best : null;
 }
 
-/** Produces an answer plus follow-up suggestions for a customer question. */
-export function answerQuestion(question: string): {
-  answer: string;
-  suggestions: string[];
-} {
+function fallbackAnswer(question: string): { answer: string; suggestions: string[] } {
   const intent = matchIntent(question);
 
   if (intent) {
     return { answer: intent.answer, suggestions: intent.suggestions };
   }
 
-  const fallback = FALLBACKS[question.length % FALLBACKS.length];
-  return fallback;
+  return FALLBACKS[question.length % FALLBACKS.length];
+}
+
+/**
+ * Answers a customer question using Workers AI grounded in the FAQ, with the
+ * intent-based knowledge base as a reliable fallback if AI is unavailable.
+ */
+export async function answerQuestion(
+  env: Env,
+  question: string,
+  history: ChatMessage[] = []
+): Promise<{ answer: string; suggestions: string[] }> {
+  const fallback = fallbackAnswer(question);
+
+  if (!env.AI) return fallback;
+
+  try {
+    const recent = history.slice(-6).map((message) => ({
+      role: message.role === "user" ? "user" : "assistant",
+      content: message.text,
+    }));
+
+    const response = await env.AI.run(AI_MODEL, {
+      messages: [
+        { role: "system", content: FAQ_CONTEXT },
+        ...recent,
+        { role: "user", content: question },
+      ],
+      max_tokens: 220,
+      temperature: 0.3,
+    });
+
+    const answer = extractAiText(response);
+
+    if (!answer) return fallback;
+
+    return { answer, suggestions: matchIntent(question)?.suggestions ?? DEFAULT_SUGGESTIONS };
+  } catch (error) {
+    console.error("Workers AI chat failed:", error);
+    return fallback;
+  }
+}
+
+/** Extracts the assistant text from the different Workers AI response shapes. */
+function extractAiText(response: unknown): string {
+  if (!response || typeof response !== "object") return "";
+
+  const data = response as Record<string, unknown>;
+
+  if (typeof data.response === "string") return data.response.trim();
+
+  const result = data.result;
+  if (result && typeof result === "object") {
+    const r = result as Record<string, unknown>;
+    if (typeof r.response === "string") return r.response.trim();
+    if (Array.isArray(r.content)) {
+      const text = (r.content as { text?: string }[])
+        .map((part) => part.text ?? "")
+        .join("")
+        .trim();
+      if (text) return text;
+    }
+  }
+
+  return "";
 }
 
 export function greetingMessage(): string {

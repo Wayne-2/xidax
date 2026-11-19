@@ -1135,7 +1135,9 @@ const worker = {
 
           await appendMessage(env, chatSession, "user", question);
 
-          const result = answerQuestion(question);
+          // Load recent history so the AI can follow the conversation.
+          const history = await listMessages(env, chatSession);
+          const result = await answerQuestion(env, question, history);
           await appendMessage(env, chatSession, "assistant", result.answer);
 
           return jsonWithCors(result, request, env);

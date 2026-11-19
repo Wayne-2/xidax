@@ -205,3 +205,16 @@ migrated into the products table.
 - `/reset-password` sends a Firebase reset link.
 - Profile → Delete account calls `POST /api/auth/delete` with a Firebase ID
   token and removes all D1 rows plus the Firebase user.
+
+## 8. Support chat (Workers AI)
+
+The support chat is powered by **Cloudflare Workers AI** (binding `AI` in
+`worker/wrangler.toml`) using `@cf/meta/llama-3.1-8b-instruct-fp8`.
+
+- The site FAQ (shipping, returns, warranty, payments, verification, products,
+  account, contact) is injected as grounded context so answers stay accurate.
+- Recent conversation history (last 6 messages) is included for continuity.
+- If the AI call fails or times out, the Worker falls back to the intent-based
+  FAQ knowledge base, so the chat never breaks.
+- Conversations are stored in the D1 `chat_messages` table per session.
+- The floating chat launcher is available site-wide; it hides on `/checkout`.
