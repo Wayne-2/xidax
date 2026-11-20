@@ -241,11 +241,15 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
         {product.specs.length > 0 && (
           <section className="mt-12 rounded-2xl border border-[#dce3ee] bg-white p-6 shadow-card sm:p-8">
             <h2 className="text-xl font-bold text-[#2e3338]">Specifications</h2>
-            <dl className="mt-5 grid gap-x-8 gap-y-3 sm:grid-cols-2">
+            <dl className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2">
               {product.specs.map((spec, index) => (
-                <div key={`${spec.label}-${index}`} className="flex flex-wrap justify-between gap-2 border-b border-[#eef1f6] pb-2">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-[#80848e]">{spec.label}</dt>
-                  <dd className="text-sm font-semibold text-[#2e3338]">{spec.value}</dd>
+                <div key={`${spec.label}-${index}`} className="border-b border-[#eef1f6] pb-3 text-right">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#80848e]">
+                    {spec.label}
+                  </dt>
+                  <dd className="mt-1 text-sm font-semibold text-[#2e3338]">
+                    {spec.value}
+                  </dd>
                 </div>
               ))}
             </dl>
