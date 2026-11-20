@@ -243,7 +243,7 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
             <h2 className="text-xl font-bold text-[#2e3338]">Specifications</h2>
             <dl className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2">
               {product.specs.map((spec, index) => (
-                <div key={`${spec.label}-${index}`} className="border-b border-[#eef1f6] pb-3 text-right">
+                <div key={`${spec.label}-${index}`} className="border-b border-[#eef1f6] pb-3 text-left">
                   <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#80848e]">
                     {spec.label}
                   </dt>

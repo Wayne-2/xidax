@@ -2,7 +2,6 @@ import Link from "next/link";
 import { SlidersIcon } from "@/components/ConsoleIcons";
 import ExpandableContent from "@/components/ExpandableContent";
 import SpecList from "@/components/SpecList";
-import ProductImageGrid from "@/components/ProductImageGrid";
 import { useCart } from "@/components/CartProvider";
 import { useRegion } from "@/components/RegionProvider";
 import { cartItemFromPrebuild } from "@/data/cart";
@@ -29,10 +28,12 @@ export default function PrebuildCard({ product }: { product: Prebuild }) {
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card transition-colors hover:border-[#5865F2]/60 hover:shadow-card-hover">
       <div className="relative aspect-[4/3] overflow-hidden bg-[#dce3ee]">
-        <ProductImageGrid
-          images={product.images?.length ? product.images : [product.image]}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={product.images?.[0] || product.image}
           alt={product.name}
-          className="transition-transform duration-500 ease-out group-hover:scale-105"
+          className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+          loading="lazy"
         />
 
         {product.flagship && (
