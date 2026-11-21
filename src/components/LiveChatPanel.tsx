@@ -122,8 +122,9 @@ export default function LiveChatPanel({
       try {
         const result = await sendChatMessage(question);
 
+        // Keep the optimistic user bubble — only add the assistant reply.
         setMessages((current) => [
-          ...current.filter((message) => !message.id.startsWith("temp-")),
+          ...current,
           {
             id: `reply-${Date.now()}`,
             role: "assistant",
