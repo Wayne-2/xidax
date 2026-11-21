@@ -131,57 +131,71 @@ export default function GiveawayView() {
             </span>
           </nav>
 
-          <div className="mt-10 max-w-2xl sm:mt-14">
-            <div className="flex items-center gap-3">
-              <span className="h-px w-10 bg-gradient-to-r from-[#5865F2] to-transparent" />
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#5865F2]">
-                Free giveaway
+          <div className="mt-10 grid items-center gap-8 sm:mt-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-12">
+            <div>
+              <div className="flex items-center gap-3">
+                <span className="h-px w-10 bg-gradient-to-r from-[#5865F2] to-transparent" />
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#5865F2]">
+                  Free giveaway
+                </p>
+              </div>
+
+              <h1 className="mt-5 text-5xl font-extrabold tracking-tight text-balance text-[#2e3338] sm:text-6xl lg:text-7xl">
+                WIN A FREE PC
+              </h1>
+
+              <p className="mt-6 max-w-xl text-base leading-relaxed text-[#5c5e66] sm:text-lg">
+                One lucky winner takes home a custom-built gaming PC — built,
+                tested and shipped on us. Enter below for your chance. No
+                purchase required, one entry per person.
               </p>
-            </div>
 
-            <h1 className="mt-5 text-5xl font-extrabold tracking-tight text-balance text-[#2e3338] sm:text-6xl lg:text-7xl">
-              WIN A FREE PC
-            </h1>
-
-            <p className="mt-6 max-w-xl text-base leading-relaxed text-[#5c5e66] sm:text-lg">
-              One lucky winner takes home a custom-built gaming PC — built,
-              tested and shipped on us. Enter below for your chance. No
-              purchase required, one entry per person.
-            </p>
-          </div>
-
-          {/* Countdown */}
-          <div className="mt-10 max-w-2xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#80848e]">
-              Entries closing
-            </p>
-            <div className="mt-3 grid grid-cols-4 gap-2 sm:gap-3">
-              {[
-                { label: "Days", value: countdown.days },
-                { label: "Hours", value: countdown.hours },
-                { label: "Mins", value: countdown.minutes },
-                { label: "Secs", value: countdown.seconds },
-              ].map((unit) => (
-                <div
-                  key={unit.label}
-                  className="rounded-2xl border border-[#dce3ee] bg-white px-2 py-4 text-center shadow-card sm:py-5"
-                >
-                  <p className="text-2xl font-extrabold tabular-nums text-[#2e3338] sm:text-4xl">
-                    {String(unit.value).padStart(2, "0")}
-                  </p>
-                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
-                    {unit.label}
-                  </p>
+              {/* Countdown */}
+              <div className="mt-10">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#80848e]">
+                  Entries closing
+                </p>
+                <div className="mt-3 grid grid-cols-4 gap-2 sm:gap-3">
+                  {[
+                    { label: "Days", value: countdown.days },
+                    { label: "Hours", value: countdown.hours },
+                    { label: "Mins", value: countdown.minutes },
+                    { label: "Secs", value: countdown.seconds },
+                  ].map((unit) => (
+                    <div
+                      key={unit.label}
+                      className="rounded-2xl border border-[#dce3ee] bg-white px-2 py-4 text-center shadow-card sm:py-5"
+                    >
+                      <p className="text-2xl font-extrabold tabular-nums text-[#2e3338] sm:text-4xl">
+                        {String(unit.value).padStart(2, "0")}
+                      </p>
+                      <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
+                        {unit.label}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              ))}
+                <p className="mt-3 text-xs text-[#80848e]">
+                  {loading
+                    ? "Loading…"
+                    : countdown.ended || status?.closed
+                      ? "Entries have closed."
+                      : `${status?.totalEntries ?? 0} entries so far`}
+                </p>
+              </div>
             </div>
-            <p className="mt-3 text-xs text-[#80848e]">
-              {loading
-                ? "Loading…"
-                : countdown.ended || status?.closed
-                  ? "Entries have closed."
-                  : `${status?.totalEntries ?? 0} entries so far`}
-            </p>
+
+            {/* Hero image */}
+            <div className="relative mx-auto aspect-[4/3] w-full max-w-lg overflow-hidden rounded-2xl border border-[#dce3ee] bg-white shadow-panel">
+              <Image
+                src="/display_section.png"
+                alt="Custom gaming PC giveaway"
+                fill
+                priority
+                sizes="(min-width: 1024px) 45vw, 100vw"
+                className="object-contain"
+              />
+            </div>
           </div>
         </div>
       </section>
