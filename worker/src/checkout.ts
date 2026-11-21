@@ -132,10 +132,9 @@ async function persistOrder(env: Env, session: CheckoutSession) {
   const statements = session.lines.map((line) =>
     env.DB.prepare(
       `INSERT INTO order_lines
-         (id, order_id, product_id, name, kind, price, quantity)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`
+         (order_id, product_id, name, kind, price, quantity)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
     ).bind(
-      crypto.randomUUID(),
       session.id,
       line.id,
       line.name,
