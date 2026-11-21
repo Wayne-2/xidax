@@ -31,6 +31,7 @@ import { runConfigCheck } from "./config-check";
 import { parseFirebaseConfig } from "./auth";
 import { adminGuard } from "./admin-auth";
 import { findUserByToken } from "./auth";
+import { getGiveawayStatus, redeemGiveaway } from "./giveaway";
 import {
   answerQuestion,
   appendMessage,
@@ -1097,6 +1098,57 @@ const worker = {
             );
           }
         }
+      }
+
+      /* ---------------- Giveaway ---------------- */
+
+      if (path.startsWith("/api/giveaway")) {
+        // Identity: verified session user, else a stable guest id.
+        let userId: string | null = null;
+        const sessionToken = readToken(request);
+
+        if (sessionToken) {
+          const user = await findUserByToken(env, sessionToken);
+          userId = user?.id ?? null;
+        }
+
+        const guestId =
+          request.headers.get("x-guest-id")?.trim().slice(0, 200) || null;
+        const identity = { userId, guestId: userId ? null : guestId };
+
+        if (request.method === "GET" && path === "/api/giveaway") {
+          return jsonWithCors(
+            await getGiveawayStatus(env, identity),
+            request,
+            env
+          );
+        }
+
+        if (request.method === "POST" && path === "/api/giveaway/redeem") {
+          const body = await readJson(request);
+
+          if (!body) {
+            return jsonWithCors({ error: "Invalid request." }, request, env, 400);
+          }
+
+          const result = await redeemGiveaway(env, identity, {
+            email: typeof body.email === "string" ? body.email : "",
+            name: typeof body.name === "string" ? body.name : "",
+          });
+
+          if ("error" in result) {
+            return jsonWithCors(
+              { error: result.error, status: result.statusCode },
+              request,
+              env,
+              result.status
+            );
+          }
+
+          return jsonWithCors(result, request, env);
+        }
+
+        return jsonWithCors({ error: "Not found." }, request, env, 404);
       }
 
       /* ---------------- Support chat ---------------- */

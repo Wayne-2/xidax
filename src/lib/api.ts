@@ -538,3 +538,54 @@ export async function clearChatHistory() {
     headersInit: chatHeaders(),
   });
 }
+
+/* ---------------- Giveaway ---------------- */
+
+export type GiveawayStatus = {
+  closesAt: string;
+  closed: boolean;
+  entered: boolean;
+  totalEntries: number;
+};
+
+function guestHeaders(token?: string | null): Record<string, string> {
+  const headers: Record<string, string> = {};
+
+  if (token) headers.authorization = `Bearer ${token}`;
+
+  if (typeof window !== "undefined") {
+    const key = "genericpcs.guest.id";
+    let id = window.localStorage.getItem(key);
+
+    if (!id) {
+      id = crypto.randomUUID();
+      window.localStorage.setItem(key, id);
+    }
+
+    headers["x-guest-id"] = id;
+  }
+
+  return headers;
+}
+
+export async function fetchGiveawayStatus(token?: string | null) {
+  return accountRequest<GiveawayStatus>("/api/giveaway", {
+    token,
+    headersInit: guestHeaders(token),
+  });
+}
+
+export async function redeemGiveaway(
+  input: { email: string; name: string },
+  token?: string | null
+) {
+  return accountRequest<{ ok: boolean; status: GiveawayStatus }>(
+    "/api/giveaway/redeem",
+    {
+      method: "POST",
+      body: input,
+      token,
+      headersInit: guestHeaders(token),
+    }
+  );
+}

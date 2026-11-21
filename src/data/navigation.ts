@@ -8,5 +8,6 @@ export const navItems: NavItem[] = [
   { label: "Custom Builds", href: "/custom-builds" },
   { label: "Laptops", href: "/laptops" },
   { label: "Consoles", href: "/consoles" },
+  { label: "Giveaway", href: "/giveaway" },
   { label: "Support", href: "/support" },
 ];

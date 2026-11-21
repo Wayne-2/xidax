@@ -50,7 +50,7 @@ export function corsHeaders(
     // x-chat-session (support chat). Missing these makes the CORS preflight
     // fail, so those requests are blocked before they reach the Worker.
     "access-control-allow-headers":
-      "content-type, authorization, x-cart-id, x-chat-session",
+      "content-type, authorization, x-cart-id, x-chat-session, x-guest-id",
     "access-control-max-age": "86400",
     vary: "Origin",
   };
