@@ -7,7 +7,6 @@ import {
   rowToStoredUser,
   toUser,
 } from "./auth";
-import { resolveCustomer } from "./bachs";
 import type { Env } from "./types";
 
 export function json(payload: unknown, status = 200) {
@@ -152,22 +151,6 @@ export async function handleRegister(request: Request, env: Env) {
     }
   }
 
-  let bachsCustomerId: string | null = null;
-
-  try {
-    const customer = await resolveCustomer(env, {
-      email,
-      name,
-      phone,
-      country,
-      postalCode,
-    });
-    bachsCustomerId = customer.id;
-  } catch {
-    // bachs customer resolution failure does not prevent registration
-    bachsCustomerId = null;
-  }
-
   const createdAt = new Date().toISOString();
 
   // Any stale row for this email belongs to a pre-Firebase account.
@@ -175,10 +158,10 @@ export async function handleRegister(request: Request, env: Env) {
 
   await env.DB.prepare(
     `INSERT INTO users
-       (id, email, name, phone, country, postal_code, tier, bachs_customer_id, email_verified, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'Member', ?7, 0, ?8)`
+       (id, email, name, phone, country, postal_code, tier, email_verified, created_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'Member', 0, ?7)`
   )
-    .bind(userId, email, name, phone, country, postalCode, bachsCustomerId, createdAt)
+    .bind(userId, email, name, phone, country, postalCode, createdAt)
     .run();
 
   await ensureSettings(env, userId);
@@ -203,7 +186,6 @@ export async function handleRegister(request: Request, env: Env) {
         postalCode,
         tier: "Member",
         memberSince: new Date().getFullYear().toString(),
-        bachsCustomerId,
         emailVerified: false,
         createdAt,
       },
@@ -241,7 +223,7 @@ export async function handleLogin(request: Request, env: Env) {
   }
 
   const row = await env.DB.prepare(
-    `SELECT id, email, name, phone, country, postal_code, tier, bachs_customer_id, email_verified, created_at
+    `SELECT id, email, name, phone, country, postal_code, tier, email_verified, created_at
        FROM users WHERE id = ?1`
   )
     .bind(uid)
@@ -253,7 +235,6 @@ export async function handleLogin(request: Request, env: Env) {
       country: string | null;
       postal_code: string | null;
       tier: string | null;
-      bachs_customer_id: string | null;
       email_verified: number;
       created_at: string;
     }>();
@@ -361,7 +342,7 @@ export async function handleUpdateMe(request: Request, env: Env) {
     .run();
 
   const row = await env.DB.prepare(
-    `SELECT id, email, name, phone, country, postal_code, tier, bachs_customer_id, email_verified, created_at
+    `SELECT id, email, name, phone, country, postal_code, tier, email_verified, created_at
        FROM users WHERE id = ?1`
   )
     .bind(user.id)
@@ -373,7 +354,6 @@ export async function handleUpdateMe(request: Request, env: Env) {
       country: string | null;
       postal_code: string | null;
       tier: string | null;
-      bachs_customer_id: string | null;
       email_verified: number;
       created_at: string;
     }>();
@@ -472,6 +452,8 @@ export async function handleUserOrders(request: Request, env: Env) {
       currency: row.currency,
       status: row.status,
       method: row.method ?? "",
+      date: row.created_at,
+      href: `/profile`,
       createdAt: row.created_at,
     })),
   });

@@ -52,7 +52,7 @@ const INTENTS: Intent[] = [
   {
     name: "payment",
     keywords: ["payment", "pay", "crypto", "bitcoin", "wire", "bank transfer", "methods", "checkout"],
-    answer: "We accept crypto (Bitcoin, Ethereum, USDT and Solana) and bank/wire transfers. After checkout you'll receive payment instructions and a reference. Once payment is confirmed, we build and ship your order.",
+    answer: "We accept card, crypto (Bitcoin, Ethereum, USDT and Solana) and bank/wire transfers. After checkout you'll receive payment instructions and a reference. An admin approves the payment and emails your receipt — then we build and ship your order.",
     suggestions: ["Shipping options", "Track my order", "Talk to a human"],
   },
   {

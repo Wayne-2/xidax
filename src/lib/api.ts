@@ -1,14 +1,14 @@
 import {
-  cryptoNetworks,
-  networkConfig,
+  METHOD_TTL_MS,
+  type CardDetailsInput,
   type CheckoutRequest,
   type CheckoutSession,
-  type CryptoInstructions,
+  type CryptoWallet,
   type PaymentInstructions,
   type RegisteredProductPayload,
-  type WireInstructions,
 } from "@/lib/payments";
 import { AppError, isOffline } from "@/lib/errors";
+import { cryptoNetworks } from "@/lib/payments";
 
 const DEFAULT_API_BASE = "https://generic-pcs-api.pcmarketweb.workers.dev";
 
@@ -32,66 +32,109 @@ function randomCode(length: number) {
   return code;
 }
 
+function mockWallets(): CryptoWallet[] {
+  return [
+    {
+      id: "wal_usdt",
+      label: "USDT treasury",
+      network: "usdt",
+      currency: "USDT",
+      address: "TExampleWalletAddressDoNotUse",
+      active: true,
+    },
+    {
+      id: "wal_btc",
+      label: "Bitcoin treasury",
+      network: "btc",
+      currency: "BTC",
+      address: "bc1qexamplewalletaddress",
+      active: true,
+    },
+    {
+      id: "wal_eth",
+      label: "Ethereum treasury",
+      network: "eth",
+      currency: "ETH",
+      address: "0xExampleWalletAddress",
+      active: true,
+    },
+    {
+      id: "wal_sol",
+      label: "Solana treasury",
+      network: "sol",
+      currency: "SOL",
+      address: "ExampleSolanaWalletAddress",
+      active: true,
+    },
+  ];
+}
+
 function mockInstructions(
-  request: CheckoutRequest
+  request: CheckoutRequest,
+  wallets: CryptoWallet[]
 ): PaymentInstructions {
-  if (request.method === "crypto") {
-    const network = request.network ?? "usdt";
-    const config = networkConfig(network);
-    const amount = (request.total / config.rate).toFixed(
-      network === "usdt" ? 2 : 6
-    );
-
-    const instructions: CryptoInstructions = {
-      method: "crypto",
-      network,
-      currency: config.currency,
+  if (request.method === "card") {
+    return {
+      method: "card",
+      amount: request.total.toFixed(2),
       billingCurrency: request.currency,
-      amount,
-      confirmations: config.confirmations,
-      checkoutUrl: "",
-      checkoutId: "",
-      availableMethods: ["CRYPTO", "NGN_BANK_TRANSFER"],
-      excludedMethods: [],
     };
-
-    return instructions;
   }
 
-  const instructions: WireInstructions = {
-    method: "wire",
-    currency: "NGN",
-    billingCurrency: request.currency,
-    amount: request.total.toFixed(2),
-    checkoutUrl: "",
-    checkoutId: "",
-    availableMethods: ["CRYPTO", "NGN_BANK_TRANSFER"],
-    excludedMethods: [],
-  };
+  if (request.method === "crypto") {
+    const wallet =
+      wallets.find((entry) => entry.id === request.walletId) ?? wallets[0];
+    const amount =
+      wallet.network === "usdt" || wallet.network === "btc"
+        ? request.total.toFixed(2)
+        : request.total.toFixed(4);
 
-  return instructions;
+    return {
+      method: "crypto",
+      walletId: wallet.id,
+      walletLabel: wallet.label,
+      network: wallet.network,
+      currency: wallet.currency,
+      address: wallet.address,
+      amount,
+      billingCurrency: request.currency,
+      confirmations: wallet.network === "btc" ? 2 : wallet.network === "eth" ? 3 : 1,
+    };
+  }
+
+  return {
+    method: "wire",
+    amount: request.total.toFixed(2),
+    billingCurrency: request.currency,
+  };
 }
 
 function mockSession(request: CheckoutRequest): CheckoutSession {
   const now = Date.now();
-  const expiresAt = new Date(
-    now + (request.method === "crypto" ? 30 * 60 * 1000 : 48 * 60 * 60 * 1000)
-  ).toISOString();
+  const expiresAt = new Date(now + METHOD_TTL_MS[request.method]).toISOString();
+  const wallets = mockWallets();
+  const status =
+    request.method === "wire" ? "awaiting_admin" : "awaiting_payment";
 
   return {
     id: `chs_${randomCode(16).toLowerCase()}`,
-    provider: "bachs",
-    status: "awaiting_payment",
+    status,
     reference: `PCM-${randomCode(6)}`,
+    method: request.method,
     createdAt: new Date(now).toISOString(),
     expiresAt,
     subtotal: request.subtotal,
     shipping: request.shipping,
+    discount: 0,
     total: request.total,
     currency: request.currency,
     lines: request.lines,
     details: request.details,
-    instructions: mockInstructions(request),
+    instructions: mockInstructions(request, wallets),
+    cardSummary: null,
+    walletId: request.method === "crypto" ? wallets[0]?.id ?? null : null,
+    wireDetails: null,
+    receiptSentAt: null,
   };
 }
 
@@ -186,17 +229,81 @@ export async function getCheckoutSession(
   return request<CheckoutSession>(`/api/checkout/${id}`);
 }
 
-export async function submitPayment(
-  id: string
-): Promise<{ status: string }> {
+/** Public list of active crypto wallets shown at checkout. */
+export async function fetchWallets(): Promise<{ wallets: CryptoWallet[] }> {
   if (!API_BASE) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    return { status: "submitted" };
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    return { wallets: mockWallets().filter((wallet) => wallet.active) };
   }
 
-  return request<{ status: string }>(`/api/checkout/${id}/submit`, {
-    method: "POST",
-  });
+  return request<{ wallets: CryptoWallet[] }>("/api/wallets");
+}
+
+/** Submits masked card details for admin review. */
+export async function submitCardDetails(
+  id: string,
+  card: CardDetailsInput
+): Promise<{ status: string; session: CheckoutSession }> {
+  if (!API_BASE) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const session = mockSession({
+      lines: [],
+      details: {
+        name: "",
+        email: "",
+        phone: "",
+        country: "",
+        postalCode: "",
+      },
+      method: "card",
+      subtotal: 0,
+      shipping: 0,
+      total: 0,
+      currency: "USD",
+    });
+    return {
+      status: "submitted",
+      session: {
+        ...session,
+        status: "submitted",
+        cardSummary: {
+          brand: "Visa",
+          last4: card.cardNumber.replace(/\s+/g, "").slice(-4),
+          expMonth: card.expMonth,
+          expYear: card.expYear,
+          holderName: card.holderName,
+        },
+      },
+    };
+  }
+
+  return request<{ status: string; session: CheckoutSession }>(
+    `/api/checkout/${encodeURIComponent(id)}/card`,
+    { method: "POST", body: JSON.stringify(card) }
+  );
+}
+
+/** Crypto/wire: user asserts the transfer has been sent. */
+export async function confirmPayment(
+  id: string
+): Promise<{ status: string; session: CheckoutSession }> {
+  if (!API_BASE) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return { status: "submitted", session: mockSession({
+      lines: [],
+      details: { name: "", email: "", phone: "", country: "", postalCode: "" },
+      method: "crypto",
+      subtotal: 0,
+      shipping: 0,
+      total: 0,
+      currency: "USD",
+    }) };
+  }
+
+  return request<{ status: string; session: CheckoutSession }>(
+    `/api/checkout/${encodeURIComponent(id)}/confirm`,
+    { method: "POST" }
+  );
 }
 
 export async function registerProductRemote(payload: RegisteredProductPayload): Promise<{

@@ -8,10 +8,11 @@ request against the verified Firebase ID token.
 
 | Section | Status |
 |---|---|
-| Orders | Implemented — list, filter, search, view detail, update status |
+| Orders | Implemented — list, filter, search, payment detail, wire bank details, update status |
+| Wallets | Implemented — CRUD for admin-managed crypto destinations |
 | Users | Implemented — list, filter, verification status, order/product counts |
 | Admins | Implemented — add/remove admin emails from the dashboard |
-| Products (CRUD + publish) | Planned — requires moving the catalog into D1 |
+| Products (CRUD + publish) | Implemented — D1-backed products + catalog |
 
 ## 1. Giving a user admin access
 
@@ -54,8 +55,13 @@ claim. All return `403` for non-admins and `401` for missing/invalid tokens.
 |---|---|---|
 | `GET` | `/api/admin/orders` | List orders. Query: `status`, `search`, `limit`, `offset` |
 | `GET` | `/api/admin/orders/stats` | Order count, revenue, counts by status |
-| `GET` | `/api/admin/orders/:id` | Single order with line items |
+| `GET` | `/api/admin/orders/:id` | Single order with line items + payment metadata |
 | `PATCH` | `/api/admin/orders/:id/status` | Update status. Body: `{ "status": "paid" }` |
+| `POST` | `/api/admin/orders/:id/wire-details` | Send bank account to customer (wire orders) |
+| `GET` | `/api/admin/wallets` | List crypto wallets (including inactive) |
+| `POST` | `/api/admin/wallets` | Create wallet |
+| `PATCH` | `/api/admin/wallets/:id` | Update wallet |
+| `DELETE` | `/api/admin/wallets/:id` | Delete wallet |
 | `GET` | `/api/admin/users` | List users. Query: `search`, `verified`, `limit`, `offset` |
 | `GET` | `/api/admin/users/stats` | User counts (total/verified/unverified) |
 | `GET` | `/api/admin/users/:id` | Single user |
@@ -64,11 +70,18 @@ claim. All return `403` for non-admins and `401` for missing/invalid tokens.
 | `DELETE` | `/api/admin/admins/:email` | Remove admin |
 
 Valid statuses:
-`pending`, `awaiting_payment`, `submitted`, `paid`, `processing`, `shipped`,
-`delivered`, `expired`, `failed`, `cancelled`, `refunded`.
+`pending`, `awaiting_payment`, `awaiting_admin`, `submitted`, `paid`,
+`processing`, `shipped`, `delivered`, `expired`, `failed`, `cancelled`,
+`refunded`.
 
-Updating an order status also updates the matching `user_orders` row so the
-customer's profile history stays in sync.
+Payment flows (manual — no gateway):
+- **Card** — customer submits details (masked summary only); status → `submitted`; admin marks `paid` → receipt email.
+- **Crypto** — customer picks an active wallet, sends, confirms; status → `submitted`; admin marks `paid`.
+- **Wire** — create starts at `awaiting_admin` and emails admins; admin posts bank details → `awaiting_payment`; customer confirms → `submitted`; admin marks `paid`.
+
+Updating an order status also updates the matching `user_orders` and
+`checkout_sessions` rows so the customer's profile and checkout page stay in
+sync.
 
 ## 4. Security notes
 
@@ -81,7 +94,8 @@ customer's profile history stays in sync.
 
 - Email verification is required server-side for all `/api/me*` routes.
 
-- Payment webhooks require `BACHS_WEBHOOK_SECRET` and carry an idempotency key.
+- Payments are manual: card / crypto / wire only. No third-party webhook.
+  Admin approval of `paid` is what emails the customer receipt.
 - The email is read from the **verified** Firebase ID token and checked against
   the D1 `admins` table — never from anything the browser sends in a body or
   query parameter. This makes granting/revoking instant and unforgeable.

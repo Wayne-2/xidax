@@ -207,3 +207,311 @@ export async function sendVerificationEmail({
 
   return { ok: true, status: response.status, id: payload?.id };
 }
+
+/* ---------------- Payment notifications ---------------- */
+
+export const PAYMENT_FROM = VERIFICATION_FROM;
+
+export type AdminPaymentAlertInput = {
+  kind: "card" | "crypto" | "wire";
+  reference: string;
+  amount: number;
+  currency: string;
+  customerName: string;
+  customerEmail: string;
+  detail: string;
+};
+
+export type ReceiptLine = {
+  name: string;
+  quantity: number;
+  price: number;
+};
+
+export type SendReceiptInput = {
+  apiKey: string;
+  to: string;
+  reference: string;
+  customerName: string;
+  lines: ReceiptLine[];
+  subtotal: number;
+  shipping: number;
+  discount: number;
+  total: number;
+  currency: string;
+  method: string;
+  paidAt: string;
+};
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function money(amount: number, currency: string): string {
+  const code = /^[A-Za-z]{3}$/.test(currency ?? "") ? currency.toUpperCase() : "USD";
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: code,
+    }).format(Number.isFinite(amount) ? amount : 0);
+  } catch {
+    return `$${(Number.isFinite(amount) ? amount : 0).toFixed(2)}`;
+  }
+}
+
+function methodLabel(method: string): string {
+  if (method === "card") return "Card payment";
+  if (method === "crypto") return "Crypto transfer";
+  if (method === "wire") return "Wire transfer";
+  return method;
+}
+
+function shell(title: string, badge: string, body: string): string {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escapeHtml(title)}</title>
+</head>
+<body style="margin:0;padding:0;background:${BRAND.surface};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${BRAND.surface};padding:32px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background:#ffffff;border:1px solid ${BRAND.line};border-radius:16px;overflow:hidden;">
+          <tr>
+            <td style="padding:28px 32px 20px;border-bottom:1px solid ${BRAND.line};">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="left" style="font-size:19px;font-weight:800;letter-spacing:-0.02em;color:${BRAND.ink};">
+                    Generic&nbsp;PCS
+                  </td>
+                  <td align="right" style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.muted};">
+                    ${escapeHtml(badge)}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          ${body}
+          <tr>
+            <td style="padding:20px 32px;background:#fbfcfe;border-top:1px solid ${BRAND.line};">
+              <p style="margin:0;font-size:12px;line-height:1.7;color:${BRAND.muted};text-align:center;">
+                Generic PCs Technologies Ltd &nbsp;&bull;&nbsp;
+                <a href="https://genericpcs.com" style="color:${BRAND.accent};text-decoration:none;">genericpcs.com</a>
+                &nbsp;&bull;&nbsp;
+                <a href="mailto:${supportEmailDefault}" style="color:${BRAND.accent};text-decoration:none;">${supportEmailDefault}</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+const supportEmailDefault = "hello@genericpcs.com";
+
+export function buildAdminPaymentAlertHtml(input: AdminPaymentAlertInput): string {
+  const title =
+    input.kind === "wire"
+      ? "Wire transfer — bank details requested"
+      : input.kind === "card"
+        ? "Card payment awaiting review"
+        : "Crypto payment awaiting approval";
+
+  const action =
+    input.kind === "wire"
+      ? "Open the admin dashboard and forward your bank account details for this order."
+      : "Open the admin dashboard to approve or reject this payment.";
+
+  const body = `
+          <tr>
+            <td style="padding:32px 32px 8px;">
+              <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:800;letter-spacing:-0.02em;color:${BRAND.ink};">
+                ${escapeHtml(title)}
+              </h1>
+              <p style="margin:0;font-size:15px;line-height:1.65;color:${BRAND.body};">
+                ${escapeHtml(action)}
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px 8px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${BRAND.surface};border-radius:12px;">
+                <tr><td style="padding:18px 20px;">
+                  <p style="margin:0 0 8px;font-size:13px;color:${BRAND.muted};">Reference</p>
+                  <p style="margin:0 0 12px;font-size:16px;font-weight:700;color:${BRAND.ink};font-family:'SF Mono',Menlo,Consolas,monospace;">${escapeHtml(input.reference)}</p>
+                  <p style="margin:0 0 8px;font-size:13px;color:${BRAND.muted};">Amount</p>
+                  <p style="margin:0 0 12px;font-size:16px;font-weight:700;color:${BRAND.ink};">${escapeHtml(money(input.amount, input.currency))}</p>
+                  <p style="margin:0 0 8px;font-size:13px;color:${BRAND.muted};">Customer</p>
+                  <p style="margin:0 0 4px;font-size:15px;font-weight:600;color:${BRAND.ink};">${escapeHtml(input.customerName)}</p>
+                  <p style="margin:0 0 12px;font-size:14px;color:${BRAND.body};">${escapeHtml(input.customerEmail)}</p>
+                  <p style="margin:0 0 8px;font-size:13px;color:${BRAND.muted};">Notes</p>
+                  <p style="margin:0;font-size:14px;line-height:1.6;color:${BRAND.body};">${escapeHtml(input.detail)}</p>
+                </td></tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:24px 32px 32px;">
+              <a href="https://genericpcs.com/admin/orders" style="display:inline-block;padding:13px 26px;background:${BRAND.accent};border-radius:10px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">
+                Open admin dashboard
+              </a>
+            </td>
+          </tr>`;
+
+  return shell(title, "Payment alert", body);
+}
+
+export function buildReceiptEmailHtml(input: SendReceiptInput): string {
+  const rows = input.lines
+    .map(
+      (line) => `
+                <tr>
+                  <td style="padding:10px 0;border-bottom:1px solid ${BRAND.line};font-size:14px;color:${BRAND.body};">
+                    ${escapeHtml(line.name)} <span style="color:${BRAND.muted};">× ${line.quantity}</span>
+                  </td>
+                  <td align="right" style="padding:10px 0;border-bottom:1px solid ${BRAND.line};font-size:14px;font-weight:600;color:${BRAND.ink};">
+                    ${escapeHtml(money(line.price * line.quantity, input.currency))}
+                  </td>
+                </tr>`
+    )
+    .join("");
+
+  const body = `
+          <tr>
+            <td style="padding:32px 32px 8px;">
+              <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:800;letter-spacing:-0.02em;color:${BRAND.ink};">
+                Payment received
+              </h1>
+              <p style="margin:0;font-size:15px;line-height:1.65;color:${BRAND.body};">
+                Thanks ${escapeHtml(input.customerName)} — we have approved your payment for order
+                <strong style="color:${BRAND.ink};">${escapeHtml(input.reference)}</strong>.
+                Your receipt is below. We will email you when the build ships.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px 8px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${BRAND.surface};border-radius:12px;">
+                <tr><td style="padding:18px 20px;">
+                  <p style="margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:0.1em;color:${BRAND.muted};">Receipt</p>
+                  <p style="margin:0 0 4px;font-size:16px;font-weight:700;color:${BRAND.ink};font-family:'SF Mono',Menlo,Consolas,monospace;">${escapeHtml(input.reference)}</p>
+                  <p style="margin:0;font-size:13px;color:${BRAND.muted};">
+                    ${escapeHtml(methodLabel(input.method))} · ${escapeHtml(new Date(input.paidAt).toLocaleString("en-US"))}
+                  </p>
+                </td></tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 32px 16px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                ${rows}
+                <tr>
+                  <td style="padding:10px 0;font-size:14px;color:${BRAND.body};">Subtotal</td>
+                  <td align="right" style="padding:10px 0;font-size:14px;color:${BRAND.body};">${escapeHtml(money(input.subtotal, input.currency))}</td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 0;font-size:14px;color:${BRAND.body};">Shipping</td>
+                  <td align="right" style="padding:4px 0;font-size:14px;color:${BRAND.body};">${input.shipping === 0 ? "Free" : escapeHtml(money(input.shipping, input.currency))}</td>
+                </tr>
+                ${input.discount > 0 ? `
+                <tr>
+                  <td style="padding:4px 0;font-size:14px;color:${BRAND.accent};">Discount</td>
+                  <td align="right" style="padding:4px 0;font-size:14px;color:${BRAND.accent};">−${escapeHtml(money(input.discount, input.currency))}</td>
+                </tr>` : ""}
+                <tr>
+                  <td style="padding:12px 0 0;font-size:16px;font-weight:800;color:${BRAND.ink};border-top:2px solid ${BRAND.line};">Total paid</td>
+                  <td align="right" style="padding:12px 0 0;font-size:16px;font-weight:800;color:${BRAND.ink};border-top:2px solid ${BRAND.line};">${escapeHtml(money(input.total, input.currency))}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:8px 32px 32px;">
+              <a href="https://genericpcs.com/profile" style="display:inline-block;padding:13px 26px;background:${BRAND.accent};border-radius:10px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">
+                View your orders
+              </a>
+            </td>
+          </tr>`;
+
+  return shell("Payment receipt", "Receipt", body);
+}
+
+async function postResend(
+  apiKey: string,
+  to: string | string[],
+  subject: string,
+  html: string
+): Promise<{ ok: boolean; status: number }> {
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      from: PAYMENT_FROM,
+      to: Array.isArray(to) ? to : [to],
+      subject,
+      html,
+    }),
+  });
+
+  return { ok: response.ok, status: response.status };
+}
+
+export async function sendReceiptEmail(
+  input: SendReceiptInput
+): Promise<{ ok: boolean; status: number }> {
+  return postResend(
+    input.apiKey,
+    input.to,
+    `Your Generic PCs receipt — ${input.reference}`,
+    buildReceiptEmailHtml(input)
+  );
+}
+
+/** Best-effort email to every admin about a payment event. */
+export async function notifyAdminsPaymentEvent(
+  env: { RESEND_API_KEY?: string; DB: D1Database },
+  input: AdminPaymentAlertInput
+): Promise<void> {
+  if (!env.RESEND_API_KEY) return;
+
+  try {
+    const admins = await env.DB.prepare(
+      "SELECT email FROM admins ORDER BY created_at DESC"
+    ).all<{ email: string }>();
+
+    const emails = (admins.results ?? [])
+      .map((row) => row.email?.trim())
+      .filter((email): email is string => Boolean(email));
+
+    if (emails.length === 0) return;
+
+    const subject =
+      input.kind === "wire"
+        ? `[${input.reference}] Wire details requested — ${money(input.amount, input.currency)}`
+        : input.kind === "card"
+          ? `[${input.reference}] Card payment pending review — ${money(input.amount, input.currency)}`
+          : `[${input.reference}] Crypto payment pending approval — ${money(input.amount, input.currency)}`;
+
+    await postResend(
+      env.RESEND_API_KEY,
+      emails,
+      subject,
+      buildAdminPaymentAlertHtml(input)
+    );
+  } catch (error) {
+    console.error("admin payment alert failed:", error);
+  }
+}

@@ -66,7 +66,21 @@ export const languages = [
   "Spanish",
 ];
 
-export type AccountOrderStatus = "Delivered" | "Building" | "In transit";
+export type AccountOrderStatus =
+  | "Delivered"
+  | "Building"
+  | "In transit"
+  | "Pending"
+  | "Awaiting payment"
+  | "Awaiting admin"
+  | "Submitted"
+  | "Paid"
+  | "Processing"
+  | "Shipped"
+  | "Expired"
+  | "Failed"
+  | "Cancelled"
+  | "Refunded";
 
 export type AccountOrder = {
   id: string;

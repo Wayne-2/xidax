@@ -1,14 +1,39 @@
-export type PaymentMethod = "crypto" | "wire";
+export type PaymentMethod = "card" | "crypto" | "wire";
 
 export type CryptoNetwork = "btc" | "eth" | "usdt" | "sol";
 
 export type PaymentStatus =
   | "pending"
   | "awaiting_payment"
+  | "awaiting_admin"
   | "submitted"
   | "paid"
+  | "processing"
+  | "shipped"
+  | "delivered"
+  | "cancelled"
+  | "refunded"
   | "expired"
   | "failed";
+
+/** Masked card data only — full PAN/CVV are never persisted. */
+export type CardSummary = {
+  brand: string;
+  last4: string;
+  expMonth: string;
+  expYear: string;
+  holderName: string;
+};
+
+/** Bank account details the admin forwards for a wire order. */
+export type WireDetails = {
+  bankName: string;
+  accountNumber: string;
+  beneficiary: string;
+  routing?: string;
+  swift?: string;
+  reference?: string;
+};
 
 export type CheckoutLine = {
   id: string;
@@ -26,44 +51,53 @@ export type CheckoutDetails = {
   postalCode: string;
 };
 
-export type ExcludedMethod = {
+export type CryptoWallet = {
   id: string;
-  reason: string;
-  limit?: string;
-  currency?: string;
+  label: string;
+  network: CryptoNetwork;
+  currency: string;
+  address: string;
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CardInstructions = {
+  method: "card";
+  amount: string;
+  billingCurrency: string;
+  cardSummary?: CardSummary;
 };
 
 export type CryptoInstructions = {
   method: "crypto";
+  walletId: string;
+  walletLabel: string;
   network: CryptoNetwork;
   currency: string;
-  billingCurrency: string;
+  address: string;
   amount: string;
+  billingCurrency: string;
   confirmations: number;
-  checkoutUrl: string;
-  checkoutId: string;
-  availableMethods: string[];
-  excludedMethods: ExcludedMethod[];
 };
 
 export type WireInstructions = {
   method: "wire";
-  currency: string;
-  billingCurrency: string;
   amount: string;
-  checkoutUrl: string;
-  checkoutId: string;
-  availableMethods: string[];
-  excludedMethods: ExcludedMethod[];
+  billingCurrency: string;
+  wireDetails?: WireDetails;
 };
 
-export type PaymentInstructions = CryptoInstructions | WireInstructions;
+export type PaymentInstructions =
+  | CardInstructions
+  | CryptoInstructions
+  | WireInstructions;
 
 export type CheckoutRequest = {
   lines: CheckoutLine[];
   details: CheckoutDetails;
   method: PaymentMethod;
-  network?: CryptoNetwork;
+  walletId?: string;
   subtotal: number;
   shipping: number;
   total: number;
@@ -73,21 +107,24 @@ export type CheckoutRequest = {
 
 export type CheckoutSession = {
   id: string;
-  provider: "bachs";
   status: PaymentStatus;
   reference: string;
+  method: PaymentMethod;
   createdAt: string;
   expiresAt: string;
   subtotal: number;
   shipping: number;
-  total: number;
-  currency: string;
   discount: number;
   promoCode?: string;
+  total: number;
+  currency: string;
   lines: CheckoutLine[];
   details: CheckoutDetails;
   instructions: PaymentInstructions;
-  gatewayWarning?: string;
+  cardSummary?: CardSummary | null;
+  walletId?: string | null;
+  wireDetails?: WireDetails | null;
+  receiptSentAt?: string | null;
 };
 
 export type RegisteredProductPayload = {
@@ -122,19 +159,6 @@ export type Env = {
   RESEND_API_KEY?: string;
   /** Origins allowed to call the auth endpoints, comma separated. */
   ALLOWED_ORIGINS?: string;
-  BACHS_API_KEY?: string;
-  BACHS_API_BASE?: string;
-  BACHS_CRYPTO_PATH?: string;
-  BACHS_WIRE_PATH?: string;
-  BACHS_WEBHOOK_SECRET?: string;
-  CRYPTO_ADDRESS_BTC?: string;
-  CRYPTO_ADDRESS_ETH?: string;
-  CRYPTO_ADDRESS_USDT?: string;
-  WIRE_BANK_NAME?: string;
-  WIRE_BENEFICIARY?: string;
-  WIRE_ACCOUNT_NUMBER?: string;
-  WIRE_ROUTING_CODE?: string;
-  WIRE_SWIFT?: string;
   CRON_SECRET?: string;
 };
 
@@ -147,3 +171,24 @@ export const cryptoNetworks: Record<
   usdt: { label: "Tether", currency: "USDT", confirmations: 1, rate: 1 },
   sol: { label: "Solana", currency: "SOL", confirmations: 1, rate: 150 },
 };
+
+/** Per-method session lifetimes (milliseconds). */
+export const METHOD_TTL_MS: Record<PaymentMethod, number> = {
+  card: 15 * 60 * 1000,
+  crypto: 30 * 60 * 1000,
+  wire: 48 * 60 * 60 * 1000,
+};
+
+export const PAYMENT_METHODS = new Set<PaymentMethod>(["card", "crypto", "wire"]);
+
+/** Statuses that are finished — never auto-expired. */
+export const TERMINAL_STATUSES = new Set<PaymentStatus>([
+  "paid",
+  "failed",
+  "expired",
+  "processing",
+  "shipped",
+  "delivered",
+  "cancelled",
+  "refunded",
+]);

@@ -1,4 +1,5 @@
-import type { Env } from "./types";
+import { markSessionPaid } from "./checkout";
+import type { CardSummary, Env, WireDetails } from "./types";
 
 export type AdminOrder = {
   id: string;
@@ -15,6 +16,12 @@ export type AdminOrder = {
   currency: string;
   status: string;
   createdAt: string;
+  expiresAt: string | null;
+  cardSummary: CardSummary | null;
+  walletId: string | null;
+  walletLabel: string | null;
+  wireDetails: WireDetails | null;
+  receiptSentAt: string | null;
   lines: {
     id: string;
     productId: string;
@@ -28,6 +35,7 @@ export type AdminOrder = {
 const ORDER_STATUSES = new Set([
   "pending",
   "awaiting_payment",
+  "awaiting_admin",
   "submitted",
   "paid",
   "expired",
@@ -48,6 +56,106 @@ function parsePositiveInt(value: string | null, fallback: number, max = 100) {
 
   return Math.min(parsed, max);
 }
+
+function parseJson<T>(value: string | null): T | null {
+  if (!value) return null;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
+}
+
+type OrderRow = {
+  id: string;
+  reference: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  country: string | null;
+  postal_code: string | null;
+  method: string;
+  network: string | null;
+  subtotal: number;
+  shipping: number;
+  total: number;
+  currency: string;
+  status: string;
+  created_at: string;
+  expires_at: string | null;
+  card_summary: string | null;
+  wallet_id: string | null;
+  wire_details: string | null;
+  receipt_sent_at: string | null;
+};
+
+async function loadLines(
+  env: Env,
+  orderId: string
+): Promise<AdminOrder["lines"]> {
+  const lineRows = await env.DB.prepare(
+    `SELECT id, product_id, name, kind, price, quantity
+       FROM order_lines WHERE order_id = ?1 ORDER BY id ASC`
+  )
+    .bind(orderId)
+    .all<{
+      id: string;
+      product_id: string;
+      name: string;
+      kind: string | null;
+      price: number;
+      quantity: number;
+    }>();
+
+  return (lineRows.results ?? []).map((line) => ({
+    id: line.id,
+    productId: line.product_id,
+    name: line.name,
+    kind: line.kind,
+    price: line.price,
+    quantity: line.quantity,
+  }));
+}
+
+async function walletLabel(env: Env, walletId: string | null): Promise<string | null> {
+  if (!walletId) return null;
+  const row = await env.DB.prepare(
+    "SELECT label FROM crypto_wallets WHERE id = ?1"
+  )
+    .bind(walletId)
+    .first<{ label: string }>();
+  return row?.label ?? null;
+}
+
+async function mapOrderRow(env: Env, row: OrderRow): Promise<AdminOrder> {
+  return {
+    id: row.id,
+    reference: row.reference,
+    email: row.email,
+    name: row.name,
+    phone: row.phone,
+    country: row.country ?? null,
+    method: row.method,
+    network: row.network,
+    subtotal: row.subtotal,
+    shipping: row.shipping,
+    total: row.total,
+    currency: row.currency,
+    status: row.status,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    cardSummary: parseJson<CardSummary>(row.card_summary),
+    walletId: row.wallet_id,
+    walletLabel: await walletLabel(env, row.wallet_id),
+    wireDetails: parseJson<WireDetails>(row.wire_details),
+    receiptSentAt: row.receipt_sent_at,
+    lines: await loadLines(env, row.id),
+  };
+}
+
+const ORDER_COLUMNS = `id, reference, email, name, phone, country, postal_code, method, network,
+            subtotal, shipping, total, currency, status, created_at,
+            expires_at, card_summary, wallet_id, wire_details, receipt_sent_at`;
 
 /** Lists orders with optional filters. Admin-only. */
 export async function listAdminOrders(
@@ -82,72 +190,18 @@ export async function listAdminOrders(
     .first<{ count: number }>();
 
   const rows = await env.DB.prepare(
-    `SELECT id, reference, email, name, phone, country, postal_code, method, network,
-            subtotal, shipping, total, currency, status, created_at
+    `SELECT ${ORDER_COLUMNS}
        FROM orders ${where}
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?`
   )
     .bind(...bindings, limit, offset)
-    .all<{
-      id: string;
-      reference: string;
-      email: string;
-      name: string;
-      phone: string | null;
-      country: string | null;
-      postal_code: string | null;
-      method: string;
-      network: string | null;
-      subtotal: number;
-      shipping: number;
-      total: number;
-      currency: string;
-      status: string;
-      created_at: string;
-    }>();
+    .all<OrderRow>();
 
   const orders: AdminOrder[] = [];
 
   for (const row of rows.results ?? []) {
-    const lineRows = await env.DB.prepare(
-      `SELECT id, product_id, name, kind, price, quantity
-         FROM order_lines WHERE order_id = ?1 ORDER BY id ASC`
-    )
-      .bind(row.id)
-      .all<{
-        id: string;
-        product_id: string;
-        name: string;
-        kind: string | null;
-        price: number;
-        quantity: number;
-      }>();
-
-    orders.push({
-      id: row.id,
-      reference: row.reference,
-      email: row.email,
-      name: row.name,
-      phone: row.phone,
-      country: row.country ?? null,
-      method: row.method,
-      network: row.network,
-      subtotal: row.subtotal,
-      shipping: row.shipping,
-      total: row.total,
-      currency: row.currency,
-      status: row.status,
-      createdAt: row.created_at,
-      lines: (lineRows.results ?? []).map((line) => ({
-        id: line.id,
-        productId: line.product_id,
-        name: line.name,
-        kind: line.kind,
-        price: line.price,
-        quantity: line.quantity,
-      })),
-    });
+    orders.push(await mapOrderRow(env, row));
   }
 
   return {
@@ -164,72 +218,21 @@ export async function getAdminOrder(
   id: string
 ): Promise<AdminOrder | null> {
   const row = await env.DB.prepare(
-    `SELECT id, reference, email, name, phone, country, postal_code, method, network,
-            subtotal, shipping, total, currency, status, created_at
-       FROM orders WHERE id = ?1`
+    `SELECT ${ORDER_COLUMNS} FROM orders WHERE id = ?1`
   )
     .bind(id)
-    .first<{
-      id: string;
-      reference: string;
-      email: string;
-      name: string;
-      phone: string | null;
-      country: string | null;
-      postal_code: string | null;
-      method: string;
-      network: string | null;
-      subtotal: number;
-      shipping: number;
-      total: number;
-      currency: string;
-      status: string;
-      created_at: string;
-    }>();
+    .first<OrderRow>();
 
   if (!row) return null;
 
-  const lineRows = await env.DB.prepare(
-    `SELECT id, product_id, name, kind, price, quantity
-       FROM order_lines WHERE order_id = ?1 ORDER BY id ASC`
-  )
-    .bind(row.id)
-    .all<{
-      id: string;
-      product_id: string;
-      name: string;
-      kind: string | null;
-      price: number;
-      quantity: number;
-    }>();
-
-  return {
-    id: row.id,
-    reference: row.reference,
-    email: row.email,
-    name: row.name,
-    phone: row.phone,
-    country: row.country ?? null,
-    method: row.method,
-    network: row.network,
-    subtotal: row.subtotal,
-    shipping: row.shipping,
-    total: row.total,
-    currency: row.currency,
-    status: row.status,
-    createdAt: row.created_at,
-    lines: (lineRows.results ?? []).map((line) => ({
-      id: line.id,
-      productId: line.product_id,
-      name: line.name,
-      kind: line.kind,
-      price: line.price,
-      quantity: line.quantity,
-    })),
-  };
+  return mapOrderRow(env, row);
 }
 
-/** Updates an order's status. Admin-only. */
+/**
+ * Updates an order's status. Admin-only.
+ * Setting `paid` goes through markSessionPaid so the receipt email fires
+ * and checkout_sessions / user_orders stay in sync.
+ */
 export async function updateAdminOrderStatus(
   env: Env,
   id: string,
@@ -237,6 +240,17 @@ export async function updateAdminOrderStatus(
 ): Promise<{ ok: boolean; notFound?: boolean }> {
   if (!ORDER_STATUSES.has(status)) {
     return { ok: false };
+  }
+
+  if (status === "paid") {
+    const result = await markSessionPaid(env, id);
+
+    if (!result.ok) {
+      if (result.status === 404) return { ok: false, notFound: true };
+      return { ok: false };
+    }
+
+    return { ok: true, notFound: false };
   }
 
   const result = await env.DB.prepare(

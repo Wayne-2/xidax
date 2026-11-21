@@ -6,6 +6,7 @@ import {
   fetchAdminOrder,
   fetchAdminOrderStats,
   fetchAdminOrders,
+  submitWireDetails,
   updateAdminOrderStatus,
   type AdminOrder,
   type AdminOrderStats,
@@ -15,6 +16,7 @@ const ORDER_STATUSES = [
   "all",
   "pending",
   "awaiting_payment",
+  "awaiting_admin",
   "submitted",
   "paid",
   "processing",
@@ -31,6 +33,7 @@ const STATUS_STYLES: Record<string, string> = {
   delivered: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30",
   pending: "bg-amber-500/10 text-amber-700 border-amber-500/30",
   awaiting_payment: "bg-amber-500/10 text-amber-700 border-amber-500/30",
+  awaiting_admin: "bg-orange-500/10 text-orange-700 border-orange-500/30",
   submitted: "bg-blue-500/10 text-blue-700 border-blue-500/30",
   processing: "bg-blue-500/10 text-blue-700 border-blue-500/30",
   shipped: "bg-indigo-500/10 text-indigo-700 border-indigo-500/30",
@@ -72,6 +75,14 @@ export default function AdminOrders() {
   const [search, setSearch] = useState("");
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<AdminOrder | null>(null);
+  const [wireDraft, setWireDraft] = useState({
+    bankName: "",
+    accountNumber: "",
+    beneficiary: "",
+    routing: "",
+    swift: "",
+  });
+  const [savingWire, setSavingWire] = useState(false);
   const LIMIT = 20;
 
   const loadStats = useCallback(async () => {
@@ -138,6 +149,49 @@ export default function AdminOrders() {
     }
   }
 
+  async function handleWireDetails(order: AdminOrder) {
+    if (savingWire) return;
+
+    if (
+      !wireDraft.bankName.trim() ||
+      !wireDraft.accountNumber.trim() ||
+      !wireDraft.beneficiary.trim()
+    ) {
+      toast.error("Bank name, account number and beneficiary are required.");
+      return;
+    }
+
+    setSavingWire(true);
+    try {
+      await submitWireDetails(order.id, {
+        bankName: wireDraft.bankName.trim(),
+        accountNumber: wireDraft.accountNumber.trim(),
+        beneficiary: wireDraft.beneficiary.trim(),
+        routing: wireDraft.routing.trim() || undefined,
+        swift: wireDraft.swift.trim() || undefined,
+        reference: order.reference,
+      });
+      toast.success("Bank details sent to the customer.");
+      await refreshOrder(order);
+      await load();
+    } catch (err) {
+      toast.error((err as { error?: string }).error ?? "Could not send bank details.");
+    } finally {
+      setSavingWire(false);
+    }
+  }
+
+  function openOrder(order: AdminOrder) {
+    setSelected(order);
+    setWireDraft({
+      bankName: order.wireDetails?.bankName ?? "",
+      accountNumber: order.wireDetails?.accountNumber ?? "",
+      beneficiary: order.wireDetails?.beneficiary ?? "",
+      routing: order.wireDetails?.routing ?? "",
+      swift: order.wireDetails?.swift ?? "",
+    });
+  }
+
   const pages = Math.max(1, Math.ceil(total / LIMIT));
   const currentPage = Math.floor(offset / LIMIT) + 1;
 
@@ -149,7 +203,7 @@ export default function AdminOrders() {
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <Card label="Total orders" value={stats?.totalOrders?.toString() ?? "—"} />
         <Card label="Revenue" value={stats ? money(stats.revenue) : "—"} />
-        <Card label="Awaiting payment" value={stats ? (stats.byStatus?.find((s) => s.status === "awaiting_payment")?.count?.toString() ?? "0") : "—"} />
+        <Card label="Awaiting review" value={stats ? (stats.byStatus?.find((s) => s.status === "submitted")?.count?.toString() ?? "0") : "—"} />
       </div>
 
       <div className="mt-6 flex flex-wrap gap-3">
@@ -221,7 +275,7 @@ export default function AdminOrders() {
                       {new Date(order.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button type="button" onClick={() => setSelected(order)} className="text-sm font-semibold text-[#5865F2] hover:text-[#4752C4]">
+                      <button type="button" onClick={() => openOrder(order)} className="text-sm font-semibold text-[#5865F2] hover:text-[#4752C4]">
                         View
                       </button>
                     </td>
@@ -301,7 +355,100 @@ export default function AdminOrders() {
                 <p className="mt-1 text-sm">Method: <span className="font-semibold">{selected.method}</span></p>
                 {selected.network && <p className="text-sm">Network: <span className="font-semibold">{selected.network}</span></p>}
                 <p className="text-sm">Status: <span className="font-semibold">{prettyStatus(selected.status)}</span></p>
+                {selected.expiresAt && (
+                  <p className="mt-1 text-xs text-[#5c5e66]">
+                    Expires: {new Date(selected.expiresAt).toLocaleString()}
+                  </p>
+                )}
+                {selected.cardSummary && (
+                  <div className="mt-3 border-t border-[#e4e9f0] pt-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#80848e]">Card (masked)</p>
+                    <p className="mt-1 font-mono text-sm font-semibold">
+                      {selected.cardSummary.brand} ···· {selected.cardSummary.last4}
+                    </p>
+                    <p className="text-xs text-[#5c5e66]">
+                      Exp {selected.cardSummary.expMonth}/{selected.cardSummary.expYear} ·{" "}
+                      {selected.cardSummary.holderName}
+                    </p>
+                  </div>
+                )}
+                {selected.walletLabel && (
+                  <div className="mt-3 border-t border-[#e4e9f0] pt-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#80848e]">Crypto wallet</p>
+                    <p className="mt-1 text-sm font-semibold">{selected.walletLabel}</p>
+                  </div>
+                )}
+                {selected.receiptSentAt && (
+                  <p className="mt-2 text-xs text-[#15803D]">
+                    Receipt sent {new Date(selected.receiptSentAt).toLocaleString()}
+                  </p>
+                )}
               </div>
+
+              {selected.method === "wire" && (
+                <div className="rounded-xl border border-[#e4e9f0] bg-[#f8fafe] p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#80848e]">
+                    {selected.wireDetails ? "Bank details on file" : "Send bank details"}
+                  </p>
+                  {selected.wireDetails && (
+                    <div className="mt-2 space-y-1 text-sm">
+                      <p><span className="text-[#5c5e66]">Bank:</span> {selected.wireDetails.bankName}</p>
+                      <p><span className="text-[#5c5e66]">Account:</span> <span className="font-mono">{selected.wireDetails.accountNumber}</span></p>
+                      <p><span className="text-[#5c5e66]">Beneficiary:</span> {selected.wireDetails.beneficiary}</p>
+                      {selected.wireDetails.routing && (
+                        <p><span className="text-[#5c5e66]">Routing:</span> <span className="font-mono">{selected.wireDetails.routing}</span></p>
+                      )}
+                      {selected.wireDetails.swift && (
+                        <p><span className="text-[#5c5e66]">SWIFT:</span> <span className="font-mono">{selected.wireDetails.swift}</span></p>
+                      )}
+                    </div>
+                  )}
+                  {selected.status !== "paid" && selected.status !== "submitted" && (
+                    <div className="mt-3 space-y-2">
+                      <input
+                        value={wireDraft.bankName}
+                        onChange={(e) => setWireDraft((d) => ({ ...d, bankName: e.target.value }))}
+                        placeholder="Bank name"
+                        className="h-9 w-full rounded-lg border border-[#d2dbe8] bg-white px-3 text-sm outline-none focus:border-[#5865F2]"
+                      />
+                      <input
+                        value={wireDraft.accountNumber}
+                        onChange={(e) => setWireDraft((d) => ({ ...d, accountNumber: e.target.value }))}
+                        placeholder="Account number"
+                        className="h-9 w-full rounded-lg border border-[#d2dbe8] bg-white px-3 font-mono text-sm outline-none focus:border-[#5865F2]"
+                      />
+                      <input
+                        value={wireDraft.beneficiary}
+                        onChange={(e) => setWireDraft((d) => ({ ...d, beneficiary: e.target.value }))}
+                        placeholder="Beneficiary name"
+                        className="h-9 w-full rounded-lg border border-[#d2dbe8] bg-white px-3 text-sm outline-none focus:border-[#5865F2]"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          value={wireDraft.routing}
+                          onChange={(e) => setWireDraft((d) => ({ ...d, routing: e.target.value }))}
+                          placeholder="Routing (optional)"
+                          className="h-9 w-full rounded-lg border border-[#d2dbe8] bg-white px-3 text-sm outline-none focus:border-[#5865F2]"
+                        />
+                        <input
+                          value={wireDraft.swift}
+                          onChange={(e) => setWireDraft((d) => ({ ...d, swift: e.target.value }))}
+                          placeholder="SWIFT (optional)"
+                          className="h-9 w-full rounded-lg border border-[#d2dbe8] bg-white px-3 text-sm outline-none focus:border-[#5865F2]"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleWireDetails(selected)}
+                        disabled={savingWire}
+                        className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-[#5865F2] px-4 text-sm font-semibold text-white hover:bg-[#4752C4] disabled:opacity-70"
+                      >
+                        {savingWire ? "Sending…" : "Send bank details to customer"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#80848e]">Update status</p>
@@ -322,6 +469,12 @@ export default function AdminOrders() {
                     </button>
                   ))}
                 </div>
+                {selected.status === "submitted" && (
+                  <p className="mt-2 text-[11px] leading-relaxed text-[#5c5e66]">
+                    Marking <strong>paid</strong> emails the customer a receipt and
+                    unlocks fulfilment statuses.
+                  </p>
+                )}
               </div>
             </div>
           </div>

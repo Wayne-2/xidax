@@ -13,11 +13,34 @@ CREATE TABLE IF NOT EXISTS orders (
   total REAL NOT NULL,
   currency TEXT NOT NULL,
   status TEXT NOT NULL,
+  checkout_id TEXT,
+  promo_code TEXT,
+  discount REAL NOT NULL DEFAULT 0,
+  card_summary TEXT,
+  wallet_id TEXT,
+  wire_details TEXT,
+  expires_at TEXT,
+  receipt_sent_at TEXT,
   created_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS orders_email_idx ON orders (email);
 CREATE INDEX IF NOT EXISTS orders_status_idx ON orders (status);
+CREATE INDEX IF NOT EXISTS orders_checkout_id_idx ON orders (checkout_id);
+CREATE INDEX IF NOT EXISTS orders_expires_at_idx ON orders (expires_at);
+
+CREATE TABLE IF NOT EXISTS crypto_wallets (
+  id TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  network TEXT NOT NULL,
+  currency TEXT NOT NULL,
+  address TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS crypto_wallets_active_idx ON crypto_wallets (active);
 
 CREATE TABLE IF NOT EXISTS order_lines (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,7 +77,6 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   password_salt TEXT NOT NULL,
   tier TEXT NOT NULL DEFAULT 'Member',
-  bachs_customer_id TEXT,
   email_verified INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
@@ -117,3 +139,14 @@ CREATE TABLE IF NOT EXISTS email_otps (
 );
 
 CREATE INDEX IF NOT EXISTS email_otps_email_idx ON email_otps (email);
+
+CREATE TABLE IF NOT EXISTS checkout_sessions (
+  id TEXT PRIMARY KEY,
+  reference TEXT NOT NULL,
+  status TEXT NOT NULL,
+  data TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS checkout_sessions_expires_idx ON checkout_sessions (expires_at);

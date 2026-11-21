@@ -188,12 +188,18 @@ cd ..
 # 3. Optional: allow extra origins
 #    ALLOWED_ORIGINS = "https://staging.genericpcs.com"  in worker/wrangler.toml
 
-# 4. Deploy the API Worker
+```bash
+# 4. Apply the manual payment migration (card / crypto / wire)
+cd worker
+npm run db:migrate
+cd ..
+
+# 5. Deploy the API Worker
 cd worker
 npm run deploy
 cd ..
 
-# 5. Deploy the Next.js site
+# 6. Deploy the Next.js site
 npm run build
 npx opennextjs-cloudflare deploy
 ```
@@ -277,6 +283,24 @@ Base URL: `https://auth.genericpcs.com`
 | `POST` | `/api/auth/resend-otp` | Firebase ID token | Invalidate and re-send a code |
 | `GET` | `/api/auth/status` | `Authorization: Bearer <idToken>` | Current verification status |
 | `GET` | `/api/auth/config-check` | none | Configuration diagnostics |
+
+### Payments (manual card / crypto / wire)
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `POST` | `/api/checkout` | User session | Create checkout (`card` / `crypto` / `wire`) |
+| `GET` | `/api/checkout/:id` | User session | Poll session status + payment instructions |
+| `POST` | `/api/checkout/:id/card` | User session | Submit masked card summary → `submitted` |
+| `POST` | `/api/checkout/:id/confirm` | User session | Crypto/wire “I sent payment” → `submitted` |
+| `GET` | `/api/wallets` | none | Active crypto wallets for checkout |
+| `GET` | `/api/admin/wallets` | Admin | List all wallets |
+| `POST` | `/api/admin/wallets` | Admin | Create wallet |
+| `PATCH` | `/api/admin/wallets/:id` | Admin | Update / toggle wallet |
+| `DELETE` | `/api/admin/wallets/:id` | Admin | Delete wallet |
+| `POST` | `/api/admin/orders/:id/wire-details` | Admin | Send bank details → customer `awaiting_payment` |
+| `POST` | `/api/admin/orders/:id` (status `paid`) | Admin | Approve → receipt email to customer |
+
+Status flow: `pending → awaiting_payment → [awaiting_admin] → submitted → paid | failed | expired` (wire starts at `awaiting_admin` and emails admins). TTLs: card 15 min, crypto 30 min, wire 48 h.
 
 ### Send
 

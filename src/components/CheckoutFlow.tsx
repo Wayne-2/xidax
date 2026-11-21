@@ -10,16 +10,19 @@ import { useRegion } from "@/components/RegionProvider";
 import { useToast } from "@/components/ToastProvider";
 import { useAsyncAction } from "@/hooks/useAsyncAction";
 import {
+  confirmPayment,
   createCheckoutSession,
+  fetchWallets,
+  getCheckoutSession,
   remotePaymentsEnabled,
-  submitPayment,
+  submitCardDetails,
 } from "@/lib/api";
 import {
-  cryptoNetworks,
-  gatewayMethodLabels,
+  formatCountdown,
   paymentMethods,
+  statusLabel,
   type CheckoutSession,
-  type CryptoNetwork,
+  type CryptoWallet,
   type PaymentMethod,
 } from "@/lib/payments";
 
@@ -58,6 +61,25 @@ function StepBadge({
   );
 }
 
+function CopyButton({ value, label }: { value: string; label: string }) {
+  const toast = useToast();
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        void navigator.clipboard.writeText(value).then(
+          () => toast.success(`${label} copied.`),
+          () => toast.error("Could not copy. Select the text manually.")
+        );
+      }}
+      className="rounded-lg border border-[#d2dbe8] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#5865F2] transition-colors hover:border-[#5865F2]/40"
+    >
+      Copy
+    </button>
+  );
+}
+
 export default function CheckoutFlow() {
   const { token } = useAccount();
   const router = useRouter();
@@ -74,10 +96,18 @@ export default function CheckoutFlow() {
   const [country, setCountry] = useState<string | null>(null);
   const [postalCode, setPostalCode] = useState("");
   const [method, setMethod] = useState<PaymentMethod | null>(null);
-  const [network, setNetwork] = useState<CryptoNetwork>("usdt");
+  const [walletId, setWalletId] = useState<string>("");
+  const [wallets, setWallets] = useState<CryptoWallet[]>([]);
+  const [walletsLoaded, setWalletsLoaded] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [session, setSession] = useState<CheckoutSession | null>(null);
   const [now, setNow] = useState(0);
+
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpMonth, setCardExpMonth] = useState("");
+  const [cardExpYear, setCardExpYear] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [cardHolder, setCardHolder] = useState("");
 
   const discount = promo ? Math.round(subtotal * promo.rate * 100) / 100 : 0;
   const discountedSubtotal = Math.max(0, Math.round((subtotal - discount) * 100) / 100);
@@ -107,6 +137,28 @@ export default function CheckoutFlow() {
   }, [ready, items.length, router]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadWallets() {
+      try {
+        const result = await fetchWallets();
+        if (cancelled) return;
+        setWallets(result.wallets);
+        setWalletId((current) => current || result.wallets[0]?.id || "");
+      } catch {
+        if (!cancelled) setWallets([]);
+      } finally {
+        if (!cancelled) setWalletsLoaded(true);
+      }
+    }
+
+    void loadWallets();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!session) return;
 
     const update = () => setNow(Date.now());
@@ -118,6 +170,44 @@ export default function CheckoutFlow() {
       window.clearInterval(timer);
     };
   }, [session]);
+
+  // Poll the session so admin approval (paid) shows without a manual refresh.
+  useEffect(() => {
+    if (!session || session.status === "paid" || session.status === "expired") {
+      return;
+    }
+
+    let cancelled = false;
+    let attempts = 0;
+
+    async function poll() {
+      if (cancelled) return;
+      try {
+        const fresh = await getCheckoutSession(session!.id);
+        if (cancelled || !fresh) return;
+        setSession(fresh);
+
+        if (fresh.status === "paid") {
+          toast.success("Payment approved — your receipt is on its way.");
+        } else if (fresh.status === "awaiting_payment" && session!.status === "awaiting_admin") {
+          toast.success("Bank details are ready.");
+        }
+      } catch {
+        // Transient network blips are fine; keep polling.
+      }
+    }
+
+    const timer = window.setInterval(() => {
+      attempts += 1;
+      if (attempts > 180) return;
+      void poll();
+    }, 4000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [session, toast]);
 
   const lines = useMemo(
     () =>
@@ -134,16 +224,9 @@ export default function CheckoutFlow() {
   const remaining = session
     ? Math.max(0, new Date(session.expiresAt).getTime() - now)
     : 0;
-  const countdown = `${String(Math.floor(remaining / 60000)).padStart(2, "0")}:${String(
-    Math.floor((remaining % 60000) / 1000)
-  ).padStart(2, "0")}`;
-
+  const countdown = formatCountdown(remaining);
   const instructions = session?.instructions;
-  const cryptoNetworkId =
-    instructions?.method === "crypto" ? instructions.network : null;
-  const cryptoNetwork = cryptoNetworkId
-    ? cryptoNetworks.find((entry) => entry.value === cryptoNetworkId)
-    : undefined;
+  const selectedWallet = wallets.find((entry) => entry.id === walletId) ?? wallets[0];
 
   function validateDetails() {
     const next: Record<string, string> = {};
@@ -163,23 +246,48 @@ export default function CheckoutFlow() {
     return Object.keys(next).length === 0;
   }
 
+  function validateCard() {
+    const next: Record<string, string> = {};
+    const digits = cardNumber.replace(/\s+/g, "");
+
+    if (!/^\d{12,19}$/.test(digits)) next.cardNumber = "Enter a valid card number.";
+    if (!/^(0[1-9]|1[0-2])$/.test(cardExpMonth.padStart(2, "0"))) {
+      next.cardExp = "Enter a valid expiry (MM/YY).";
+    }
+    if (!/^\d{2}$/.test(cardExpYear)) next.cardExp = "Enter a valid expiry (MM/YY).";
+    if (!/^\d{3,4}$/.test(cardCvv)) next.cardCvv = "Enter a valid security code.";
+    if (!cardHolder.trim()) next.cardHolder = "Enter the cardholder name.";
+
+    setErrors((current) => ({ ...current, ...next }));
+
+    return Object.keys(next).length === 0;
+  }
+
   const {
     run: startPayment,
     pending: startingPayment,
     error: paymentError,
   } = useAsyncAction(
     async () => {
-      const created = await createCheckoutSession({
-        lines,
-        details: { name, email, phone, country: countryValue, postalCode },
-        method: selectedMethod,
-        network: selectedMethod === "crypto" ? network : undefined,
-        subtotal,
-        shipping,
-        total,
-        currency: "USD",
-        promoCode: promo?.code,
-      }, token);
+      if (selectedMethod === "crypto" && !walletId) {
+        setErrors({ form: "Choose a wallet to send the crypto to." });
+        return;
+      }
+
+      const created = await createCheckoutSession(
+        {
+          lines,
+          details: { name, email, phone, country: countryValue, postalCode },
+          method: selectedMethod,
+          walletId: selectedMethod === "crypto" ? walletId : undefined,
+          subtotal,
+          shipping,
+          total,
+          currency: "USD",
+          promoCode: promo?.code,
+        },
+        token
+      );
 
       setSession(created);
       setNow(Date.now());
@@ -191,13 +299,39 @@ export default function CheckoutFlow() {
     }
   );
 
-  const { run: confirmPayment, pending: confirmingPayment } = useAsyncAction(
+  const {
+    run: submitCard,
+    pending: submittingCard,
+    error: cardError,
+  } = useAsyncAction(
     async (sessionId: string) => {
-      await submitPayment(sessionId);
-      setSession((current) =>
-        current ? { ...current, status: "submitted" } : current
-      );
-      toast.success("Thanks — we have your note. We release the build once it clears.");
+      const result = await submitCardDetails(sessionId, {
+        cardNumber: cardNumber.replace(/\s+/g, ""),
+        expMonth: cardExpMonth.padStart(2, "0"),
+        expYear: cardExpYear,
+        cvv: cardCvv,
+        holderName: cardHolder.trim(),
+      });
+      setSession(result.session);
+      setNow(Date.now());
+      toast.success("Card details submitted — an admin will review shortly.");
+    },
+    {
+      silent: true,
+      fallback: "We could not submit the card details. Try again.",
+    }
+  );
+
+  const {
+    run: confirmTransfer,
+    pending: confirmingPayment,
+    error: confirmError,
+  } = useAsyncAction(
+    async (sessionId: string) => {
+      const result = await confirmPayment(sessionId);
+      setSession(result.session);
+      setNow(Date.now());
+      toast.success("Thanks — we have your payment note. We release the build once it clears.");
     },
     {
       fallback: "We could not record that. Try again in a moment.",
@@ -207,6 +341,71 @@ export default function CheckoutFlow() {
 
   const fieldClass =
     "h-11 w-full rounded-xl border bg-[#f8fafe] px-3.5 text-sm text-[#2e3338] outline-none transition-colors placeholder:text-[#80848e]";
+
+  const statusBanner = (() => {
+    if (!session) return null;
+
+    if (session.status === "paid") {
+      return (
+        <div className="rounded-xl border border-[#15803D]/35 bg-[#15803D]/10 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#15803D]">
+            Payment approved
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-[#4e5058]">
+            Order {session.reference} is paid. A receipt was emailed to{" "}
+            {session.details.email}. Track progress in your profile.
+          </p>
+        </div>
+      );
+    }
+
+    if (session.status === "expired") {
+      return (
+        <div className="rounded-xl border border-[#B91C1C]/30 bg-[#fdf2f2] p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#B91C1C]">
+            Session expired
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-[#4e5058]">
+            The payment window for order {session.reference} has closed. Start
+            checkout again if you still need to pay.
+          </p>
+        </div>
+      );
+    }
+
+    if (session.status === "awaiting_admin") {
+      return (
+        <div className="rounded-xl border border-[#B45309]/40 bg-[#B45309]/10 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#B45309]">
+            Waiting on bank details
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-[#4e5058]">
+            Our team has been notified. Bank account details for order{" "}
+            {session.reference} will appear here shortly — check back within a
+            few minutes. Window closes in{" "}
+            <span className="font-mono font-semibold">{countdown}</span>.
+          </p>
+        </div>
+      );
+    }
+
+    if (session.status === "submitted") {
+      return (
+        <div className="rounded-xl border border-[#15803D]/35 bg-[#15803D]/10 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#15803D]">
+            Under review
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-[#4e5058]">
+            We have payment for order {session.reference}. An admin will approve
+            it and email the receipt to {session.details.email}. This page
+            updates automatically.
+          </p>
+        </div>
+      );
+    }
+
+    return null;
+  })();
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
@@ -253,7 +452,7 @@ export default function CheckoutFlow() {
         <StepBadge index={3} label="Instructions" active={step === 3} done={false} />
         <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5c5e66]">
           <span className="h-1.5 w-1.5 rounded-full bg-[#16A34A]" />
-          {remotePaymentsEnabled() ? "Cloudflare · bachs" : "Demo gateway"}
+          {remotePaymentsEnabled() ? "Manual · card / crypto / wire" : "Demo mode"}
         </span>
       </div>
 
@@ -413,8 +612,8 @@ export default function CheckoutFlow() {
                 Payment method
               </h2>
               <p className="mt-1 text-xs leading-relaxed text-[#5c5e66]">
-                Settled through the bachs gateway. Crypto payments confirm on
-                chain, wire transfers are released once the bank clears.
+                Manual settlement — card, crypto or bank wire. An admin approves
+                the payment and emails your receipt.
               </p>
 
               <div className="mt-5 space-y-3">
@@ -438,7 +637,7 @@ export default function CheckoutFlow() {
                           active ? "text-[#5865F2]" : "text-[#80848e]"
                         }`}
                       >
-                        {option.value === "crypto" ? "01" : "02"}
+                        {option.index}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm font-semibold text-[#2e3338]">
@@ -465,35 +664,52 @@ export default function CheckoutFlow() {
               {selectedMethod === "crypto" && (
                 <div className="mt-6">
                   <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]">
-                    Network
+                    Destination wallet
                   </p>
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {cryptoNetworks.map((entry) => {
-                      const active = network === entry.value;
+                  {!walletsLoaded ? (
+                    <p className="text-xs text-[#5c5e66]">Loading wallets…</p>
+                  ) : wallets.length === 0 ? (
+                    <p className="rounded-xl border border-[#B45309]/40 bg-[#B45309]/10 px-3.5 py-2.5 text-xs text-[#4e5058]">
+                      No crypto wallets are available right now. Choose card or
+                      wire instead.
+                    </p>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {wallets.map((entry) => {
+                        const active = walletId === entry.id;
 
-                      return (
-                        <button
-                          key={entry.value}
-                          type="button"
-                          onClick={() => setNetwork(entry.value)}
-                          aria-pressed={active}
-                          className={`rounded-xl border px-4 py-3 text-left transition-colors ${
-                            active
-                              ? "border-[#5865F2] bg-[#5865F2]/10"
-                              : "border-[#d2dbe8] bg-[#f8fafe] hover:border-[#b8c4d6]"
-                          }`}
-                        >
-                          <span className="block text-sm font-semibold text-[#2e3338]">
-                            {entry.label}
-                          </span>
-                          <span className="mt-0.5 block text-[11px] text-[#5c5e66]">
-                            {entry.currency} · {entry.confirmations}{" "}
-                            {entry.confirmations === 1 ? "confirmation" : "confirmations"}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                        return (
+                          <button
+                            key={entry.id}
+                            type="button"
+                            onClick={() => setWalletId(entry.id)}
+                            aria-pressed={active}
+                            className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                              active
+                                ? "border-[#5865F2] bg-[#5865F2]/10"
+                                : "border-[#d2dbe8] bg-[#f8fafe] hover:border-[#b8c4d6]"
+                            }`}
+                          >
+                            <span className="block text-sm font-semibold text-[#2e3338]">
+                              {entry.label}
+                            </span>
+                            <span className="mt-0.5 block text-[11px] uppercase tracking-wide text-[#5c5e66]">
+                              {entry.currency} · {entry.network}
+                            </span>
+                            <span className="mt-1 block truncate font-mono text-[10px] text-[#80848e]">
+                              {entry.address}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {selectedWallet && (
+                    <p className="mt-2 text-[11px] leading-relaxed text-[#80848e]">
+                      Send exactly the amount shown after checkout. Include
+                      reference {`PCM-…`} once you have an order reference.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -516,8 +732,10 @@ export default function CheckoutFlow() {
                   className="inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:opacity-70"
                 >
                   {startingPayment
-                    ? "Preparing instructions…"
-                    : "Get payment details"}
+                    ? "Preparing…"
+                    : selectedMethod === "card"
+                      ? "Continue to card details"
+                      : "Get payment details"}
                   {!startingPayment && <ArrowIcon className="h-4 w-4" />}
                 </button>
                 <button
@@ -536,60 +754,43 @@ export default function CheckoutFlow() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
-                    {session.instructions.method === "crypto"
-                      ? "Send the crypto"
-                      : "Send the wire transfer"}
+                    {session.method === "card"
+                      ? "Card payment"
+                      : session.method === "crypto"
+                        ? "Send the crypto"
+                        : "Wire transfer"}
                   </h2>
                   <p className="mt-1 text-xs leading-relaxed text-[#5c5e66]">
                     Order reference{" "}
                     <span className="font-mono font-semibold text-[#2e3338]">
                       {session.reference}
-                    </span>{" "}
-                    · expires in{" "}
-                    <span className="font-mono font-semibold text-[#2e3338]">
-                      {countdown}
                     </span>
+                    {session.status !== "paid" && session.status !== "expired" && (
+                      <>
+                        {" "}
+                        · expires in{" "}
+                        <span className="font-mono font-semibold text-[#2e3338]">
+                          {countdown}
+                        </span>
+                      </>
+                    )}
                   </p>
                 </div>
                 <span className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5c5e66]">
-                  Gateway · bachs
+                  {statusLabel(session.status)}
                 </span>
               </div>
 
-              {session.gatewayWarning && (
-                <div className="mt-4 rounded-xl border border-[#B45309]/40 bg-[#B45309]/10 shadow-card p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#B45309]">
-                    Payment gateway notice
-                  </p>
-                  <p className="mt-1 text-xs leading-relaxed text-[#4e5058]">
-                    {session.gatewayWarning}
-                  </p>
-                </div>
-              )}
-
-              {session.status === "submitted" && (
-                <div className="mt-4 rounded-xl border border-[#15803D]/35 bg-[#15803D]/10 shadow-card p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#15803D]">
-                    Payment noted
-                  </p>
-                  <p className="mt-1 text-xs leading-relaxed text-[#4e5058]">
-                    We have your note for order {session.reference}. We release
-                    the build once {instructions?.method === "crypto"
-                      ? "the network confirms"
-                      : "the bank transfer clears"}
-                    , and we email the receipt to {session.details.email}.
-                  </p>
-                </div>
-              )}
+              {statusBanner && <div className="mt-4">{statusBanner}</div>}
 
               <div className="mt-5 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] shadow-card p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
                   Amount due
                 </p>
                 <p className="mt-1 text-2xl font-bold tracking-tight text-[#2e3338]">
-                  {session.instructions.amount}{" "}
+                  {instructions?.amount}{" "}
                   <span className="text-base font-semibold text-[#5c5e66]">
-                    {session.instructions.billingCurrency}
+                    {instructions?.billingCurrency}
                   </span>
                 </p>
                 {region.currency !== "USD" && (
@@ -597,89 +798,336 @@ export default function CheckoutFlow() {
                     ≈ {formatMoney(session.total)}
                   </p>
                 )}
-                {instructions?.method === "crypto" && (
-                  <p className="mt-1 text-xs leading-relaxed text-[#5c5e66]">
-                    bachs converts this to {instructions.currency} on the{" "}
-                    {cryptoNetwork?.chain ?? instructions.network} network at
-                    the live rate. It releases after {instructions.confirmations}{" "}
-                    {instructions.confirmations === 1
-                      ? "confirmation"
-                      : "confirmations"}
-                    .
-                  </p>
-                )}
-                {instructions?.method === "wire" && (
-                  <p className="mt-1 text-xs leading-relaxed text-[#5c5e66]">
-                    bachs shows you the account to pay into and matches your
-                    transfer to order {session.reference}. We release the build
-                    once the bank clears.
-                  </p>
-                )}
               </div>
 
-              {session.instructions.checkoutUrl ? (
-                <a
-                  href={session.instructions.checkoutUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-4 inline-flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
-                >
-                  Pay securely with bachs
-                  <ArrowIcon className="h-4 w-4" />
-                </a>
-              ) : (
-                <p className="mt-4 rounded-xl border border-[#B45309]/40 bg-[#B45309]/10 shadow-card px-4 py-3 text-xs leading-relaxed text-[#4e5058]">
-                  The bachs checkout link is unavailable for this order yet.
-                  Send the amount above using the reference {session.reference}.
-                </p>
+              {session.method === "card" && session.status === "awaiting_payment" && (
+                <div className="mt-5 rounded-xl border border-[#d2dbe8] bg-white p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
+                    Card details
+                  </p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-[#5c5e66]">
+                    We store only a masked summary (brand, last 4, expiry). Full
+                    number and CVV are never saved.
+                  </p>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <label
+                        htmlFor="card-number"
+                        className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
+                      >
+                        Card number
+                      </label>
+                      <input
+                        id="card-number"
+                        inputMode="numeric"
+                        autoComplete="cc-number"
+                        value={cardNumber}
+                        onChange={(event) =>
+                          setCardNumber(
+                            event.target.value
+                              .replace(/\D+/g, "")
+                              .slice(0, 19)
+                              .replace(/(\d{4})(?=\d)/g, "$1 ")
+                          )
+                        }
+                        placeholder="4242 4242 4242 4242"
+                        className={`${fieldClass} font-mono ${
+                          errors.cardNumber ? "border-[#DC2626]" : "border-[#d2dbe8]"
+                        }`}
+                      />
+                      {errors.cardNumber && (
+                        <p className="mt-1.5 text-xs text-[#B91C1C]">
+                          {errors.cardNumber}
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="card-exp"
+                        className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
+                      >
+                        Expiry
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          id="card-exp"
+                          inputMode="numeric"
+                          autoComplete="cc-exp-month"
+                          value={cardExpMonth}
+                          onChange={(event) =>
+                            setCardExpMonth(
+                              event.target.value.replace(/\D+/g, "").slice(0, 2)
+                            )
+                          }
+                          placeholder="MM"
+                          maxLength={2}
+                          className={`${fieldClass} ${
+                            errors.cardExp ? "border-[#DC2626]" : "border-[#d2dbe8]"
+                          }`}
+                        />
+                        <input
+                          aria-label="Expiry year"
+                          inputMode="numeric"
+                          autoComplete="cc-exp-year"
+                          value={cardExpYear}
+                          onChange={(event) =>
+                            setCardExpYear(
+                              event.target.value.replace(/\D+/g, "").slice(0, 2)
+                            )
+                          }
+                          placeholder="YY"
+                          maxLength={2}
+                          className={`${fieldClass} ${
+                            errors.cardExp ? "border-[#DC2626]" : "border-[#d2dbe8]"
+                          }`}
+                        />
+                      </div>
+                      {errors.cardExp && (
+                        <p className="mt-1.5 text-xs text-[#B91C1C]">
+                          {errors.cardExp}
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="card-cvv"
+                        className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
+                      >
+                        Security code
+                      </label>
+                      <input
+                        id="card-cvv"
+                        inputMode="numeric"
+                        autoComplete="cc-csc"
+                        type="password"
+                        value={cardCvv}
+                        onChange={(event) =>
+                          setCardCvv(
+                            event.target.value.replace(/\D+/g, "").slice(0, 4)
+                          )
+                        }
+                        placeholder="123"
+                        className={`${fieldClass} font-mono ${
+                          errors.cardCvv ? "border-[#DC2626]" : "border-[#d2dbe8]"
+                        }`}
+                      />
+                      {errors.cardCvv && (
+                        <p className="mt-1.5 text-xs text-[#B91C1C]">
+                          {errors.cardCvv}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label
+                        htmlFor="card-holder"
+                        className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
+                      >
+                        Cardholder name
+                      </label>
+                      <input
+                        id="card-holder"
+                        autoComplete="cc-name"
+                        value={cardHolder}
+                        onChange={(event) => setCardHolder(event.target.value)}
+                        placeholder="WAYNE ADEBAYO"
+                        className={`${fieldClass} ${
+                          errors.cardHolder ? "border-[#DC2626]" : "border-[#d2dbe8]"
+                        }`}
+                      />
+                      {errors.cardHolder && (
+                        <p className="mt-1.5 text-xs text-[#B91C1C]">
+                          {errors.cardHolder}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {(cardError || errors.form) && (
+                    <p
+                      role="alert"
+                      className="mt-3 rounded-xl border border-[#DC2626]/30 bg-[#fdf2f2] px-3.5 py-2.5 text-xs leading-relaxed text-[#B91C1C]"
+                    >
+                      {cardError ?? errors.form}
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (validateCard()) {
+                        setErrors({});
+                        void submitCard(session.id);
+                      }
+                    }}
+                    disabled={submittingCard}
+                    className="mt-4 inline-flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:opacity-70"
+                  >
+                    {submittingCard ? "Submitting…" : "Submit card for review"}
+                    {!submittingCard && <ArrowIcon className="h-4 w-4" />}
+                  </button>
+                </div>
               )}
 
-              {session.instructions.availableMethods.length > 0 && (
-                <div className="mt-5">
+              {session.method === "card" && session.cardSummary && (
+                <div className="mt-4 rounded-xl border border-[#d2dbe8] bg-white p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
-                    Payment methods
+                    Card on file (masked)
                   </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {session.instructions.availableMethods.map((method) => (
-                      <span
-                        key={method}
-                        className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1 text-[11px] font-semibold text-[#5c5e66]"
-                      >
-                        {gatewayMethodLabels[method] ?? method}
-                      </span>
-                    ))}
+                  <p className="mt-2 font-mono text-sm font-semibold text-[#2e3338]">
+                    {session.cardSummary.brand} ···· {session.cardSummary.last4}
+                  </p>
+                  <p className="text-xs text-[#5c5e66]">
+                    Exp {session.cardSummary.expMonth}/{session.cardSummary.expYear} ·{" "}
+                    {session.cardSummary.holderName}
+                  </p>
+                </div>
+              )}
+
+              {session.method === "crypto" && instructions?.method === "crypto" && (
+                <div className="mt-4 rounded-xl border border-[#d2dbe8] bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
+                        Send {instructions.currency} to
+                      </p>
+                      <p className="mt-1 truncate font-mono text-sm font-semibold text-[#2e3338]">
+                        {instructions.address}
+                      </p>
+                      <p className="mt-1 text-xs text-[#5c5e66]">
+                        {instructions.walletLabel} · {instructions.network} ·
+                        settles after {instructions.confirmations}{" "}
+                        {instructions.confirmations === 1
+                          ? "confirmation"
+                          : "confirmations"}
+                      </p>
+                    </div>
+                    <CopyButton value={instructions.address} label="Address" />
+                  </div>
+
+                  <div className="mt-3 flex items-start justify-between gap-3 border-t border-[#e4e9f0] pt-3">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
+                        Exact amount
+                      </p>
+                      <p className="mt-1 font-mono text-sm font-semibold text-[#2e3338]">
+                        {instructions.amount} {instructions.currency}
+                      </p>
+                    </div>
+                    <CopyButton
+                      value={instructions.amount}
+                      label="Amount"
+                    />
                   </div>
                 </div>
               )}
 
-              {session.instructions.excludedMethods.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  {session.instructions.excludedMethods.map((method) => (
-                    <p
-                      key={method.id}
-                      className="flex items-start gap-2 text-xs leading-relaxed text-[#80848e]"
-                    >
-                      <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-[#c8d1de]" />
-                      {gatewayMethodLabels[method.id] ?? method.id} is not
-                      available
-                      {method.limit ? ` above ${method.limit}` : ""} for this
-                      amount.
+              {session.method === "wire" && instructions?.method === "wire" && (
+                <div className="mt-4 rounded-xl border border-[#d2dbe8] bg-white p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
+                    Bank account
+                  </p>
+                  {instructions.wireDetails ? (
+                    <dl className="mt-2 space-y-2 text-sm">
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-[#5c5e66]">Bank</dt>
+                        <dd className="text-right font-semibold text-[#2e3338]">
+                          {instructions.wireDetails.bankName}
+                        </dd>
+                      </div>
+                      <div className="flex items-start justify-between gap-3">
+                        <dt className="text-[#5c5e66]">Account</dt>
+                        <dd className="text-right">
+                          <span className="block font-mono font-semibold text-[#2e3338]">
+                            {instructions.wireDetails.accountNumber}
+                          </span>
+                          <CopyButton
+                            value={instructions.wireDetails.accountNumber}
+                            label="Account number"
+                          />
+                        </dd>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-[#5c5e66]">Beneficiary</dt>
+                        <dd className="text-right font-semibold text-[#2e3338]">
+                          {instructions.wireDetails.beneficiary}
+                        </dd>
+                      </div>
+                      {instructions.wireDetails.routing && (
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-[#5c5e66]">Routing</dt>
+                          <dd className="text-right font-mono text-[#2e3338]">
+                            {instructions.wireDetails.routing}
+                          </dd>
+                        </div>
+                      )}
+                      {instructions.wireDetails.swift && (
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-[#5c5e66]">SWIFT</dt>
+                          <dd className="text-right font-mono text-[#2e3338]">
+                            {instructions.wireDetails.swift}
+                          </dd>
+                        </div>
+                      )}
+                      <div className="flex justify-between gap-3 border-t border-[#e4e9f0] pt-2">
+                        <dt className="text-[#5c5e66]">Reference</dt>
+                        <dd className="text-right font-mono font-semibold text-[#2e3338]">
+                          {instructions.wireDetails.reference ?? session.reference}
+                        </dd>
+                      </div>
+                    </dl>
+                  ) : (
+                    <p className="mt-2 text-xs leading-relaxed text-[#5c5e66]">
+                      Request our bank details from the admin team — they will
+                      appear here automatically. Use reference{" "}
+                      <span className="font-mono font-semibold">
+                        {session.reference}
+                      </span>{" "}
+                      on the transfer.
                     </p>
-                  ))}
+                  )}
                 </div>
               )}
 
+              {(confirmError || errors.form) && session.method !== "card" && (
+                <p
+                  role="alert"
+                  className="mt-4 rounded-xl border border-[#DC2626]/30 bg-[#fdf2f2] px-3.5 py-2.5 text-xs leading-relaxed text-[#B91C1C]"
+                >
+                  {confirmError ?? errors.form}
+                </p>
+              )}
+
               <div className="mt-6 flex flex-wrap items-center gap-3">
-                {session.status === "submitted" ? (
+                {session.status === "paid" ? (
                   <span className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#15803D]/35 bg-[#15803D]/10 px-6 text-sm font-semibold text-[#15803D]">
                     <CheckIcon className="h-4 w-4" />
-                    Payment sent
+                    Payment approved
+                  </span>
+                ) : session.method === "card" ? (
+                  session.status === "awaiting_payment" ? null : (
+                    <span className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-6 text-sm font-semibold text-[#5c5e66]">
+                      <CheckIcon className="h-4 w-4" />
+                      Card under review
+                    </span>
+                  )
+                ) : session.status === "awaiting_admin" ? (
+                  <span className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#B45309]/40 bg-[#B45309]/10 px-6 text-sm font-semibold text-[#B45309]">
+                    Waiting for bank details
+                  </span>
+                ) : session.status === "submitted" ? (
+                  <span className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#15803D]/35 bg-[#15803D]/10 px-6 text-sm font-semibold text-[#15803D]">
+                    <CheckIcon className="h-4 w-4" />
+                    Payment noted
                   </span>
                 ) : (
                   <button
                     type="button"
                     onClick={() => {
-                      void confirmPayment(session.id);
+                      void confirmTransfer(session.id);
                     }}
                     disabled={confirmingPayment}
                     className="inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:opacity-70"

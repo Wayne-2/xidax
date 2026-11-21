@@ -6,19 +6,52 @@ export type RegisteredProductPayload = {
   email: string;
 };
 
-export type PaymentMethod = "crypto" | "wire";
+export type PaymentMethod = "card" | "crypto" | "wire";
 
-export type CryptoNetwork = "eth" | "usdt" | "sol";
+export type CryptoNetwork = "btc" | "eth" | "usdt" | "sol";
 
 export type PaymentStatus =
   | "pending"
   | "awaiting_payment"
+  | "awaiting_admin"
   | "submitted"
   | "paid"
+  | "processing"
+  | "shipped"
+  | "delivered"
+  | "cancelled"
+  | "refunded"
   | "expired"
   | "failed";
 
-export type PaymentProvider = "bachs";
+/** Masked card data only — full PAN/CVV are never stored. */
+export type CardSummary = {
+  brand: string;
+  last4: string;
+  expMonth: string;
+  expYear: string;
+  holderName: string;
+};
+
+export type WireDetails = {
+  bankName: string;
+  accountNumber: string;
+  beneficiary: string;
+  routing?: string;
+  swift?: string;
+  reference?: string;
+};
+
+export type CryptoWallet = {
+  id: string;
+  label: string;
+  network: CryptoNetwork;
+  currency: string;
+  address: string;
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
 
 export type CheckoutLine = {
   id: string;
@@ -36,44 +69,42 @@ export type CheckoutDetails = {
   postalCode: string;
 };
 
-export type ExcludedMethod = {
-  id: string;
-  reason: string;
-  limit?: string;
-  currency?: string;
+export type CardInstructions = {
+  method: "card";
+  amount: string;
+  billingCurrency: string;
+  cardSummary?: CardSummary;
 };
 
 export type CryptoInstructions = {
   method: "crypto";
+  walletId: string;
+  walletLabel: string;
   network: CryptoNetwork;
   currency: string;
-  billingCurrency: string;
+  address: string;
   amount: string;
+  billingCurrency: string;
   confirmations: number;
-  checkoutUrl: string;
-  checkoutId: string;
-  availableMethods: string[];
-  excludedMethods: ExcludedMethod[];
 };
 
 export type WireInstructions = {
   method: "wire";
-  currency: string;
-  billingCurrency: string;
   amount: string;
-  checkoutUrl: string;
-  checkoutId: string;
-  availableMethods: string[];
-  excludedMethods: ExcludedMethod[];
+  billingCurrency: string;
+  wireDetails?: WireDetails;
 };
 
-export type PaymentInstructions = CryptoInstructions | WireInstructions;
+export type PaymentInstructions =
+  | CardInstructions
+  | CryptoInstructions
+  | WireInstructions;
 
 export type CheckoutRequest = {
   lines: CheckoutLine[];
   details: CheckoutDetails;
   method: PaymentMethod;
-  network?: CryptoNetwork;
+  walletId?: string;
   subtotal: number;
   shipping: number;
   total: number;
@@ -83,20 +114,69 @@ export type CheckoutRequest = {
 
 export type CheckoutSession = {
   id: string;
-  provider: PaymentProvider;
   status: PaymentStatus;
   reference: string;
+  method: PaymentMethod;
   createdAt: string;
   expiresAt: string;
   subtotal: number;
   shipping: number;
+  discount: number;
+  promoCode?: string;
   total: number;
   currency: string;
   lines: CheckoutLine[];
   details: CheckoutDetails;
   instructions: PaymentInstructions;
-  gatewayWarning?: string;
+  cardSummary?: CardSummary | null;
+  walletId?: string | null;
+  wireDetails?: WireDetails | null;
+  receiptSentAt?: string | null;
 };
+
+export type CardDetailsInput = {
+  cardNumber: string;
+  expMonth: string;
+  expYear: string;
+  cvv: string;
+  holderName: string;
+};
+
+/** Per-method session lifetimes (milliseconds) — must match the Worker. */
+export const METHOD_TTL_MS: Record<PaymentMethod, number> = {
+  card: 15 * 60 * 1000,
+  crypto: 30 * 60 * 1000,
+  wire: 48 * 60 * 60 * 1000,
+};
+
+export const paymentMethods: {
+  value: PaymentMethod;
+  label: string;
+  description: string;
+  index: string;
+}[] = [
+  {
+    value: "card",
+    label: "Card",
+    description:
+      "Pay by card. We hold a masked summary and an admin reviews the charge within minutes.",
+    index: "01",
+  },
+  {
+    value: "crypto",
+    label: "Crypto",
+    description:
+      "Send USDT, BTC, ETH or Solana to our wallet. Approve once the transfer lands.",
+    index: "02",
+  },
+  {
+    value: "wire",
+    label: "Wire transfer",
+    description:
+      "Request our bank details, transfer, then confirm. Builds release once the transfer clears.",
+    index: "03",
+  },
+];
 
 export const cryptoNetworks: {
   value: CryptoNetwork;
@@ -104,7 +184,6 @@ export const cryptoNetworks: {
   currency: string;
   chain: string;
   confirmations: number;
-  rate: number;
 }[] = [
   {
     value: "usdt",
@@ -112,7 +191,13 @@ export const cryptoNetworks: {
     currency: "USDT",
     chain: "TRC20",
     confirmations: 1,
-    rate: 1,
+  },
+  {
+    value: "btc",
+    label: "Bitcoin",
+    currency: "BTC",
+    chain: "Bitcoin",
+    confirmations: 2,
   },
   {
     value: "eth",
@@ -120,7 +205,6 @@ export const cryptoNetworks: {
     currency: "ETH",
     chain: "Ethereum",
     confirmations: 3,
-    rate: 3200,
   },
   {
     value: "sol",
@@ -128,38 +212,28 @@ export const cryptoNetworks: {
     currency: "SOL",
     chain: "Solana",
     confirmations: 1,
-    rate: 150,
   },
 ];
-
-export const paymentMethods: {
-  value: PaymentMethod;
-  label: string;
-  description: string;
-}[] = [
-  {
-    value: "crypto",
-    label: "Crypto",
-    description:
-      "Pay with USDT, Ethereum or Solana. Settles once the network confirms.",
-  },
-  {
-    value: "wire",
-    label: "Wire transfer",
-    description:
-      "Bank transfer straight to our account. We release the build once it clears.",
-  },
-];
-
-export const gatewayMethodLabels: Record<string, string> = {
-  CRYPTO: "Cryptocurrency",
-  NGN_BANK_TRANSFER: "Naira bank transfer",
-  NGN_CARD: "Naira card",
-  USD_CARD: "USD card",
-};
 
 export function networkConfig(network: CryptoNetwork) {
   return (
     cryptoNetworks.find((entry) => entry.value === network) ?? cryptoNetworks[0]
   );
+}
+
+export function formatCountdown(remainingMs: number) {
+  const remaining = Math.max(0, remainingMs);
+  const hours = Math.floor(remaining / 3_600_000);
+  const minutes = Math.floor((remaining % 3_600_000) / 60_000);
+  const seconds = Math.floor((remaining % 60_000) / 1000);
+
+  if (hours > 0) {
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+export function statusLabel(status: string) {
+  return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }

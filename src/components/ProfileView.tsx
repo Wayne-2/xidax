@@ -14,13 +14,32 @@ import {
   type AccountOrderStatus,
 } from "@/data/account";
 import { currencyLabel } from "@/lib/regions";
+import { statusLabel } from "@/lib/payments";
 import { countries } from "@/data/account";
 
 const statusTone: Record<AccountOrderStatus, string> = {
   Delivered: "bg-[#16A34A]/10 text-[#15803D]",
   Building: "bg-[#B45309]/10 text-[#B45309]",
   "In transit": "bg-[#5865F2]/10 text-[#4752C4]",
+  Pending: "bg-[#B45309]/10 text-[#B45309]",
+  "Awaiting payment": "bg-[#B45309]/10 text-[#B45309]",
+  "Awaiting admin": "bg-[#B45309]/10 text-[#B45309]",
+  Submitted: "bg-[#5865F2]/10 text-[#4752C4]",
+  Paid: "bg-[#16A34A]/10 text-[#15803D]",
+  Expired: "bg-[#64748B]/10 text-[#475569]",
+  Failed: "bg-[#DC2626]/10 text-[#B91C1C]",
+  Cancelled: "bg-[#DC2626]/10 text-[#B91C1C]",
+  Refunded: "bg-[#DC2626]/10 text-[#B91C1C]",
+  Processing: "bg-[#5865F2]/10 text-[#4752C4]",
+  Shipped: "bg-[#5865F2]/10 text-[#4752C4]",
 };
+
+function profileStatus(raw: string): AccountOrderStatus {
+  const pretty = statusLabel(raw);
+  return (pretty in statusTone
+    ? pretty
+    : raw) as AccountOrderStatus;
+}
 
 function ChevronIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
@@ -372,10 +391,11 @@ export default function ProfileView() {
                     </span>
                     <span
                       className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
-                        statusTone[order.status as AccountOrderStatus]
+                        statusTone[profileStatus(order.status)] ??
+                        "bg-[#64748B]/10 text-[#475569]"
                       }`}
                     >
-                      {order.status}
+                      {profileStatus(order.status)}
                     </span>
                   </div>
                 </div>

@@ -1,5 +1,4 @@
 import {
-  attachOrderToUser,
   handleDeleteProduct,
   handleLogin,
   handleLogout,
@@ -12,20 +11,26 @@ import {
   json,
 } from "./account";
 import {
-  buildSession,
-  confirmGatewayPayment,
-  createCryptoInstructions,
-  createWireInstructions,
-  GatewayAuthError,
-} from "./bachs";
+  applyWireDetails,
+  confirmPaymentSent,
+  createCheckout,
+  expireStaleSessions,
+  getSessionById,
+  listActiveWallets,
+  submitCardPayment,
+} from "./checkout";
 import {
-  cryptoNetworks,
   type CheckoutRequest,
-  type CheckoutSession,
   type Env,
-  type PaymentStatus,
   type RegisteredProductPayload,
+  type WireDetails,
 } from "./types";
+import {
+  createWallet,
+  deleteWallet,
+  listWallets,
+  updateWallet,
+} from "./admin-wallets";
 import { corsHeaders, isOriginAllowed } from "./cors";
 import { runConfigCheck } from "./config-check";
 import { parseFirebaseConfig } from "./auth";
@@ -74,14 +79,11 @@ import {
   validateProductInput,
 } from "./admin-products";
 import { deleteImage, serveImage, uploadImage } from "./images";
-import { recomputeCheckoutTotals } from "./pricing";
-import { roundMoney } from "./promo";
 import {
   assignUserPromo,
   deleteUserPromo,
   generateUserPromoCode,
   getUserPromo,
-  getUserPromoByCode,
   setUserPromoActive,
 } from "./user-promo";
 import { clientIp, rateLimit } from "./rate-limit";
@@ -131,7 +133,6 @@ async function readJson(request: Request) {
     return null;
   }
 }
-const supportEmail = "support@genericpcs.com";
 
 async function ensureUserSettings(env: Env, userId: string) {
   await env.DB.prepare(
@@ -143,327 +144,6 @@ async function ensureUserSettings(env: Env, userId: string) {
     .run();
 }
 
-function readNumber(value: unknown) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function isValidRequest(payload: CheckoutRequest) {
-  return Boolean(
-    payload &&
-      Array.isArray(payload.lines) &&
-      payload.lines.length > 0 &&
-      payload.details &&
-      payload.details.email &&
-      (payload.method === "crypto" || payload.method === "wire") &&
-      readNumber(payload.total) > 0
-  );
-}
-
-function gatewayFailure(error: unknown): { message: string; status: number } {
-  const detail = error instanceof Error ? error.message : String(error);
-
-  if (detail.includes("EMAIL_NOT_DELIVERABLE") || detail.includes("cannot receive mail")) {
-    return {
-      message:
-        "That email address cannot receive mail, so we cannot issue a receipt or a payment notice. Use another address.",
-      status: 400,
-    };
-  }
-
-  if (detail.includes("DEPOSIT_LIMIT_EXCEEDED")) {
-    const requested = detail.match(/"requested_amount":"?([\d.]+)"?/)?.[1];
-    const limit = detail.match(/"max_allowed_amount":"?([\d.]+)"?/)?.[1];
-
-    return {
-      message:
-        requested && limit
-          ? `This order of $${requested} is above the $${limit} limit for a single payment. Split it into two orders or email ${supportEmail} to raise the limit.`
-          : `This order is above the limit for a single payment. Split it into two orders or email ${supportEmail} to raise the limit.`,
-      status: 400,
-    };
-  }
-
-  return {
-    message:
-      "The payment gateway could not start this checkout. Please try again in a moment.",
-    status: 502,
-  };
-}
-
-async function persistOrder(env: Env, session: CheckoutSession) {
-  await env.DB.prepare(
-    `INSERT OR REPLACE INTO orders
-       (id, reference, checkout_id, email, name, phone, country, postal_code,
-        method, network, subtotal, shipping, discount, total, currency, promo_code, status, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)`
-  )
-    .bind(
-      session.id,
-      session.reference,
-      session.instructions.checkoutId || null,
-      session.details.email,
-      session.details.name,
-      session.details.phone,
-      session.details.country,
-      session.details.postalCode,
-      session.instructions.method,
-      session.instructions.method === "crypto"
-        ? session.instructions.network
-        : null,
-      session.subtotal,
-      session.shipping,
-      session.discount,
-      session.total,
-      session.currency,
-      session.promoCode ?? null,
-      session.status,
-      session.createdAt
-    )
-    .run();
-
-  const statements = session.lines.map((line) =>
-    env.DB.prepare(
-      `INSERT INTO order_lines
-         (id, order_id, product_id, name, kind, price, quantity)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`
-    ).bind(
-      crypto.randomUUID(),
-      session.id,
-      line.id,
-      line.name,
-      line.kind,
-      line.price,
-      line.quantity
-    )
-  );
-
-  if (statements.length > 0) {
-    await env.DB.batch(statements);
-  }
-}
-
-function randomReference() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(10));
-  let code = "";
-
-  for (const byte of bytes) {
-    code += alphabet[byte % alphabet.length];
-  }
-
-  return `PCM-${code}`;
-}
-
-async function handleCheckout(env: Env, request: Request) {
-  // Checkout spends money, so email verification is required here (not on
-  // ordinary account reads). Resolve identity from the verified session.
-  const sessionToken = readToken(request);
-
-  if (sessionToken) {
-    const user = await findUserByToken(env, sessionToken);
-
-    if (!user || !user.emailVerified) {
-      return json(
-        { error: "Please verify your email address before checking out." },
-        403
-      );
-    }
-  }
-
-  const payload = (await request.json()) as CheckoutRequest;
-
-  if (!isValidRequest(payload)) {
-    return json({ error: "Invalid checkout request." }, 400);
-  }
-
-  // Recompute every amount from authoritative catalog prices before any
-  // gateway interaction. Client-submitted prices/totals are never trusted.
-  const priced = await recomputeCheckoutTotals(env, payload.lines);
-
-  if ("error" in priced) {
-    return json({ error: priced.error }, 400);
-  }
-
-  // Resolve any promo against D1. Promos are assigned to users by admins and
-  // apply to every purchase. The rate comes from the server, never the client.
-  let promoCode = "";
-  let discount = 0;
-
-  if (typeof payload.promoCode === "string" && payload.promoCode.trim()) {
-    // The promo must belong to the authenticated user. Resolve identity from
-    // the verified session token, never from the checkout body.
-    const token = readToken(request);
-
-    if (token) {
-      try {
-        const { auth } = await ensureInitialized(env);
-        const uid = (await auth.verifyIdToken(token, true)).uid;
-        const promo = await getUserPromoByCode(env, uid, payload.promoCode);
-
-        if (promo) {
-          promoCode = promo.code;
-          discount = roundMoney((priced.subtotal * promo.discount) / 100);
-        }
-      } catch {
-        // Invalid/expired token: promo simply does not apply.
-      }
-    }
-  }
-
-  const discountedSubtotal = roundMoney(Math.max(0, priced.subtotal - discount));
-  const shipping =
-    discountedSubtotal >= 99 || discountedSubtotal === 0
-      ? 0
-      : priced.shipping;
-
-  const trusted: CheckoutRequest = {
-    ...payload,
-    lines: priced.lines,
-    subtotal: roundMoney(discountedSubtotal + discount),
-    shipping,
-    total: roundMoney(discountedSubtotal + shipping),
-    promoCode: promoCode || undefined,
-  };
-
-  if (payload.method === "crypto") {
-    const network = payload.network ?? "btc";
-
-    if (!cryptoNetworks[network]) {
-      return json({ error: "Unsupported crypto network." }, 400);
-    }
-  }
-
-  const reference = randomReference();
-
-  let warning: string | undefined;
-  let instructions: CheckoutSession["instructions"];
-
-  try {
-    const created =
-      payload.method === "crypto"
-        ? await createCryptoInstructions(env, trusted, reference)
-        : await createWireInstructions(env, trusted, reference);
-
-    instructions = created.instructions;
-    warning = created.warning;
-  } catch (error) {
-    if (error instanceof GatewayAuthError) {
-      const fallback =
-        payload.method === "crypto"
-          ? await createCryptoInstructions(
-              { ...env, BACHS_API_KEY: undefined, BACHS_API_BASE: undefined },
-              trusted,
-              reference
-            )
-          : await createWireInstructions(
-              { ...env, BACHS_API_KEY: undefined, BACHS_API_BASE: undefined },
-              trusted,
-              reference
-            );
-
-      instructions = fallback.instructions;
-      warning = `${fallback.warning ?? "Payment gateway unavailable."} (${error.message})`;
-    } else {
-      console.error("checkout gateway failure", error);
-
-      const failure = gatewayFailure(error);
-
-      return json({ error: failure.message }, failure.status);
-    }
-  }
-
-  const session = buildSession(trusted, instructions, reference, warning);
-  session.discount = discount;
-  session.promoCode = promoCode || undefined;
-
-  await persistOrder(env, session);
-
-  // Cache the full session so GET /api/checkout/:id and "I have sent payment"
-  // work. Written in the same request as the order.
-  await env.DB.prepare(
-    `INSERT OR REPLACE INTO checkout_sessions
-       (id, reference, status, data, created_at, expires_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
-  )
-    .bind(
-      session.id,
-      session.reference,
-      session.status,
-      JSON.stringify(session),
-      session.createdAt,
-      session.expiresAt
-    )
-    .run();
-
-  await attachOrderToUser(env, request, {
-    id: session.id,
-    reference: session.reference,
-    lines: payload.lines,
-    total: session.total,
-    currency: session.currency,
-    status: session.status,
-    method: payload.method,
-  });
-
-  return json(session, 201);
-}
-
-async function handleSession(env: Env, id: string) {
-  const row = await env.DB.prepare(
-    "SELECT data, status, expires_at FROM checkout_sessions WHERE id = ?1"
-  )
-    .bind(id)
-    .first<{ data: string; status: string; expires_at: string }>();
-
-  if (!row) {
-    return json({ error: "Checkout session not found." }, 404);
-  }
-
-  const session = JSON.parse(row.data) as CheckoutSession;
-
-  if (new Date(session.expiresAt).getTime() < Date.now()) {
-    return json({ ...session, status: "expired" });
-  }
-
-  return json(session);
-}
-
-async function handleSubmit(env: Env, id: string) {
-  const row = await env.DB.prepare(
-    "SELECT data FROM checkout_sessions WHERE id = ?1"
-  )
-    .bind(id)
-    .first<{ data: string }>();
-
-  if (!row) {
-    return json({ error: "Checkout session not found." }, 410);
-  }
-
-  const session = JSON.parse(row.data) as CheckoutSession;
-
-  if (new Date(session.expiresAt).getTime() < Date.now()) {
-    return json({ error: "Checkout session expired." }, 410);
-  }
-
-  const updated: CheckoutSession = { ...session, status: "submitted" };
-
-  if (updated.instructions.checkoutId) {
-    await confirmGatewayPayment(env, updated.instructions.checkoutId);
-  }
-
-  await env.DB.prepare(
-    "UPDATE checkout_sessions SET status = 'submitted', data = ?1 WHERE id = ?2"
-  )
-    .bind(JSON.stringify(updated), id)
-    .run();
-
-  await env.DB.prepare("UPDATE orders SET status = 'submitted' WHERE id = ?1")
-    .bind(updated.id)
-    .run();
-
-  return json({ status: updated.status });
-}
 
 async function handleRegistration(env: Env, request: Request) {
   const payload = (await request.json()) as RegisteredProductPayload;
@@ -502,205 +182,6 @@ async function handleRegistration(env: Env, request: Request) {
   return json({ ok: true, labelNumber, trackingNumber }, 201);
 }
 
-type BachsWebhookEvent = {
-  id?: string;
-  type?: string;
-  created_at?: string;
-  reference?: string | null;
-  data?: {
-    checkout_id?: string | null;
-    reference?: string | null;
-    status?: string | null;
-    payment_status?: string | null;
-    amount?: string | null;
-    currency?: string | null;
-  };
-};
-
-const WEBHOOK_TOLERANCE_SECONDS = 300;
-
-async function hmacHex(secret: string, message: string) {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const digest = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(message)
-  );
-
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function verifyBachsWebhook(env: Env, request: Request, raw: string) {
-  const secret = env.BACHS_WEBHOOK_SECRET;
-
-  // Fail closed: an unsigned webhook must never be accepted.
-  if (!secret) {
-    console.error("BACHS_WEBHOOK_SECRET is not configured; rejecting webhook.");
-    return false;
-  }
-
-  const candidates: string[] = [];
-  let timestamp = request.headers.get("x-bachs-timestamp") ?? "";
-
-  const legacy = request.headers.get("x-bachs-signature");
-
-  if (legacy?.trim()) {
-    candidates.push(legacy.trim());
-  }
-
-  const v2 = request.headers.get("x-bachs-signature-v2") ?? "";
-
-  for (const part of v2.split(",")) {
-    const [key, ...rest] = part.split("=");
-    const value = rest.join("=").trim();
-
-    if (key?.trim() === "v1" && value) {
-      candidates.push(value);
-    }
-
-    if (key?.trim() === "t" && value && !timestamp) {
-      timestamp = value;
-    }
-  }
-
-  if (!timestamp || candidates.length === 0) {
-    return false;
-  }
-
-  const seconds = Number(timestamp);
-
-  if (!Number.isFinite(seconds)) {
-    return false;
-  }
-
-  if (Math.abs(Math.floor(Date.now() / 1000) - seconds) > WEBHOOK_TOLERANCE_SECONDS) {
-    return false;
-  }
-
-  const expected = await hmacHex(secret, `${timestamp}.${raw}`);
-
-  return candidates.some((candidate) => candidate.toLowerCase() === expected);
-}
-
-function statusFromBachsEvent(event: BachsWebhookEvent): PaymentStatus | null {
-  const type = (event.type ?? "").toLowerCase();
-  const paymentStatus = (event.data?.payment_status ?? "").toLowerCase();
-  const status = (event.data?.status ?? "").toLowerCase();
-
-  if (
-    type === "collection.succeeded" ||
-    paymentStatus === "paid" ||
-    status === "succeeded" ||
-    status === "paid"
-  ) {
-    return "paid";
-  }
-
-  if (
-    type === "collection.failed" ||
-    paymentStatus === "failed" ||
-    status === "failed"
-  ) {
-    return "failed";
-  }
-
-  return null;
-}
-
-async function handleWebhook(env: Env, request: Request) {
-  const raw = await request.text();
-
-  if (!(await verifyBachsWebhook(env, request, raw))) {
-    return json({ error: "Invalid signature." }, 401);
-  }
-
-  let event: BachsWebhookEvent;
-
-  try {
-    event = JSON.parse(raw) as BachsWebhookEvent;
-  } catch {
-    return json({ error: "Invalid payload." }, 400);
-  }
-
-  const checkoutId = event.data?.checkout_id ?? undefined;
-  const reference = event.data?.reference ?? event.reference ?? undefined;
-
-  const orderRow = (checkoutId
-    ? await env.DB.prepare("SELECT id, reference FROM orders WHERE checkout_id = ?1 LIMIT 1")
-        .bind(checkoutId)
-        .first<{ id: string; reference: string }>()
-    : reference
-      ? await env.DB.prepare("SELECT id, reference FROM orders WHERE reference = ?1 LIMIT 1")
-          .bind(reference)
-          .first<{ id: string; reference: string }>()
-      : null);
-
-  if (!orderRow) {
-    return json({ ok: true, matched: false });
-  }
-
-  const status = statusFromBachsEvent(event);
-
-  if (!status) {
-    return json({ ok: true, matched: true, status: "ignored" });
-  }
-
-  // Idempotency: ignore replayed webhook events so a stale event cannot
-  // overwrite a later fulfilment status (shipped/delivered).
-  if (event.id) {
-    try {
-      await env.DB.prepare(
-        "INSERT INTO webhook_events (id, type, created_at) VALUES (?1, ?2, ?3)"
-      )
-        .bind(event.id, event.type ?? "unknown", new Date().toISOString())
-        .run();
-    } catch {
-      return json({ ok: true, matched: true, duplicate: true });
-    }
-  }
-
-  const newStatus: PaymentStatus = status;
-
-  await env.DB.prepare("UPDATE orders SET status = ?1 WHERE id = ?2")
-    .bind(newStatus, orderRow.id)
-    .run();
-
-  await env.DB.prepare("UPDATE user_orders SET status = ?1 WHERE id = ?2")
-    .bind(newStatus, orderRow.id)
-    .run();
-
-  // Mirror the status into any cached checkout session.
-  const sessionRow = await env.DB.prepare(
-    "SELECT data FROM checkout_sessions WHERE id = ?1"
-  )
-    .bind(orderRow.id)
-    .first<{ data: string }>();
-
-  if (sessionRow) {
-    try {
-      const session = JSON.parse(sessionRow.data) as CheckoutSession;
-      session.status = status;
-
-      await env.DB.prepare(
-        "UPDATE checkout_sessions SET status = ?1, data = ?2 WHERE id = ?3"
-      )
-        .bind(status, JSON.stringify(session), orderRow.id)
-        .run();
-    } catch {
-      // Ignore malformed cached sessions.
-    }
-  }
-
-  return json({ ok: true, matched: true, status });
-}
 
 async function handleOrders(env: Env, url: URL) {
   const email = url.searchParams.get("email");
@@ -1443,6 +924,115 @@ const worker = {
           return jsonWithCors({ ok: true, status: body.status }, request, env);
         }
 
+        // POST /api/admin/orders/:id/wire-details — forward bank account to customer
+        const adminWireMatch = path.match(
+          /^\/api\/admin\/orders\/([^/]+)\/wire-details$/
+        );
+
+        if (request.method === "POST" && adminWireMatch) {
+          const body = await readJson(request);
+
+          if (!body) {
+            return jsonWithCors({ error: "Invalid request." }, request, env, 400);
+          }
+
+          const details: WireDetails = {
+            bankName: typeof body.bankName === "string" ? body.bankName : "",
+            accountNumber:
+              typeof body.accountNumber === "string" ? body.accountNumber : "",
+            beneficiary: typeof body.beneficiary === "string" ? body.beneficiary : "",
+            routing: typeof body.routing === "string" ? body.routing : undefined,
+            swift: typeof body.swift === "string" ? body.swift : undefined,
+            reference: typeof body.reference === "string" ? body.reference : undefined,
+          };
+
+          const result = await applyWireDetails(env, adminWireMatch[1], details);
+
+          if (!result.ok) {
+            return jsonWithCors(
+              { error: result.error },
+              request,
+              env,
+              result.status
+            );
+          }
+
+          return jsonWithCors(
+            { ok: true, session: result.session },
+            request,
+            env
+          );
+        }
+
+        /* ---- Crypto wallets ---- */
+
+        if (request.method === "GET" && path === "/api/admin/wallets") {
+          const wallets = await listWallets(env, false);
+          return jsonWithCors({ wallets }, request, env);
+        }
+
+        if (request.method === "POST" && path === "/api/admin/wallets") {
+          const body = await readJson(request);
+
+          if (!body) {
+            return jsonWithCors({ error: "Invalid request." }, request, env, 400);
+          }
+
+          const result = await createWallet(env, {
+            label: String(body.label ?? ""),
+            network: String(body.network ?? ""),
+            currency: String(body.currency ?? ""),
+            address: String(body.address ?? ""),
+            active: body.active !== false,
+          });
+
+          if (!result.ok) {
+            return jsonWithCors({ error: result.error }, request, env, 400);
+          }
+
+          return jsonWithCors({ wallet: result.wallet }, request, env, 201);
+        }
+
+        const adminWalletMatch = path.match(/^\/api\/admin\/wallets\/([^/]+)$/);
+
+        if (request.method === "PATCH" && adminWalletMatch) {
+          const body = await readJson(request);
+
+          if (!body) {
+            return jsonWithCors({ error: "Invalid request." }, request, env, 400);
+          }
+
+          const patch: Record<string, unknown> = {};
+          if (typeof body.label === "string") patch.label = body.label;
+          if (typeof body.network === "string") patch.network = body.network;
+          if (typeof body.currency === "string") patch.currency = body.currency;
+          if (typeof body.address === "string") patch.address = body.address;
+          if (typeof body.active === "boolean") patch.active = body.active;
+
+          const result = await updateWallet(env, adminWalletMatch[1], patch);
+
+          if (!result.ok) {
+            return jsonWithCors(
+              { error: result.error },
+              request,
+              env,
+              result.status ?? 400
+            );
+          }
+
+          return jsonWithCors({ wallet: result.wallet }, request, env);
+        }
+
+        if (request.method === "DELETE" && adminWalletMatch) {
+          const result = await deleteWallet(env, adminWalletMatch[1]);
+
+          if (result.notFound) {
+            return jsonWithCors({ error: "Wallet not found." }, request, env, 404);
+          }
+
+          return jsonWithCors({ ok: true }, request, env);
+        }
+
         /* ---- Users ---- */
 
         if (request.method === "GET" && path === "/api/admin/users") {
@@ -1876,7 +1466,7 @@ const worker = {
       }
 
       if (request.method === "GET" && path === "/api/health") {
-        return json({ ok: true, provider: "bachs", time: new Date().toISOString() });
+        return json({ ok: true, provider: "manual", time: new Date().toISOString() });
       }
 
       if (request.method === "POST" && path === "/api/auth/register") {
@@ -1925,24 +1515,69 @@ const worker = {
         return await handleDeleteProduct(request, env, productMatch[1]);
       }
 
+      if (request.method === "GET" && path === "/api/wallets") {
+        const wallets = await listActiveWallets(env);
+        return json({ wallets });
+      }
+
       if (request.method === "POST" && path === "/api/checkout") {
-        return await handleCheckout(env, request);
+        const payload = (await request.json().catch(() => null)) as CheckoutRequest | null;
+
+        if (!payload) {
+          return json({ error: "Invalid checkout request." }, 400);
+        }
+
+        const result = await createCheckout(env, request, payload);
+
+        if (!result.ok) {
+          return json({ error: result.error }, result.status);
+        }
+
+        return json(result.session, 201);
       }
 
       const sessionMatch = path.match(/^\/api\/checkout\/([^/]+)$/);
 
       if (request.method === "GET" && sessionMatch) {
-        return await handleSession(env, sessionMatch[1]);
+        const session = await getSessionById(env, sessionMatch[1]);
+
+        if (!session) {
+          return json({ error: "Checkout session not found." }, 404);
+        }
+
+        return json(session);
       }
 
-      const submitMatch = path.match(/^\/api\/checkout\/([^/]+)\/submit$/);
+      const cardMatch = path.match(/^\/api\/checkout\/([^/]+)\/card$/);
 
-      if (request.method === "POST" && submitMatch) {
-        return await handleSubmit(env, submitMatch[1]);
+      if (request.method === "POST" && cardMatch) {
+        const body = (await request.json().catch(() => null)) as
+          | Record<string, unknown>
+          | null;
+
+        if (!body) {
+          return json({ error: "Invalid request." }, 400);
+        }
+
+        const result = await submitCardPayment(env, cardMatch[1], body);
+
+        if (!result.ok) {
+          return json({ error: result.error }, result.status);
+        }
+
+        return json({ status: result.session.status, session: result.session });
       }
 
-      if (request.method === "POST" && path === "/api/webhooks/bachs") {
-        return await handleWebhook(env, request);
+      const confirmMatch = path.match(/^\/api\/checkout\/([^/]+)\/confirm$/);
+
+      if (request.method === "POST" && confirmMatch) {
+        const result = await confirmPaymentSent(env, confirmMatch[1]);
+
+        if (!result.ok) {
+          return json({ error: result.error }, result.status);
+        }
+
+        return json({ status: result.session.status, session: result.session });
       }
 
       if (request.method === "POST" && path === "/api/registrations") {
@@ -2006,27 +1641,14 @@ const worker = {
       return;
     }
 
-    const cutoff = new Date(
-      Date.now() - 48 * 60 * 60 * 1000
-    ).toISOString();
+    // Per-method session deadlines (card 15m / crypto 30m / wire 48h).
+    await expireStaleSessions(env);
 
-    // Expire stale orders and clean up old OTP records.
-    await env.DB.batch([
-      env.DB.prepare(
-        `UPDATE orders SET status = 'expired'
-          WHERE status IN ('pending', 'awaiting_payment') AND created_at < ?1`
-      ).bind(cutoff),
-      env.DB.prepare("DELETE FROM email_otps WHERE expires_at < ?1").bind(
-        Math.floor(Date.now() / 1000) - 24 * 60 * 60
-      ),
-    ]);
+    // Clean up old OTP records.
+    await env.DB.prepare("DELETE FROM email_otps WHERE expires_at < ?1").bind(
+      Math.floor(Date.now() / 1000) - 24 * 60 * 60
+    ).run();
   },
-
-
-
-
-
-
 };
 
 export default worker;

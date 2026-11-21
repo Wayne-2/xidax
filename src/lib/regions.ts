@@ -11,11 +11,11 @@ export type Region = {
   /** Working days for delivery outside the country. */
   internationalDays: [number, number];
   /** The rail we recommend for this country. */
-  payment: "crypto" | "wire";
+  payment: "card" | "crypto" | "wire";
   paymentNote: string;
 };
 
-const DIGITAL = "Pay in USDT, ETH or Solana on bachs.";
+const DIGITAL = "Pay by card, or send USDT, BTC, ETH or Solana — admin approves.";
 
 export const regions: Region[] = [
   {
@@ -27,7 +27,7 @@ export const regions: Region[] = [
     rate: 1,
     deliveryDays: [2, 5],
     internationalDays: [4, 8],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -39,7 +39,7 @@ export const regions: Region[] = [
     rate: 0.79,
     deliveryDays: [2, 5],
     internationalDays: [4, 8],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -51,7 +51,7 @@ export const regions: Region[] = [
     rate: 1.36,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -63,7 +63,7 @@ export const regions: Region[] = [
     rate: 1.52,
     deliveryDays: [4, 7],
     internationalDays: [6, 11],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -75,7 +75,7 @@ export const regions: Region[] = [
     rate: 0.92,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -87,7 +87,7 @@ export const regions: Region[] = [
     rate: 0.92,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -99,7 +99,7 @@ export const regions: Region[] = [
     rate: 0.92,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -111,7 +111,7 @@ export const regions: Region[] = [
     rate: 0.92,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -123,7 +123,7 @@ export const regions: Region[] = [
     rate: 0.92,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -135,7 +135,7 @@ export const regions: Region[] = [
     rate: 0.88,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -147,7 +147,7 @@ export const regions: Region[] = [
     rate: 10.5,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -159,7 +159,7 @@ export const regions: Region[] = [
     rate: 10.8,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -171,7 +171,7 @@ export const regions: Region[] = [
     rate: 18.4,
     deliveryDays: [4, 7],
     internationalDays: [7, 12],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -183,7 +183,7 @@ export const regions: Region[] = [
     rate: 3.67,
     deliveryDays: [4, 8],
     internationalDays: [7, 12],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -195,7 +195,7 @@ export const regions: Region[] = [
     rate: 3.75,
     deliveryDays: [4, 8],
     internationalDays: [7, 12],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -207,7 +207,7 @@ export const regions: Region[] = [
     rate: 1.34,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -219,7 +219,7 @@ export const regions: Region[] = [
     rate: 7.8,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -231,7 +231,7 @@ export const regions: Region[] = [
     rate: 150,
     deliveryDays: [4, 7],
     internationalDays: [6, 11],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -243,7 +243,7 @@ export const regions: Region[] = [
     rate: 1350,
     deliveryDays: [4, 7],
     internationalDays: [6, 11],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -255,7 +255,7 @@ export const regions: Region[] = [
     rate: 83,
     deliveryDays: [4, 8],
     internationalDays: [7, 12],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -267,7 +267,7 @@ export const regions: Region[] = [
     rate: 5,
     deliveryDays: [4, 8],
     internationalDays: [7, 12],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -279,7 +279,7 @@ export const regions: Region[] = [
     rate: 17,
     deliveryDays: [4, 8],
     internationalDays: [6, 11],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -291,7 +291,7 @@ export const regions: Region[] = [
     rate: 1.65,
     deliveryDays: [4, 8],
     internationalDays: [7, 12],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -303,7 +303,7 @@ export const regions: Region[] = [
     rate: 0.92,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -315,7 +315,7 @@ export const regions: Region[] = [
     rate: 0.92,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -327,7 +327,7 @@ export const regions: Region[] = [
     rate: 0.92,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -339,7 +339,7 @@ export const regions: Region[] = [
     rate: 0.92,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -351,7 +351,7 @@ export const regions: Region[] = [
     rate: 6.87,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -363,7 +363,7 @@ export const regions: Region[] = [
     rate: 0.92,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -375,7 +375,7 @@ export const regions: Region[] = [
     rate: 3.98,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -387,7 +387,7 @@ export const regions: Region[] = [
     rate: 23.2,
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -399,7 +399,7 @@ export const regions: Region[] = [
     rate: 32,
     deliveryDays: [4, 8],
     internationalDays: [7, 12],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -411,7 +411,7 @@ export const regions: Region[] = [
     rate: 900,
     deliveryDays: [4, 9],
     internationalDays: [7, 14],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -423,7 +423,7 @@ export const regions: Region[] = [
     rate: 940,
     deliveryDays: [4, 9],
     internationalDays: [7, 14],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -435,7 +435,7 @@ export const regions: Region[] = [
     rate: 4000,
     deliveryDays: [4, 9],
     internationalDays: [7, 14],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -447,7 +447,7 @@ export const regions: Region[] = [
     rate: 4.4,
     deliveryDays: [4, 8],
     internationalDays: [6, 11],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -459,7 +459,7 @@ export const regions: Region[] = [
     rate: 35.5,
     deliveryDays: [4, 8],
     internationalDays: [6, 11],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -471,7 +471,7 @@ export const regions: Region[] = [
     rate: 25000,
     deliveryDays: [4, 9],
     internationalDays: [7, 14],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -483,7 +483,7 @@ export const regions: Region[] = [
     rate: 57,
     deliveryDays: [4, 8],
     internationalDays: [6, 11],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -495,7 +495,7 @@ export const regions: Region[] = [
     rate: 15700,
     deliveryDays: [4, 9],
     internationalDays: [7, 14],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
   {
@@ -507,7 +507,7 @@ export const regions: Region[] = [
     rate: 1,
     deliveryDays: [4, 7],
     internationalDays: [6, 11],
-    payment: "crypto",
+    payment: "card",
     paymentNote: DIGITAL,
   },
 ];

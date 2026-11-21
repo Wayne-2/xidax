@@ -10,11 +10,20 @@ import AdminOrders from "@/components/admin/AdminOrders";
 import AdminProducts from "@/components/admin/AdminProducts";
 import AdminCatalog from "@/components/admin/AdminCatalog";
 import AdminUsers from "@/components/admin/AdminUsers";
+import AdminWallets from "@/components/admin/AdminWallets";
 
-type Tab = "orders" | "users" | "admins" | "products" | "laptops" | "consoles";
+type Tab =
+  | "orders"
+  | "wallets"
+  | "users"
+  | "admins"
+  | "products"
+  | "laptops"
+  | "consoles";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "orders", label: "Orders" },
+  { id: "wallets", label: "Wallets" },
   { id: "users", label: "Users" },
   { id: "admins", label: "Admins" },
   { id: "products", label: "Prebuilds" },
@@ -201,6 +210,7 @@ export default function AdminDashboard({
           </div>
 
           {tab === "orders" && <AdminOrders />}
+          {tab === "wallets" && <AdminWallets />}
           {tab === "users" && <AdminUsers />}
           {tab === "admins" && <AdminAdmins />}
           {tab === "products" && <AdminProducts />}

@@ -26,7 +26,6 @@ export type StoredUser = {
   postalCode: string;
   tier: string;
   memberSince: string;
-  bachsCustomerId: string | null;
   emailVerified: boolean;
   createdAt: string;
 };
@@ -199,7 +198,7 @@ export async function findUserByToken(env: Env, token: string) {
   const row = await db
     .prepare(
       `SELECT u.id, u.email, u.name, u.phone, u.country, u.postal_code, u.tier,
-              u.bachs_customer_id, u.email_verified, u.created_at
+              u.email_verified, u.created_at
          FROM user_sessions s
          JOIN users u ON u.id = s.user_id
         WHERE s.token = ?1 AND s.expires_at > ?2`
@@ -213,7 +212,6 @@ export async function findUserByToken(env: Env, token: string) {
       country: string | null;
       postal_code: string | null;
       tier: string | null;
-      bachs_customer_id: string | null;
       email_verified: number;
       created_at: string;
     }>();
@@ -236,7 +234,6 @@ export function rowToStoredUser(row: {
   country: string | null;
   postal_code: string | null;
   tier: string | null;
-  bachs_customer_id: string | null;
   email_verified: number;
   created_at: string;
 }): StoredUser {
@@ -249,7 +246,6 @@ export function rowToStoredUser(row: {
     postalCode: row.postal_code ?? "",
     tier: row.tier ?? "Member",
     memberSince: row.created_at ? row.created_at.slice(0, 4) : "2024",
-    bachsCustomerId: row.bachs_customer_id ?? null,
     emailVerified: row.email_verified === 1,
     createdAt: row.created_at,
   };
@@ -265,7 +261,6 @@ export function toUser(row: StoredUser): StoredUser {
     postalCode: row.postalCode ?? "",
     tier: row.tier ?? "Member",
     memberSince: row.memberSince ?? "2024",
-    bachsCustomerId: row.bachsCustomerId ?? null,
     emailVerified: row.emailVerified,
     createdAt: row.createdAt,
   };

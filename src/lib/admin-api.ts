@@ -1,6 +1,7 @@
 "use client";
 
 import { getIdToken } from "@/lib/firebase-client";
+import type { CardSummary, CryptoNetwork, WireDetails } from "@/lib/payments";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_BASE_URL ||
@@ -31,6 +32,12 @@ export type AdminOrder = {
   currency: string;
   status: string;
   createdAt: string;
+  expiresAt: string | null;
+  cardSummary: CardSummary | null;
+  walletId: string | null;
+  walletLabel: string | null;
+  wireDetails: WireDetails | null;
+  receiptSentAt: string | null;
   lines: AdminOrderLine[];
 };
 
@@ -116,6 +123,58 @@ export function updateAdminOrderStatus(id: string, status: string) {
       method: "PATCH",
       body: JSON.stringify({ status }),
     }
+  );
+}
+
+/** Admin posts bank account details for a wire order (customer is notified). */
+export function submitWireDetails(
+  orderId: string,
+  details: WireDetails
+) {
+  return adminFetch<{ ok: boolean; session: unknown }>(
+    `/api/admin/orders/${encodeURIComponent(orderId)}/wire-details`,
+    {
+      method: "POST",
+      body: JSON.stringify(details),
+    }
+  );
+}
+
+/* ---------------- Crypto wallets ---------------- */
+
+export type AdminWalletInput = {
+  label: string;
+  network: CryptoNetwork | string;
+  currency: string;
+  address: string;
+  active?: boolean;
+};
+
+export function fetchAdminWallets() {
+  return adminFetch<{ wallets: AdminWallet[] }>("/api/admin/wallets");
+}
+
+export function createAdminWallet(input: AdminWalletInput) {
+  return adminFetch<{ wallet: AdminWallet }>("/api/admin/wallets", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateAdminWallet(id: string, patch: Partial<AdminWalletInput>) {
+  return adminFetch<{ wallet: AdminWallet }>(
+    `/api/admin/wallets/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }
+  );
+}
+
+export function deleteAdminWallet(id: string) {
+  return adminFetch<{ ok: boolean }>(
+    `/api/admin/wallets/${encodeURIComponent(id)}`,
+    { method: "DELETE" }
   );
 }
 
@@ -409,3 +468,14 @@ export function generateUserPromoCode() {
     method: "POST",
   });
 }
+
+export type AdminWallet = {
+  id: string;
+  label: string;
+  network: CryptoNetwork;
+  currency: string;
+  address: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
