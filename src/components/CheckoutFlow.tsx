@@ -341,7 +341,7 @@ export default function CheckoutFlow() {
                     id="checkout-country"
                     value={countryValue}
                     onChange={(event) => setCountry(event.target.value)}
-                    placeholder="Nigeria"
+                    placeholder="United States"
                     className={`${fieldClass} ${
                       errors.country ? "border-[#DC2626]" : "border-[#d2dbe8]"
                     }`}

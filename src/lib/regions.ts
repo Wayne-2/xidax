@@ -15,54 +15,20 @@ export type Region = {
   paymentNote: string;
 };
 
+const DIGITAL = "Pay in USDT, ETH or Solana on bachs.";
+
 export const regions: Region[] = [
   {
-    country: "Nigeria",
-    code: "NG",
-    currency: "NGN",
-    locale: "en-NG",
-    timeZone: "Africa/Lagos",
-    rate: 1650,
-    deliveryDays: [1, 3],
-    internationalDays: [5, 9],
-    payment: "wire",
-    paymentNote: "Pay into a Naira account, or settle in USDT.",
-  },
-  {
-    country: "Ghana",
-    code: "GH",
-    currency: "GHS",
-    locale: "en-GH",
-    timeZone: "Africa/Accra",
-    rate: 15.4,
-    deliveryDays: [2, 4],
-    internationalDays: [5, 9],
+    country: "United States",
+    code: "US",
+    currency: "USD",
+    locale: "en-US",
+    timeZone: "America/New_York",
+    rate: 1,
+    deliveryDays: [2, 5],
+    internationalDays: [4, 8],
     payment: "crypto",
-    paymentNote: "Settle in USDT on TRC20 — fastest for Ghana.",
-  },
-  {
-    country: "Kenya",
-    code: "KE",
-    currency: "KES",
-    locale: "en-KE",
-    timeZone: "Africa/Nairobi",
-    rate: 129,
-    deliveryDays: [3, 5],
-    internationalDays: [6, 10],
-    payment: "crypto",
-    paymentNote: "Settle in USDT on TRC20 — fastest for Kenya.",
-  },
-  {
-    country: "South Africa",
-    code: "ZA",
-    currency: "ZAR",
-    locale: "en-ZA",
-    timeZone: "Africa/Johannesburg",
-    rate: 18.4,
-    deliveryDays: [4, 7],
-    internationalDays: [7, 12],
-    payment: "crypto",
-    paymentNote: "Settle in USDT on TRC20 — fastest for South Africa.",
+    paymentNote: DIGITAL,
   },
   {
     country: "United Kingdom",
@@ -74,19 +40,7 @@ export const regions: Region[] = [
     deliveryDays: [2, 5],
     internationalDays: [4, 8],
     payment: "crypto",
-    paymentNote: "Pay in USDT, ETH or Solana on bachs.",
-  },
-  {
-    country: "United States",
-    code: "US",
-    currency: "USD",
-    locale: "en-US",
-    timeZone: "America/New_York",
-    rate: 1,
-    deliveryDays: [2, 5],
-    internationalDays: [4, 8],
-    payment: "crypto",
-    paymentNote: "Pay in USDT, ETH or Solana on bachs.",
+    paymentNote: DIGITAL,
   },
   {
     country: "Canada",
@@ -98,7 +52,19 @@ export const regions: Region[] = [
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
     payment: "crypto",
-    paymentNote: "Pay in USDT, ETH or Solana on bachs.",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Australia",
+    code: "AU",
+    currency: "AUD",
+    locale: "en-AU",
+    timeZone: "Australia/Sydney",
+    rate: 1.52,
+    deliveryDays: [4, 7],
+    internationalDays: [6, 11],
+    payment: "crypto",
+    paymentNote: DIGITAL,
   },
   {
     country: "Germany",
@@ -110,7 +76,7 @@ export const regions: Region[] = [
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
     payment: "crypto",
-    paymentNote: "Pay in USDT, ETH or Solana on bachs.",
+    paymentNote: DIGITAL,
   },
   {
     country: "France",
@@ -122,7 +88,91 @@ export const regions: Region[] = [
     deliveryDays: [3, 6],
     internationalDays: [5, 9],
     payment: "crypto",
-    paymentNote: "Pay in USDT, ETH or Solana on bachs.",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Spain",
+    code: "ES",
+    currency: "EUR",
+    locale: "es-ES",
+    timeZone: "Europe/Madrid",
+    rate: 0.92,
+    deliveryDays: [3, 6],
+    internationalDays: [5, 9],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Italy",
+    code: "IT",
+    currency: "EUR",
+    locale: "it-IT",
+    timeZone: "Europe/Rome",
+    rate: 0.92,
+    deliveryDays: [3, 6],
+    internationalDays: [5, 9],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Netherlands",
+    code: "NL",
+    currency: "EUR",
+    locale: "nl-NL",
+    timeZone: "Europe/Amsterdam",
+    rate: 0.92,
+    deliveryDays: [3, 6],
+    internationalDays: [5, 9],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Switzerland",
+    code: "CH",
+    currency: "CHF",
+    locale: "de-CH",
+    timeZone: "Europe/Zurich",
+    rate: 0.88,
+    deliveryDays: [3, 6],
+    internationalDays: [5, 9],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Sweden",
+    code: "SE",
+    currency: "SEK",
+    locale: "sv-SE",
+    timeZone: "Europe/Stockholm",
+    rate: 10.5,
+    deliveryDays: [3, 6],
+    internationalDays: [5, 9],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Norway",
+    code: "NO",
+    currency: "NOK",
+    locale: "nb-NO",
+    timeZone: "Europe/Oslo",
+    rate: 10.8,
+    deliveryDays: [3, 6],
+    internationalDays: [5, 9],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "South Africa",
+    code: "ZA",
+    currency: "ZAR",
+    locale: "en-ZA",
+    timeZone: "Africa/Johannesburg",
+    rate: 18.4,
+    deliveryDays: [4, 7],
+    internationalDays: [7, 12],
+    payment: "crypto",
+    paymentNote: DIGITAL,
   },
   {
     country: "United Arab Emirates",
@@ -134,7 +184,319 @@ export const regions: Region[] = [
     deliveryDays: [4, 8],
     internationalDays: [7, 12],
     payment: "crypto",
-    paymentNote: "Settle in USDT on TRC20 — fastest for the UAE.",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Saudi Arabia",
+    code: "SA",
+    currency: "SAR",
+    locale: "ar-SA",
+    timeZone: "Asia/Riyadh",
+    rate: 3.75,
+    deliveryDays: [4, 8],
+    internationalDays: [7, 12],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Singapore",
+    code: "SG",
+    currency: "SGD",
+    locale: "en-SG",
+    timeZone: "Asia/Singapore",
+    rate: 1.34,
+    deliveryDays: [3, 6],
+    internationalDays: [5, 9],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Hong Kong",
+    code: "HK",
+    currency: "HKD",
+    locale: "en-HK",
+    timeZone: "Asia/Hong_Kong",
+    rate: 7.8,
+    deliveryDays: [3, 6],
+    internationalDays: [5, 9],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Japan",
+    code: "JP",
+    currency: "JPY",
+    locale: "ja-JP",
+    timeZone: "Asia/Tokyo",
+    rate: 150,
+    deliveryDays: [4, 7],
+    internationalDays: [6, 11],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "South Korea",
+    code: "KR",
+    currency: "KRW",
+    locale: "ko-KR",
+    timeZone: "Asia/Seoul",
+    rate: 1350,
+    deliveryDays: [4, 7],
+    internationalDays: [6, 11],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "India",
+    code: "IN",
+    currency: "INR",
+    locale: "en-IN",
+    timeZone: "Asia/Kolkata",
+    rate: 83,
+    deliveryDays: [4, 8],
+    internationalDays: [7, 12],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Brazil",
+    code: "BR",
+    currency: "BRL",
+    locale: "pt-BR",
+    timeZone: "America/Sao_Paulo",
+    rate: 5,
+    deliveryDays: [4, 8],
+    internationalDays: [7, 12],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Mexico",
+    code: "MX",
+    currency: "MXN",
+    locale: "es-MX",
+    timeZone: "America/Mexico_City",
+    rate: 17,
+    deliveryDays: [4, 8],
+    internationalDays: [6, 11],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "New Zealand",
+    code: "NZ",
+    currency: "NZD",
+    locale: "en-NZ",
+    timeZone: "Pacific/Auckland",
+    rate: 1.65,
+    deliveryDays: [4, 8],
+    internationalDays: [7, 12],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Ireland",
+    code: "IE",
+    currency: "EUR",
+    locale: "en-IE",
+    timeZone: "Europe/Dublin",
+    rate: 0.92,
+    deliveryDays: [3, 6],
+    internationalDays: [5, 9],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Portugal",
+    code: "PT",
+    currency: "EUR",
+    locale: "pt-PT",
+    timeZone: "Europe/Lisbon",
+    rate: 0.92,
+    deliveryDays: [3, 6],
+    internationalDays: [5, 9],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Austria",
+    code: "AT",
+    currency: "EUR",
+    locale: "de-AT",
+    timeZone: "Europe/Vienna",
+    rate: 0.92,
+    deliveryDays: [3, 6],
+    internationalDays: [5, 9],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Belgium",
+    code: "BE",
+    currency: "EUR",
+    locale: "nl-BE",
+    timeZone: "Europe/Brussels",
+    rate: 0.92,
+    deliveryDays: [3, 6],
+    internationalDays: [5, 9],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Denmark",
+    code: "DK",
+    currency: "DKK",
+    locale: "da-DK",
+    timeZone: "Europe/Copenhagen",
+    rate: 6.87,
+    deliveryDays: [3, 6],
+    internationalDays: [5, 9],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Finland",
+    code: "FI",
+    currency: "EUR",
+    locale: "fi-FI",
+    timeZone: "Europe/Helsinki",
+    rate: 0.92,
+    deliveryDays: [3, 6],
+    internationalDays: [5, 9],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Poland",
+    code: "PL",
+    currency: "PLN",
+    locale: "pl-PL",
+    timeZone: "Europe/Warsaw",
+    rate: 3.98,
+    deliveryDays: [3, 6],
+    internationalDays: [5, 9],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Czech Republic",
+    code: "CZ",
+    currency: "CZK",
+    locale: "cs-CZ",
+    timeZone: "Europe/Prague",
+    rate: 23.2,
+    deliveryDays: [3, 6],
+    internationalDays: [5, 9],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Turkey",
+    code: "TR",
+    currency: "TRY",
+    locale: "tr-TR",
+    timeZone: "Europe/Istanbul",
+    rate: 32,
+    deliveryDays: [4, 8],
+    internationalDays: [7, 12],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Argentina",
+    code: "AR",
+    currency: "ARS",
+    locale: "es-AR",
+    timeZone: "America/Argentina/Buenos_Aires",
+    rate: 900,
+    deliveryDays: [4, 9],
+    internationalDays: [7, 14],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Chile",
+    code: "CL",
+    currency: "CLP",
+    locale: "es-CL",
+    timeZone: "America/Santiago",
+    rate: 940,
+    deliveryDays: [4, 9],
+    internationalDays: [7, 14],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Colombia",
+    code: "CO",
+    currency: "COP",
+    locale: "es-CO",
+    timeZone: "America/Bogota",
+    rate: 4000,
+    deliveryDays: [4, 9],
+    internationalDays: [7, 14],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Malaysia",
+    code: "MY",
+    currency: "MYR",
+    locale: "ms-MY",
+    timeZone: "Asia/Kuala_Lumpur",
+    rate: 4.4,
+    deliveryDays: [4, 8],
+    internationalDays: [6, 11],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Thailand",
+    code: "TH",
+    currency: "THB",
+    locale: "th-TH",
+    timeZone: "Asia/Bangkok",
+    rate: 35.5,
+    deliveryDays: [4, 8],
+    internationalDays: [6, 11],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Vietnam",
+    code: "VN",
+    currency: "VND",
+    locale: "vi-VN",
+    timeZone: "Asia/Ho_Chi_Minh",
+    rate: 25000,
+    deliveryDays: [4, 9],
+    internationalDays: [7, 14],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Philippines",
+    code: "PH",
+    currency: "PHP",
+    locale: "en-PH",
+    timeZone: "Asia/Manila",
+    rate: 57,
+    deliveryDays: [4, 8],
+    internationalDays: [6, 11],
+    payment: "crypto",
+    paymentNote: DIGITAL,
+  },
+  {
+    country: "Indonesia",
+    code: "ID",
+    currency: "IDR",
+    locale: "id-ID",
+    timeZone: "Asia/Jakarta",
+    rate: 15700,
+    deliveryDays: [4, 9],
+    internationalDays: [7, 14],
+    payment: "crypto",
+    paymentNote: DIGITAL,
   },
   {
     country: "Other",
@@ -146,7 +508,7 @@ export const regions: Region[] = [
     deliveryDays: [4, 7],
     internationalDays: [6, 11],
     payment: "crypto",
-    paymentNote: "Pay in USDT, ETH or Solana on bachs.",
+    paymentNote: DIGITAL,
   },
 ];
 
@@ -158,14 +520,36 @@ export const regionCountries = regions.map((region) => region.country);
 
 const currencySymbols: Record<string, string> = {
   USD: "$",
-  NGN: "₦",
-  GHS: "₵",
-  KES: "KSh",
-  ZAR: "R",
   GBP: "£",
   CAD: "CA$",
+  AUD: "A$",
   EUR: "€",
+  CHF: "CHF",
+  SEK: "kr",
+  NOK: "kr",
+  ZAR: "R",
   AED: "AED",
+  SAR: "SAR",
+  SGD: "S$",
+  HKD: "HK$",
+  JPY: "¥",
+  KRW: "₩",
+  INR: "₹",
+  BRL: "R$",
+  MXN: "MX$",
+  NZD: "NZ$",
+  DKK: "kr",
+  PLN: "zł",
+  CZK: "Kč",
+  TRY: "₺",
+  ARS: "AR$",
+  CLP: "CLP$",
+  COP: "COL$",
+  MYR: "RM",
+  THB: "฿",
+  VND: "₫",
+  PHP: "₱",
+  IDR: "Rp",
 };
 
 /** "NGN (₦)" — the label used by the account settings. */
@@ -218,61 +602,43 @@ export function formatBase(amountUsd: number) {
 }
 
 export function formatDateTime(iso: string, region: Region) {
-  const date = new Date(iso);
-
-  if (Number.isNaN(date.getTime())) return "";
-
   return new Intl.DateTimeFormat(region.locale, {
     dateStyle: "medium",
     timeStyle: "short",
     timeZone: region.timeZone,
-  }).format(date);
+  }).format(new Date(iso));
 }
 
 export function formatDate(iso: string, region: Region) {
-  const date = new Date(iso);
-
-  if (Number.isNaN(date.getTime())) return "";
-
   return new Intl.DateTimeFormat(region.locale, {
     dateStyle: "medium",
     timeZone: region.timeZone,
-  }).format(date);
+  }).format(new Date(iso));
 }
 
 export function formatTime(iso: string, region: Region) {
-  const date = new Date(iso);
-
-  if (Number.isNaN(date.getTime())) return "";
-
   return new Intl.DateTimeFormat(region.locale, {
     timeStyle: "short",
     timeZone: region.timeZone,
-  }).format(date);
+  }).format(new Date(iso));
 }
 
 export function localClock(region: Region, now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    weekday: "long",
-    hour12: false,
     timeZone: region.timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    weekday: "short",
   }).formatToParts(now);
 
-  const read = (type: string) =>
-    parts.find((part) => part.type === type)?.value ?? "";
-
-  const hour = Number(read("hour")) % 24;
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
 
   return {
-    hour,
-    minute: Number(read("minute")),
-    weekday: read("weekday"),
-    label: new Intl.DateTimeFormat(region.locale, {
-      timeStyle: "short",
-      timeZone: region.timeZone,
-    }).format(now),
+    time: `${get("hour")}:${get("minute")}`,
+    day: get("weekday"),
+    weekday: get("weekday"),
+    label: `${get("weekday")} ${get("hour")}:${get("minute")}`,
   };
 }
 
@@ -281,14 +647,27 @@ export function isOpenNow(
   schedule: { day: string; open: number | null; close: number | null }[],
   now = new Date()
 ) {
-  const clock = localClock(region, now);
-  const day = schedule.find((entry) => entry.day === clock.weekday);
+  const day = new Intl.DateTimeFormat("en-US", {
+    timeZone: region.timeZone,
+    weekday: "short",
+  }).format(now);
 
-  if (!day || day.open === null || day.close === null) return false;
+  const today = schedule.find((entry) => entry.day.toLowerCase() === day.toLowerCase());
 
-  const minutes = clock.hour * 60 + clock.minute;
+  if (!today || today.open === null || today.close === null) return false;
 
-  return minutes >= day.open * 60 && minutes < day.close * 60;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: region.timeZone,
+    hour: "numeric",
+    minute: "numeric",
+    hour12: false,
+  }).formatToParts(now);
+
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? 0);
+  const minutes = hour * 60 + minute;
+
+  return minutes >= today.open * 60 && minutes < today.close * 60;
 }
 
 /** Delivery window for the shopper, in their own country. */
