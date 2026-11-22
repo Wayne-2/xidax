@@ -4,6 +4,7 @@ import { getWallet, listWallets } from "./admin-wallets";
 import {
   notifyAdminsPaymentEvent,
   sendReceiptEmail,
+  sendWireDetailsEmail,
   type AdminPaymentAlertInput,
   type ReceiptLine,
 } from "./email";
@@ -642,15 +643,15 @@ export async function createCheckout(
   });
 
   if (method === "wire") {
-  void notifyAdminsPaymentEvent(env, {
-    kind: "wire",
-    reference: session.reference,
-    amount: session.total,
-    currency: session.currency,
-    customerName: session.details.name,
-    customerEmail: session.details.email,
-    detail: "Bank details requested — forward your account to the customer.",
-  } satisfies AdminPaymentAlertInput);
+    void notifyAdminsPaymentEvent(env, {
+      kind: "wire",
+      reference: session.reference,
+      amount: session.total,
+      currency: session.currency,
+      customerName: session.details.name,
+      customerEmail: session.details.email,
+      detail: "Bank details requested — forward your account to the customer.",
+    } satisfies AdminPaymentAlertInput);
   }
 
   return { ok: true, session };
@@ -725,6 +726,21 @@ export async function applyWireDetails(
   };
 
   await syncSessionStatus(env, updated);
+
+  if (env.RESEND_API_KEY && current.details.email) {
+    void sendWireDetailsEmail({
+      apiKey: env.RESEND_API_KEY,
+      to: current.details.email,
+      reference: current.reference,
+      customerName: current.details.name,
+      amount: current.instructions.amount,
+      currency: current.instructions.billingCurrency,
+      wireDetails,
+    }).catch((error) => {
+      console.error("wire details email failed:", error);
+    });
+  }
+
   return { ok: true, session: updated };
 }
 

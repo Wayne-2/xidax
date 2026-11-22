@@ -480,6 +480,94 @@ export async function sendReceiptEmail(
   );
 }
 
+export type SendWireDetailsInput = {
+  apiKey: string;
+  to: string;
+  reference: string;
+  customerName: string;
+  amount: string;
+  currency: string;
+  wireDetails: WireDetailsPayload;
+};
+
+export type WireDetailsPayload = {
+  bankName: string;
+  accountNumber: string;
+  beneficiary: string;
+  routing?: string;
+  swift?: string;
+  reference?: string;
+};
+
+export function buildWireDetailsEmailHtml(input: SendWireDetailsInput): string {
+  const rows: Array<[string, string]> = [
+    ["Bank", input.wireDetails.bankName],
+    ["Account number", input.wireDetails.accountNumber],
+    ["Beneficiary", input.wireDetails.beneficiary],
+  ];
+
+  if (input.wireDetails.routing) rows.push(["Routing", input.wireDetails.routing]);
+  if (input.wireDetails.swift) rows.push(["SWIFT", input.wireDetails.swift]);
+  rows.push(["Payment reference", input.wireDetails.reference ?? input.reference]);
+  rows.push(["Amount due", `${input.amount} ${input.currency}`]);
+
+  const detailRows = rows
+    .map(
+      ([label, value]) => `
+                <tr>
+                  <td style="padding:8px 0;font-size:13px;color:${BRAND.muted};">${escapeHtml(label)}</td>
+                  <td align="right" style="padding:8px 0;font-size:14px;font-weight:600;color:${BRAND.ink};font-family:'SF Mono',Menlo,Consolas,monospace;">${escapeHtml(value)}</td>
+                </tr>`
+    )
+    .join("");
+
+  const body = `
+          <tr>
+            <td style="padding:32px 32px 8px;">
+              <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:800;letter-spacing:-0.02em;color:${BRAND.ink};">
+                Your bank transfer details
+              </h1>
+              <p style="margin:0;font-size:15px;line-height:1.65;color:${BRAND.body};">
+                Hi ${escapeHtml(input.customerName)} — here are the account details for order
+                <strong style="color:${BRAND.ink};">${escapeHtml(input.reference)}</strong>.
+                Send the payment, then confirm on the checkout page.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px 8px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${BRAND.surface};border-radius:12px;">
+                <tr><td style="padding:18px 20px;">
+                  ${detailRows}
+                </td></tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:24px 32px 32px;">
+              <a href="https://genericpcs.com/checkout" style="display:inline-block;padding:13px 26px;background:${BRAND.accent};border-radius:10px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">
+                Open checkout
+              </a>
+            </td>
+          </tr>`;
+
+  return shell("Wire transfer details", "Bank details", body);
+}
+
+export async function sendWireDetailsEmail(
+  input: SendWireDetailsInput
+): Promise<{ ok: boolean; status: number }> {
+  return postResend(
+    input.apiKey,
+    input.to,
+    `Your Generic PCs bank details — ${input.reference}`,
+    buildWireDetailsEmailHtml(input)
+  );
+}
+
+/** Always-reachable ops inbox for payment alerts (plus the D1 allowlist). */
+export const FALLBACK_ADMIN_EMAILS = ["supportsgenericpcs@gmail.com"];
+
 /** Best-effort email to every admin about a payment event. */
 export async function notifyAdminsPaymentEvent(
   env: { RESEND_API_KEY?: string; DB: D1Database },
@@ -492,11 +580,14 @@ export async function notifyAdminsPaymentEvent(
       "SELECT email FROM admins ORDER BY created_at DESC"
     ).all<{ email: string }>();
 
-    const emails = (admins.results ?? [])
-      .map((row) => row.email?.trim())
-      .filter((email): email is string => Boolean(email));
+    const emails = [
+      ...FALLBACK_ADMIN_EMAILS,
+      ...(admins.results ?? [])
+        .map((row) => row.email?.trim().toLowerCase())
+        .filter((email): email is string => Boolean(email)),
+    ];
 
-    if (emails.length === 0) return;
+    const unique = [...new Set(emails)];
 
     const subject =
       input.kind === "wire"
@@ -507,7 +598,7 @@ export async function notifyAdminsPaymentEvent(
 
     await postResend(
       env.RESEND_API_KEY,
-      emails,
+      unique,
       subject,
       buildAdminPaymentAlertHtml(input)
     );

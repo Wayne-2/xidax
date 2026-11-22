@@ -80,6 +80,32 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   );
 }
 
+const CHECKOUT_SESSION_KEY = "genericpcs.checkout.session";
+
+function rememberCheckoutSession(id: string) {
+  try {
+    window.localStorage.setItem(CHECKOUT_SESSION_KEY, id);
+  } catch {
+    // Storage full/blocked — restore simply won't happen.
+  }
+}
+
+function readRememberedCheckoutSession(): string | null {
+  try {
+    return window.localStorage.getItem(CHECKOUT_SESSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function clearRememberedCheckoutSession() {
+  try {
+    window.localStorage.removeItem(CHECKOUT_SESSION_KEY);
+  } catch {
+    // Ignore.
+  }
+}
+
 export default function CheckoutFlow() {
   const { token } = useAccount();
   const router = useRouter();
@@ -101,6 +127,7 @@ export default function CheckoutFlow() {
   const [walletsLoaded, setWalletsLoaded] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [session, setSession] = useState<CheckoutSession | null>(null);
+  const [restoring, setRestoring] = useState(true);
   const [now, setNow] = useState(0);
 
   const [cardNumber, setCardNumber] = useState("");
@@ -131,10 +158,61 @@ export default function CheckoutFlow() {
   }, [user]);
 
   useEffect(() => {
-    if (ready && items.length === 0) {
+    if (ready && items.length === 0 && !session && !restoring) {
       router.replace("/cart");
     }
-  }, [ready, items.length, router]);
+  }, [ready, items.length, session, restoring, router]);
+
+  // Resume an in-flight checkout (e.g. waiting on wire bank details) after
+  // the user navigates away and comes back.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function restore() {
+      const storedId = readRememberedCheckoutSession();
+
+      if (!storedId) {
+        if (!cancelled) setRestoring(false);
+        return;
+      }
+
+      try {
+        const fresh = await getCheckoutSession(storedId);
+
+        if (cancelled) return;
+
+        if (!fresh || fresh.status === "expired") {
+          clearRememberedCheckoutSession();
+          setRestoring(false);
+          return;
+        }
+
+        if (fresh.status === "paid") {
+          clearRememberedCheckoutSession();
+        }
+
+        setSession(fresh);
+        setNow(Date.now());
+        setStep(3);
+        setName((current) => current || fresh.details.name);
+        setEmail((current) => current || fresh.details.email);
+        setPhone((current) => current || fresh.details.phone);
+        setCountry((current) => current || fresh.details.country);
+        setPostalCode((current) => current || fresh.details.postalCode);
+        setMethod((current) => current || fresh.method);
+        if (fresh.walletId) setWalletId(fresh.walletId);
+      } catch {
+        // Keep the stored id on transient failures so a later visit can resume.
+      } finally {
+        if (!cancelled) setRestoring(false);
+      }
+    }
+
+    void restore();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -188,7 +266,10 @@ export default function CheckoutFlow() {
         setSession(fresh);
 
         if (fresh.status === "paid") {
+          clearRememberedCheckoutSession();
           toast.success("Payment approved — your receipt is on its way.");
+        } else if (fresh.status === "expired") {
+          clearRememberedCheckoutSession();
         } else if (fresh.status === "awaiting_payment" && session!.status === "awaiting_admin") {
           toast.success("Bank details are ready.");
         }
@@ -289,6 +370,7 @@ export default function CheckoutFlow() {
         token
       );
 
+      rememberCheckoutSession(created.id);
       setSession(created);
       setNow(Date.now());
       setStep(3);

@@ -226,7 +226,12 @@ export async function getCheckoutSession(
 ): Promise<CheckoutSession | null> {
   if (!API_BASE) return null;
 
-  return request<CheckoutSession>(`/api/checkout/${id}`);
+  try {
+    return await request<CheckoutSession>(`/api/checkout/${encodeURIComponent(id)}`);
+  } catch (error) {
+    if (error instanceof AppError && error.status === 404) return null;
+    throw error;
+  }
 }
 
 /** Public list of active crypto wallets shown at checkout. */
