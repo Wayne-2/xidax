@@ -302,7 +302,7 @@ Base URL: `https://auth.genericpcs.com`
 | `POST` | `/api/admin/bank-accounts` | Admin | Create bank account |
 | `PATCH` | `/api/admin/bank-accounts/:id` | Admin | Update bank account |
 | `DELETE` | `/api/admin/bank-accounts/:id` | Admin | Delete bank account |
-| `POST` | `/api/admin/orders/:id/wire-details` | Admin | Send bank details → customer `awaiting_payment` |
+| `POST` | `/api/admin/orders/:id/wire-details` | Admin | Send bank details → shopper **and** `supportsgenericpcs@gmail.com` → `awaiting_payment` |
 | `POST` | `/api/admin/orders/:id` (status `paid`) | Admin | Approve → receipt email to customer |
 
 Status flow: `pending → awaiting_payment → [awaiting_admin] → submitted → paid | failed | expired` (wire starts at `awaiting_admin` and emails admins). TTLs: card 15 min, crypto 30 min, wire 48 h.

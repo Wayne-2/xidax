@@ -2,9 +2,11 @@ import { attachOrderToUser } from "./account";
 import { ensureInitialized, findUserByToken, readToken } from "./auth";
 import { getWallet, listWallets } from "./admin-wallets";
 import {
+  customerAndSupportRecipients,
   notifyAdminsPaymentEvent,
   sendReceiptEmail,
   sendWireDetailsEmail,
+  sendWireRequestEmail,
   type AdminPaymentAlertInput,
   type ReceiptLine,
 } from "./email";
@@ -709,8 +711,23 @@ export async function createCheckout(
   });
 
   if (method === "wire") {
+    // Shopper asked for bank details — confirm to them and alert support/admins.
+    if (env.RESEND_API_KEY && session.details.email) {
+      void sendWireRequestEmail({
+        apiKey: env.RESEND_API_KEY,
+        to: session.details.email,
+        reference: session.reference,
+        customerName: session.details.name,
+        amount: instructions.amount,
+        currency: instructions.billingCurrency,
+      }).catch((error) => {
+        console.error("wire request email failed:", error);
+      });
+    }
+
     void notifyAdminsPaymentEvent(env, {
       kind: "wire",
+      event: "requested",
       reference: session.reference,
       amount: session.total,
       currency: session.currency,
@@ -793,10 +810,11 @@ export async function applyWireDetails(
 
   await syncSessionStatus(env, updated);
 
+  // Forward the same bank-details email to the shopper and the ops inbox.
   if (env.RESEND_API_KEY && current.details.email) {
     void sendWireDetailsEmail({
       apiKey: env.RESEND_API_KEY,
-      to: current.details.email,
+      to: customerAndSupportRecipients(current.details.email),
       reference: current.reference,
       customerName: current.details.name,
       amount: current.instructions.amount,
@@ -806,6 +824,17 @@ export async function applyWireDetails(
       console.error("wire details email failed:", error);
     });
   }
+
+  void notifyAdminsPaymentEvent(env, {
+    kind: "wire",
+    event: "sent",
+    reference: current.reference,
+    amount: current.total,
+    currency: current.currency,
+    customerName: current.details.name,
+    customerEmail: current.details.email,
+    detail: "Bank details forwarded to the customer. Await proof of payment.",
+  } satisfies AdminPaymentAlertInput);
 
   return { ok: true, session: updated };
 }

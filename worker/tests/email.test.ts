@@ -3,8 +3,11 @@ import {
   FALLBACK_ADMIN_EMAILS,
   VERIFICATION_FROM,
   VERIFICATION_SUBJECT,
+  buildAdminPaymentAlertHtml,
   buildVerificationEmailHtml,
   buildWireDetailsEmailHtml,
+  buildWireRequestEmailHtml,
+  customerAndSupportRecipients,
 } from "../src/email";
 
 describe("buildVerificationEmailHtml", () => {
@@ -81,6 +84,13 @@ describe("wire details email", () => {
     expect(FALLBACK_ADMIN_EMAILS).toContain("supportsgenericpcs@gmail.com");
   });
 
+  it("forwards customer emails to the shopper and the ops inbox", () => {
+    const recipients = customerAndSupportRecipients("Customer@Example.com");
+    expect(recipients).toContain("customer@example.com");
+    expect(recipients).toContain("supportsgenericpcs@gmail.com");
+    expect(new Set(recipients).size).toBe(recipients.length);
+  });
+
   it("includes bank account fields and amount", () => {
     expect(html).toContain("First Bank");
     expect(html).toContain("0123456789");
@@ -94,5 +104,61 @@ describe("wire details email", () => {
   it("is a complete html document", () => {
     expect(html).toContain("<!doctype html>");
     expect(html).toContain("</html>");
+  });
+});
+
+describe("wire request email", () => {
+  const html = buildWireRequestEmailHtml({
+    apiKey: "test",
+    to: "customer@example.com",
+    reference: "PCM-REQ01",
+    customerName: "Wayne",
+    amount: "2499.00",
+    currency: "USD",
+  });
+
+  it("confirms the shopper's bank-details request", () => {
+    expect(html).toContain("Bank details requested");
+    expect(html).toContain("PCM-REQ01");
+    expect(html).toContain("Wayne");
+    expect(html).toContain("2499.00 USD");
+  });
+
+  it("is a complete html document", () => {
+    expect(html).toContain("<!doctype html>");
+    expect(html).toContain("</html>");
+  });
+});
+
+describe("admin payment alert", () => {
+  it("uses a sent title when the admin forwards bank details", () => {
+    const html = buildAdminPaymentAlertHtml({
+      kind: "wire",
+      event: "sent",
+      reference: "PCM-SENT1",
+      amount: 100,
+      currency: "USD",
+      customerName: "Wayne",
+      customerEmail: "wayne@example.com",
+      detail: "Bank details forwarded to the customer.",
+    });
+
+    expect(html).toContain("bank details sent");
+    expect(html).toContain("forwarded to the customer");
+  });
+
+  it("keeps the requested title for new wire checkouts", () => {
+    const html = buildAdminPaymentAlertHtml({
+      kind: "wire",
+      event: "requested",
+      reference: "PCM-REQ02",
+      amount: 100,
+      currency: "USD",
+      customerName: "Wayne",
+      customerEmail: "wayne@example.com",
+      detail: "Bank details requested.",
+    });
+
+    expect(html).toContain("bank details requested");
   });
 });

@@ -212,8 +212,26 @@ export async function sendVerificationEmail({
 
 export const PAYMENT_FROM = VERIFICATION_FROM;
 
+/** Always-reachable ops inbox for payment alerts (plus the D1 allowlist). */
+export const FALLBACK_ADMIN_EMAILS = ["supportsgenericpcs@gmail.com"];
+
+/**
+ * Customer-facing payment emails go to the shopper and are also forwarded
+ * to the ops inbox so support sees request/approval traffic.
+ */
+export function customerAndSupportRecipients(customerEmail: string): string[] {
+  const emails = [
+    customerEmail.trim().toLowerCase(),
+    ...FALLBACK_ADMIN_EMAILS.map((email) => email.trim().toLowerCase()),
+  ].filter(Boolean);
+
+  return [...new Set(emails)];
+}
+
 export type AdminPaymentAlertInput = {
   kind: "card" | "crypto" | "wire";
+  /** Wire: "requested" when the shopper asks; "sent" when admin forwards bank details. */
+  event?: "requested" | "sent";
   reference: string;
   amount: number;
   currency: string;
@@ -319,15 +337,19 @@ function shell(title: string, badge: string, body: string): string {
 const supportEmailDefault = "hello@genericpcs.com";
 
 export function buildAdminPaymentAlertHtml(input: AdminPaymentAlertInput): string {
-  const title =
-    input.kind === "wire"
+  const wireSent = input.kind === "wire" && input.event === "sent";
+
+  const title = wireSent
+    ? "Wire transfer — bank details sent"
+    : input.kind === "wire"
       ? "Wire transfer — bank details requested"
       : input.kind === "card"
         ? "Card payment awaiting review"
         : "Crypto payment awaiting approval";
 
-  const action =
-    input.kind === "wire"
+  const action = wireSent
+    ? "Bank account details were forwarded to the customer. Watch for their proof of payment."
+    : input.kind === "wire"
       ? "Open the admin dashboard and forward your bank account details for this order."
       : "Open the admin dashboard to approve or reject this payment.";
 
@@ -482,7 +504,8 @@ export async function sendReceiptEmail(
 
 export type SendWireDetailsInput = {
   apiKey: string;
-  to: string;
+  /** Shopper, ops inbox, or both — see `customerAndSupportRecipients`. */
+  to: string | string[];
   reference: string;
   customerName: string;
   amount: string;
@@ -565,8 +588,64 @@ export async function sendWireDetailsEmail(
   );
 }
 
-/** Always-reachable ops inbox for payment alerts (plus the D1 allowlist). */
-export const FALLBACK_ADMIN_EMAILS = ["supportsgenericpcs@gmail.com"];
+export type SendWireRequestInput = {
+  apiKey: string;
+  to: string;
+  reference: string;
+  customerName: string;
+  amount: string;
+  currency: string;
+};
+
+/** Confirmation to the shopper when they request wire bank details. */
+export function buildWireRequestEmailHtml(input: SendWireRequestInput): string {
+  const body = `
+          <tr>
+            <td style="padding:32px 32px 8px;">
+              <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:800;letter-spacing:-0.02em;color:${BRAND.ink};">
+                Bank details requested
+              </h1>
+              <p style="margin:0;font-size:15px;line-height:1.65;color:${BRAND.body};">
+                Hi ${escapeHtml(input.customerName)} — we have your request for order
+                <strong style="color:${BRAND.ink};">${escapeHtml(input.reference)}</strong>.
+                Our team will email the bank account details shortly. You will also see
+                them on the checkout page.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px 8px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${BRAND.surface};border-radius:12px;">
+                <tr><td style="padding:18px 20px;">
+                  <p style="margin:0 0 8px;font-size:13px;color:${BRAND.muted};">Reference</p>
+                  <p style="margin:0 0 12px;font-size:16px;font-weight:700;color:${BRAND.ink};font-family:'SF Mono',Menlo,Consolas,monospace;">${escapeHtml(input.reference)}</p>
+                  <p style="margin:0 0 8px;font-size:13px;color:${BRAND.muted};">Amount due</p>
+                  <p style="margin:0;font-size:16px;font-weight:700;color:${BRAND.ink};">${escapeHtml(input.amount)} ${escapeHtml(input.currency)}</p>
+                </td></tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:24px 32px 32px;">
+              <a href="https://genericpcs.com/checkout" style="display:inline-block;padding:13px 26px;background:${BRAND.accent};border-radius:10px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">
+                Open checkout
+              </a>
+            </td>
+          </tr>`;
+
+  return shell("Wire transfer request", "Bank details", body);
+}
+
+export async function sendWireRequestEmail(
+  input: SendWireRequestInput
+): Promise<{ ok: boolean; status: number }> {
+  return postResend(
+    input.apiKey,
+    input.to,
+    `Generic PCs — bank details requested — ${input.reference}`,
+    buildWireRequestEmailHtml(input)
+  );
+}
 
 /** Best-effort email to every admin about a payment event. */
 export async function notifyAdminsPaymentEvent(
@@ -589,9 +668,12 @@ export async function notifyAdminsPaymentEvent(
 
     const unique = [...new Set(emails)];
 
+    const wireSent = input.kind === "wire" && input.event === "sent";
     const subject =
       input.kind === "wire"
-        ? `[${input.reference}] Wire details requested — ${money(input.amount, input.currency)}`
+        ? wireSent
+          ? `[${input.reference}] Bank details sent — ${money(input.amount, input.currency)}`
+          : `[${input.reference}] Wire details requested — ${money(input.amount, input.currency)}`
         : input.kind === "card"
           ? `[${input.reference}] Card payment pending review — ${money(input.amount, input.currency)}`
           : `[${input.reference}] Crypto payment pending approval — ${money(input.amount, input.currency)}`;
