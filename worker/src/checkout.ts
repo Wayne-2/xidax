@@ -299,14 +299,18 @@ export function maskCardSummary(input: {
 
 export type CardSubmitResult =
   | { ok: true; session: CheckoutSession }
-  | { ok: false; status: number; error: string };
+  | { ok: false; status: number; error: string; session?: CheckoutSession };
 
-/** Accepts card details, persists only a masked summary, notifies admins. */
+/**
+ * Card payments are a placeholder rail and always fail.
+ * The session is marked `failed` so the customer can switch to crypto/wire.
+ */
 export async function submitCardPayment(
   env: Env,
   id: string,
-  body: Record<string, unknown>
+  _body?: Record<string, unknown>
 ): Promise<CardSubmitResult> {
+  void _body;
   const current = await getLiveSession(env, id);
 
   if (!current) {
@@ -321,6 +325,15 @@ export async function submitCardPayment(
     return { ok: false, status: 409, error: "This payment is already approved." };
   }
 
+  if (current.status === "failed") {
+    return {
+      ok: false,
+      status: 409,
+      error: CARD_PAYMENT_UNAVAILABLE,
+      session: current,
+    };
+  }
+
   if (current.status === "submitted") {
     return { ok: false, status: 409, error: "Card details are already under review." };
   }
@@ -332,77 +345,22 @@ export async function submitCardPayment(
     return { ok: false, status: 409, error: "This card payment is not accepting details." };
   }
 
-  const number = String(body.cardNumber ?? body.number ?? "").replace(/\s+/g, "");
-  const expMonth = String(body.expMonth ?? "").padStart(2, "0");
-  const expYear = String(body.expYear ?? "").slice(-2);
-  const cvv = String(body.cvv ?? "");
-  const holderName = String(body.holderName ?? body.name ?? "").trim();
+  // Placeholder rail: never accepts a charge — fail and free the customer
+  // to pick crypto or wire instead.
+  const failed: CheckoutSession = { ...current, status: "failed" };
+  await syncSessionStatus(env, failed);
 
-  if (!/^\d{12,19}$/.test(number)) {
-    return { ok: false, status: 400, error: "Enter a valid card number." };
-  }
-
-  if (!luhnValid(number)) {
-    return { ok: false, status: 400, error: "That card number does not look right." };
-  }
-
-  if (!/^(0[1-9]|1[0-2])$/.test(expMonth)) {
-    return { ok: false, status: 400, error: "Enter a valid expiry month." };
-  }
-
-  if (!/^\d{2}$/.test(expYear)) {
-    return { ok: false, status: 400, error: "Enter a valid expiry year." };
-  }
-
-  const now = new Date();
-  const century = now.getFullYear() - (now.getFullYear() % 100);
-  const fullYear = century + Number(expYear);
-  const expDate = new Date(fullYear, Number(expMonth), 1);
-
-  if (expDate.getTime() <= now.getTime()) {
-    return { ok: false, status: 400, error: "That card has expired." };
-  }
-
-  if (!/^\d{3,4}$/.test(cvv)) {
-    return { ok: false, status: 400, error: "Enter a valid security code." };
-  }
-
-  if (!holderName || holderName.length > 80) {
-    return { ok: false, status: 400, error: "Enter the cardholder name." };
-  }
-
-  // Masked summary only — full PAN and CVV are discarded after validation.
-  const cardSummary = maskCardSummary({
-    number,
-    expMonth,
-    expYear,
-    holderName,
-  });
-
-  const updated: CheckoutSession = {
-    ...current,
-    status: "submitted",
-    cardSummary,
-    instructions:
-      current.instructions.method === "card"
-        ? { ...current.instructions, cardSummary }
-        : current.instructions,
+  return {
+    ok: false,
+    status: 402,
+    error: CARD_PAYMENT_UNAVAILABLE,
+    session: failed,
   };
-
-  await syncSessionStatus(env, updated);
-
-  void notifyAdminsPaymentEvent(env, {
-    kind: "card",
-    reference: updated.reference,
-    amount: updated.total,
-    currency: updated.currency,
-    customerName: updated.details.name,
-    customerEmail: updated.details.email,
-    detail: `${cardSummary.brand} ···· ${cardSummary.last4} · exp ${cardSummary.expMonth}/${cardSummary.expYear}`,
-  } satisfies AdminPaymentAlertInput);
-
-  return { ok: true, session: updated };
 }
+
+/** Shown to the customer whenever the card rail rejects a submission. */
+export const CARD_PAYMENT_UNAVAILABLE =
+  "Card payment is unavailable right now. Please pay with crypto or wire transfer instead.";
 
 export type ConfirmResult =
   | { ok: true; session: CheckoutSession }

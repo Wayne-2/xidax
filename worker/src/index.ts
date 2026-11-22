@@ -1650,7 +1650,17 @@ const worker = {
         const result = await submitCardPayment(env, cardMatch[1], body);
 
         if (!result.ok) {
-          return json({ error: result.error }, result.status);
+          // Include the session when the rail marked it failed so the UI can
+          // flip to the "try crypto/wire" panel without a second fetch.
+          return json(
+            {
+              error: result.error,
+              ...("session" in result && result.session
+                ? { session: result.session }
+                : {}),
+            },
+            result.status
+          );
         }
 
         return json({ status: result.session.status, session: result.session });

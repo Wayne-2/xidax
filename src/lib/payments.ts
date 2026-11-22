@@ -180,7 +180,7 @@ export const paymentMethods: {
     value: "card",
     label: "Card",
     description:
-      "Pay by card. We hold a masked summary and an admin reviews the charge within minutes.",
+      "Card checkout is a placeholder — submitting always fails, then you can pay with crypto or wire.",
     index: "01",
   },
   {

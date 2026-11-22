@@ -190,11 +190,13 @@ async function send<T>(
 
   const payload = (await response.json().catch(() => null)) as {
     error?: string;
+    session?: CheckoutSession;
   } | null;
 
   if (!response.ok) {
     throw new AppError(payload?.error ?? fallback, {
       status: response.status,
+      payload: payload?.session ? { session: payload.session } : undefined,
     });
   }
 
@@ -244,7 +246,10 @@ export async function fetchWallets(): Promise<{ wallets: CryptoWallet[] }> {
   return request<{ wallets: CryptoWallet[] }>("/api/wallets");
 }
 
-/** Submits masked card details for admin review. */
+/** Card rail is a placeholder — always fails; session comes back as `failed`. */
+export const CARD_PAYMENT_UNAVAILABLE =
+  "Card payment is unavailable right now. Please pay with crypto or wire transfer instead.";
+
 export async function submitCardDetails(
   id: string,
   card: CardDetailsInput
@@ -266,20 +271,11 @@ export async function submitCardDetails(
       total: 0,
       currency: "USD",
     });
-    return {
-      status: "submitted",
-      session: {
-        ...session,
-        status: "submitted",
-        cardSummary: {
-          brand: "Visa",
-          last4: card.cardNumber.replace(/\s+/g, "").slice(-4),
-          expMonth: card.expMonth,
-          expYear: card.expYear,
-          holderName: card.holderName,
-        },
-      },
-    };
+    throw new AppError(CARD_PAYMENT_UNAVAILABLE, {
+      status: 402,
+      code: "card_unavailable",
+      payload: { session: { ...session, status: "failed" as const } },
+    });
   }
 
   return request<{ status: string; session: CheckoutSession }>(

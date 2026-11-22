@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CARD_PAYMENT_UNAVAILABLE,
   detectCardBrand,
   luhnValid,
   maskCardSummary,
@@ -145,10 +146,22 @@ describe("shouldExpireSession", () => {
     ).toBe(false);
   });
 
+  it("never expires a failed card session", () => {
+    expect(
+      shouldExpireSession(
+        session({ method: "card", status: "failed", expiresAt: past })
+      )
+    ).toBe(false);
+  });
+
   it("uses per-method TTLs", () => {
     expect(METHOD_TTL_MS.card).toBe(15 * 60 * 1000);
     expect(METHOD_TTL_MS.crypto).toBe(30 * 60 * 1000);
     expect(METHOD_TTL_MS.wire).toBe(48 * 60 * 60 * 1000);
+  });
+
+  it("exposes a clear card-unavailable message", () => {
+    expect(CARD_PAYMENT_UNAVAILABLE).toMatch(/crypto or wire/i);
   });
 });
 

@@ -4,16 +4,24 @@ export class AppError extends Error {
   status?: number;
   offline: boolean;
   code?: string;
+  /** Optional structured body from the API (e.g. a failed checkout session). */
+  payload?: unknown;
 
   constructor(
     message: string,
-    options: { status?: number; offline?: boolean; code?: string } = {}
+    options: {
+      status?: number;
+      offline?: boolean;
+      code?: string;
+      payload?: unknown;
+    } = {}
   ) {
     super(message);
     this.name = "AppError";
     this.status = options.status;
     this.offline = options.offline ?? false;
     this.code = options.code;
+    this.payload = options.payload;
   }
 }
 

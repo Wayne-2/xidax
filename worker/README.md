@@ -290,7 +290,7 @@ Base URL: `https://auth.genericpcs.com`
 |---|---|---|---|
 | `POST` | `/api/checkout` | User session | Create checkout (`card` / `crypto` / `wire`) |
 | `GET` | `/api/checkout/:id` | User session | Poll session status + payment instructions |
-| `POST` | `/api/checkout/:id/card` | User session | Submit masked card summary → `submitted` |
+| `POST` | `/api/checkout/:id/card` | User session | Card rail is a placeholder — always `402`, session marked `failed`; customer switches to crypto/wire |
 | `POST` | `/api/checkout/:id/confirm` | User session | Crypto/wire “I sent payment” → `submitted` |
 | `POST` | `/api/checkout/:id/proof` | User session | Submit proof (tx hash / ref) → `submitted` |
 | `GET` | `/api/wallets` | none | Active crypto wallets for checkout |

@@ -9,6 +9,7 @@ import { useCart } from "@/components/CartProvider";
 import { useRegion } from "@/components/RegionProvider";
 import { useToast } from "@/components/ToastProvider";
 import { useAsyncAction } from "@/hooks/useAsyncAction";
+import { AppError } from "@/lib/errors";
 import {
   confirmPayment,
   createCheckoutSession,
@@ -262,7 +263,7 @@ export default function CheckoutFlow() {
 
   // Poll the session so admin approval (paid) shows without a manual refresh.
   useEffect(() => {
-    if (!session || session.status === "paid" || session.status === "expired") {
+    if (!session || session.status === "paid" || session.status === "expired" || session.status === "failed") {
       return;
     }
 
@@ -320,17 +321,25 @@ export default function CheckoutFlow() {
   const instructions = session?.instructions;
   const selectedWallet = wallets.find((entry) => entry.id === walletId) ?? wallets[0];
 
-  // Before the customer commits payment, they can abandon or switch method.
+  // Before the customer commits payment — or after the card rail fails —
+  // they can abandon or switch method.
   const canLeaveInstructions =
     Boolean(session) &&
     (session!.status === "awaiting_payment" ||
       session!.status === "awaiting_admin" ||
-      session!.status === "pending");
+      session!.status === "pending" ||
+      (session!.status === "failed" && session!.method === "card"));
+
+  const cardFailed = Boolean(
+    session && session.method === "card" && session.status === "failed"
+  );
 
   function cancelCheckout() {
     clearRememberedCheckoutSession();
     setSession(null);
     setErrors({});
+    setCardError(null);
+    clearCardFields();
     setStep(1);
     setMethod(null);
     router.push("/cart");
@@ -341,7 +350,28 @@ export default function CheckoutFlow() {
     clearRememberedCheckoutSession();
     setSession(null);
     setErrors({});
+    setCardError(null);
+    clearCardFields();
     setStep(2);
+  }
+
+  /** After a failed card attempt, jump straight to another rail. */
+  function switchToMethod(next: PaymentMethod) {
+    clearRememberedCheckoutSession();
+    setSession(null);
+    setErrors({});
+    setCardError(null);
+    clearCardFields();
+    setMethod(next);
+    setStep(2);
+  }
+
+  function clearCardFields() {
+    setCardNumber("");
+    setCardExpMonth("");
+    setCardExpYear("");
+    setCardCvv("");
+    setCardHolder("");
   }
 
   function validateDetails() {
@@ -420,22 +450,49 @@ export default function CheckoutFlow() {
     run: submitCard,
     pending: submittingCard,
     error: cardError,
+    setError: setCardError,
   } = useAsyncAction(
     async (sessionId: string) => {
-      const result = await submitCardDetails(sessionId, {
-        cardNumber: cardNumber.replace(/\s+/g, ""),
-        expMonth: cardExpMonth.padStart(2, "0"),
-        expYear: cardExpYear,
-        cvv: cardCvv,
-        holderName: cardHolder.trim(),
-      });
-      setSession(result.session);
-      setNow(Date.now());
-      toast.success("Card details submitted — an admin will review shortly.");
+      try {
+        const result = await submitCardDetails(sessionId, {
+          cardNumber: cardNumber.replace(/\s+/g, ""),
+          expMonth: cardExpMonth.padStart(2, "0"),
+          expYear: cardExpYear,
+          cvv: cardCvv,
+          holderName: cardHolder.trim(),
+        });
+        setSession(result.session);
+        setNow(Date.now());
+        toast.success("Card details submitted — an admin will review shortly.");
+      } catch (error) {
+        // Card rail always fails — attach the failed session when the API
+        // returned one so the switch-to-crypto/wire panel appears at once.
+        const failedSession =
+          error instanceof AppError &&
+          error.payload &&
+          typeof error.payload === "object" &&
+          "session" in error.payload
+            ? (error.payload as { session: CheckoutSession }).session
+            : null;
+
+        if (failedSession) {
+          setSession(failedSession);
+          setNow(Date.now());
+        } else {
+          setSession((current) =>
+            current && current.id === sessionId
+              ? { ...current, status: "failed" }
+              : current
+          );
+          setNow(Date.now());
+        }
+
+        throw error;
+      }
     },
     {
       silent: true,
-      fallback: "We could not submit the card details. Try again.",
+      fallback: "Card payment failed. Try crypto or wire transfer instead.",
     }
   );
 
@@ -520,6 +577,43 @@ export default function CheckoutFlow() {
             The payment window for order {session.reference} has closed. Start
             checkout again if you still need to pay.
           </p>
+        </div>
+      );
+    }
+
+    if (session.status === "failed" && session.method === "card") {
+      return (
+        <div className="rounded-xl border border-[#DC2626]/35 bg-[#fdf2f2] p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#B91C1C]">
+            Card payment failed
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-[#4e5058]">
+            We could not process this card. Order {session.reference} is still
+            open — pay with crypto or wire transfer instead.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => switchToMethod("crypto")}
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#5865F2] px-4 text-xs font-semibold text-white transition-colors hover:bg-[#4752C4]"
+            >
+              Pay with crypto
+            </button>
+            <button
+              type="button"
+              onClick={() => switchToMethod("wire")}
+              className="inline-flex h-10 items-center justify-center rounded-xl border border-[#d2dbe8] bg-white px-4 text-xs font-semibold text-[#2e3338] transition-colors hover:border-[#b8c4d6]"
+            >
+              Pay with wire transfer
+            </button>
+            <button
+              type="button"
+              onClick={cancelCheckout}
+              className="inline-flex h-10 items-center justify-center rounded-xl border border-[#d2dbe8] bg-white px-4 text-xs font-semibold text-[#5c5e66] transition-colors hover:border-[#b8c4d6]"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       );
     }
@@ -953,7 +1047,9 @@ export default function CheckoutFlow() {
                     <span className="font-mono font-semibold text-[#2e3338]">
                       {session.reference}
                     </span>
-                    {session.status !== "paid" && session.status !== "expired" && (
+                    {session.status !== "paid" &&
+                      session.status !== "expired" &&
+                      session.status !== "failed" && (
                       <>
                         {" "}
                         · expires in{" "}
@@ -988,7 +1084,8 @@ export default function CheckoutFlow() {
                 )}
               </div>
 
-              {session.method === "card" && session.status === "awaiting_payment" && (
+              {session.method === "card" &&
+                session.status === "awaiting_payment" && (
                 <div className="mt-5 rounded-xl border border-[#d2dbe8] bg-white p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
                     Card details
@@ -1396,7 +1493,7 @@ export default function CheckoutFlow() {
                     Payment approved
                   </span>
                 ) : session.method === "card" ? (
-                  session.status === "awaiting_payment" ? null : (
+                  session.status === "awaiting_payment" ? null : cardFailed ? null : (
                     <span className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-6 text-sm font-semibold text-[#5c5e66]">
                       <CheckIcon className="h-4 w-4" />
                       Card under review

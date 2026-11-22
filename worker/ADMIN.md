@@ -79,7 +79,7 @@ Valid statuses:
 `refunded`.
 
 Payment flows (manual — no gateway):
-- **Card** — customer submits details (masked summary only); status → `submitted`; admin marks `paid` → receipt email.
+- **Card** — placeholder rail: create starts at `awaiting_payment`; submit always fails (`402`), session → `failed`, and the checkout UI offers crypto/wire instead. Never stores PAN/CVV.
 - **Crypto** — customer picks an active wallet (BTC/ETH/USDT-TRC20/USDT-ERC20/BNB/DOGE/LTC/XRP/SOL/USDC/TRX/MATIC/AVAX), deposit preview shows the amount, sends, submits proof of payment (tx hash); status → `submitted`; admin marks `paid`.
 - **Wire** — create starts at `awaiting_admin` and emails admins; admin posts bank details (from saved accounts on the Payments page) → `awaiting_payment`; customer submits proof of payment → `submitted`; admin marks `paid`.
 
