@@ -11,10 +11,19 @@ import {
 } from "@/lib/admin-api";
 
 const NETWORK_OPTIONS = [
-  { value: "btc", label: "Bitcoin", defaultCurrency: "BTC" },
-  { value: "eth", label: "Ethereum", defaultCurrency: "ETH" },
-  { value: "usdt", label: "Tether", defaultCurrency: "USDT" },
-  { value: "sol", label: "Solana", defaultCurrency: "SOL" },
+  { value: "btc", label: "Bitcoin (BTC)", defaultCurrency: "BTC" },
+  { value: "eth", label: "Ethereum (ETH)", defaultCurrency: "ETH" },
+  { value: "bnb", label: "BNB", defaultCurrency: "BNB" },
+  { value: "doge", label: "Dogecoin (DOGE)", defaultCurrency: "DOGE" },
+  { value: "ltc", label: "Litecoin (LTC)", defaultCurrency: "LTC" },
+  { value: "xrp", label: "XRP", defaultCurrency: "XRP" },
+  { value: "sol", label: "Solana (SOL)", defaultCurrency: "SOL" },
+  { value: "usdc", label: "USDC", defaultCurrency: "USDC" },
+  { value: "usdt_trc20", label: "USDT — TRC20", defaultCurrency: "USDT" },
+  { value: "usdt_erc20", label: "USDT — ERC20", defaultCurrency: "USDT" },
+  { value: "trx", label: "TRON (TRX)", defaultCurrency: "TRX" },
+  { value: "matic", label: "Polygon (MATIC)", defaultCurrency: "MATIC" },
+  { value: "avax", label: "Avalanche (AVAX)", defaultCurrency: "AVAX" },
 ] as const;
 
 type Draft = {
@@ -27,13 +36,13 @@ type Draft = {
 
 const emptyDraft: Draft = {
   label: "",
-  network: "usdt",
+  network: "usdt_trc20",
   currency: "USDT",
   address: "",
   active: true,
 };
 
-export default function AdminWallets() {
+export default function AdminWallets({ embedded = false }: { embedded?: boolean }) {
   const toast = useToast();
   const [wallets, setWallets] = useState<AdminWallet[]>([]);
   const [loading, setLoading] = useState(true);
@@ -167,12 +176,16 @@ export default function AdminWallets() {
 
   return (
     <div>
-      <h1 className="text-2xl font-extrabold tracking-tight">Crypto wallets</h1>
-      <p className="mt-1 text-sm text-[#5c5e66]">
-        Manage the destinations customers send crypto to at checkout.
-      </p>
+      {!embedded && (
+        <>
+          <h1 className="text-2xl font-extrabold tracking-tight">Crypto wallets</h1>
+          <p className="mt-1 text-sm text-[#5c5e66]">
+            Manage the destinations customers send crypto to at checkout.
+          </p>
+        </>
+      )}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+      <div className={`${embedded ? "" : "mt-6"} grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start`}>
         <div className="overflow-hidden rounded-2xl border border-[#dce3ee] bg-white shadow-card">
           {loading ? (
             <div className="p-10 text-center text-sm text-[#5c5e66]">

@@ -1,7 +1,12 @@
 "use client";
 
 import { getIdToken } from "@/lib/firebase-client";
-import type { CardSummary, CryptoNetwork, WireDetails } from "@/lib/payments";
+import type {
+  CardSummary,
+  CryptoNetwork,
+  PaymentProof,
+  WireDetails,
+} from "@/lib/payments";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_BASE_URL ||
@@ -38,6 +43,7 @@ export type AdminOrder = {
   walletLabel: string | null;
   wireDetails: WireDetails | null;
   receiptSentAt: string | null;
+  paymentProof: PaymentProof | null;
   lines: AdminOrderLine[];
 };
 
@@ -174,6 +180,63 @@ export function updateAdminWallet(id: string, patch: Partial<AdminWalletInput>) 
 export function deleteAdminWallet(id: string) {
   return adminFetch<{ ok: boolean }>(
     `/api/admin/wallets/${encodeURIComponent(id)}`,
+    { method: "DELETE" }
+  );
+}
+
+/* ---------------- Bank accounts (wire) ---------------- */
+
+export type AdminBankAccountInput = {
+  label: string;
+  bankName: string;
+  accountNumber: string;
+  beneficiary: string;
+  routing?: string;
+  swift?: string;
+  currency?: string;
+  active?: boolean;
+};
+
+export type AdminBankAccount = {
+  id: string;
+  label: string;
+  bankName: string;
+  accountNumber: string;
+  beneficiary: string;
+  routing: string | null;
+  swift: string | null;
+  currency: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function fetchAdminBankAccounts() {
+  return adminFetch<{ accounts: AdminBankAccount[] }>(
+    "/api/admin/bank-accounts"
+  );
+}
+
+export function createAdminBankAccount(input: AdminBankAccountInput) {
+  return adminFetch<{ account: AdminBankAccount }>("/api/admin/bank-accounts", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateAdminBankAccount(
+  id: string,
+  patch: Partial<AdminBankAccountInput>
+) {
+  return adminFetch<{ account: AdminBankAccount }>(
+    `/api/admin/bank-accounts/${encodeURIComponent(id)}`,
+    { method: "PATCH", body: JSON.stringify(patch) }
+  );
+}
+
+export function deleteAdminBankAccount(id: string) {
+  return adminFetch<{ ok: boolean }>(
+    `/api/admin/bank-accounts/${encodeURIComponent(id)}`,
     { method: "DELETE" }
   );
 }

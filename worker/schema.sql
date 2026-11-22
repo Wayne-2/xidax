@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS orders (
   wire_details TEXT,
   expires_at TEXT,
   receipt_sent_at TEXT,
+  payment_proof TEXT,
   created_at TEXT NOT NULL
 );
 
@@ -41,6 +42,22 @@ CREATE TABLE IF NOT EXISTS crypto_wallets (
 );
 
 CREATE INDEX IF NOT EXISTS crypto_wallets_active_idx ON crypto_wallets (active);
+
+CREATE TABLE IF NOT EXISTS bank_accounts (
+  id TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  bank_name TEXT NOT NULL,
+  account_number TEXT NOT NULL,
+  beneficiary TEXT NOT NULL,
+  routing TEXT,
+  swift TEXT,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS bank_accounts_active_idx ON bank_accounts (active);
 
 CREATE TABLE IF NOT EXISTS order_lines (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

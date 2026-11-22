@@ -6,7 +6,7 @@
     "dev": "wrangler dev --config wrangler.toml",
     "deploy": "wrangler deploy --config wrangler.toml",
     "db:init": "wrangler d1 execute generic-pcs --remote --file=./schema.sql",
-    "db:migrate": "wrangler d1 execute generic-pcs --remote --file=./migrations/0011_payment_rework.sql",
+    "db:migrate": "wrangler d1 execute generic-pcs --remote --file=./migrations/0012_bank_accounts_proof.sql",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "secret:FIREBASE_CONFIG": "wrangler secret put FIREBASE_CONFIG --config wrangler.toml",
     "secret:RESEND_API_KEY": "wrangler secret put RESEND_API_KEY --config wrangler.toml",

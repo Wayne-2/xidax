@@ -189,7 +189,7 @@ cd ..
 #    ALLOWED_ORIGINS = "https://staging.genericpcs.com"  in worker/wrangler.toml
 
 ```bash
-# 4. Apply the manual payment migration (card / crypto / wire)
+# 4. Apply payment migration 0012 (bank accounts + proof; 0011 already applied)
 cd worker
 npm run db:migrate
 cd ..
@@ -292,11 +292,16 @@ Base URL: `https://auth.genericpcs.com`
 | `GET` | `/api/checkout/:id` | User session | Poll session status + payment instructions |
 | `POST` | `/api/checkout/:id/card` | User session | Submit masked card summary → `submitted` |
 | `POST` | `/api/checkout/:id/confirm` | User session | Crypto/wire “I sent payment” → `submitted` |
+| `POST` | `/api/checkout/:id/proof` | User session | Submit proof (tx hash / ref) → `submitted` |
 | `GET` | `/api/wallets` | none | Active crypto wallets for checkout |
 | `GET` | `/api/admin/wallets` | Admin | List all wallets |
 | `POST` | `/api/admin/wallets` | Admin | Create wallet |
 | `PATCH` | `/api/admin/wallets/:id` | Admin | Update / toggle wallet |
 | `DELETE` | `/api/admin/wallets/:id` | Admin | Delete wallet |
+| `GET` | `/api/admin/bank-accounts` | Admin | List wire bank accounts |
+| `POST` | `/api/admin/bank-accounts` | Admin | Create bank account |
+| `PATCH` | `/api/admin/bank-accounts/:id` | Admin | Update bank account |
+| `DELETE` | `/api/admin/bank-accounts/:id` | Admin | Delete bank account |
 | `POST` | `/api/admin/orders/:id/wire-details` | Admin | Send bank details → customer `awaiting_payment` |
 | `POST` | `/api/admin/orders/:id` (status `paid`) | Admin | Approve → receipt email to customer |
 

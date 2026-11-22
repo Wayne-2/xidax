@@ -62,6 +62,10 @@ claim. All return `403` for non-admins and `401` for missing/invalid tokens.
 | `POST` | `/api/admin/wallets` | Create wallet |
 | `PATCH` | `/api/admin/wallets/:id` | Update wallet |
 | `DELETE` | `/api/admin/wallets/:id` | Delete wallet |
+| `GET` | `/api/admin/bank-accounts` | List wire bank accounts |
+| `POST` | `/api/admin/bank-accounts` | Create bank account |
+| `PATCH` | `/api/admin/bank-accounts/:id` | Update bank account |
+| `DELETE` | `/api/admin/bank-accounts/:id` | Delete bank account |
 | `GET` | `/api/admin/users` | List users. Query: `search`, `verified`, `limit`, `offset` |
 | `GET` | `/api/admin/users/stats` | User counts (total/verified/unverified) |
 | `GET` | `/api/admin/users/:id` | Single user |
@@ -76,8 +80,8 @@ Valid statuses:
 
 Payment flows (manual — no gateway):
 - **Card** — customer submits details (masked summary only); status → `submitted`; admin marks `paid` → receipt email.
-- **Crypto** — customer picks an active wallet, sends, confirms; status → `submitted`; admin marks `paid`.
-- **Wire** — create starts at `awaiting_admin` and emails admins; admin posts bank details → `awaiting_payment`; customer confirms → `submitted`; admin marks `paid`.
+- **Crypto** — customer picks an active wallet (BTC/ETH/USDT-TRC20/USDT-ERC20/BNB/DOGE/LTC/XRP/SOL/USDC/TRX/MATIC/AVAX), deposit preview shows the amount, sends, submits proof of payment (tx hash); status → `submitted`; admin marks `paid`.
+- **Wire** — create starts at `awaiting_admin` and emails admins; admin posts bank details (from saved accounts on the Payments page) → `awaiting_payment`; customer submits proof of payment → `submitted`; admin marks `paid`.
 
 Updating an order status also updates the matching `user_orders` and
 `checkout_sessions` rows so the customer's profile and checkout page stay in

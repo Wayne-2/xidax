@@ -7,6 +7,7 @@ export type ConfigCheckResult = {
     configured: boolean;
     otpTableReady: boolean;
     walletsTableReady: boolean;
+    bankAccountsTableReady: boolean;
     error: string | null;
   };
   firebase: {
@@ -47,6 +48,7 @@ export async function runConfigCheck(env: Env): Promise<ConfigCheckResult> {
       configured: Boolean(env.DB),
       otpTableReady: false,
       walletsTableReady: false,
+      bankAccountsTableReady: false,
       error: null,
     },
     firebase: {
@@ -86,6 +88,21 @@ export async function runConfigCheck(env: Env): Promise<ConfigCheckResult> {
       error instanceof Error
         ? error.message
         : "D1 crypto_wallets table is not available. Run migration 0011.";
+    result.database.error = result.database.error
+      ? `${result.database.error} ${message}`
+      : message;
+  }
+
+  try {
+    await env.DB.prepare(
+      "SELECT id FROM bank_accounts LIMIT 1"
+    ).first();
+    result.database.bankAccountsTableReady = true;
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "D1 bank_accounts table is not available. Run migration 0012.";
     result.database.error = result.database.error
       ? `${result.database.error} ${message}`
       : message;
@@ -142,6 +159,7 @@ export async function runConfigCheck(env: Env): Promise<ConfigCheckResult> {
     result.database.configured &&
     result.database.otpTableReady &&
     result.database.walletsTableReady &&
+    result.database.bankAccountsTableReady &&
     result.firebase.reachable &&
     result.firebase.serviceAccountPresent &&
     result.resend.configured &&

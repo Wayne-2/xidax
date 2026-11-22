@@ -16,9 +16,12 @@ import {
   getCheckoutSession,
   remotePaymentsEnabled,
   submitCardDetails,
+  submitPaymentProof,
 } from "@/lib/api";
 import {
+  cryptoAmountFor,
   formatCountdown,
+  networkConfig,
   paymentMethods,
   statusLabel,
   type CheckoutSession,
@@ -106,6 +109,12 @@ function clearRememberedCheckoutSession() {
   }
 }
 
+const secondaryButtonClass =
+  "inline-flex h-12 touch-manipulation items-center justify-center rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-semibold text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]";
+
+const primaryButtonClass =
+  "inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:opacity-70";
+
 export default function CheckoutFlow() {
   const { token } = useAccount();
   const router = useRouter();
@@ -131,6 +140,8 @@ export default function CheckoutFlow() {
   const [now, setNow] = useState(0);
 
   const [cardNumber, setCardNumber] = useState("");
+  const [proofTxHash, setProofTxHash] = useState("");
+  const [proofNote, setProofNote] = useState("");
   const [cardExpMonth, setCardExpMonth] = useState("");
   const [cardExpYear, setCardExpYear] = useState("");
   const [cardCvv, setCardCvv] = useState("");
@@ -309,6 +320,30 @@ export default function CheckoutFlow() {
   const instructions = session?.instructions;
   const selectedWallet = wallets.find((entry) => entry.id === walletId) ?? wallets[0];
 
+  // Before the customer commits payment, they can abandon or switch method.
+  const canLeaveInstructions =
+    Boolean(session) &&
+    (session!.status === "awaiting_payment" ||
+      session!.status === "awaiting_admin" ||
+      session!.status === "pending");
+
+  function cancelCheckout() {
+    clearRememberedCheckoutSession();
+    setSession(null);
+    setErrors({});
+    setStep(1);
+    setMethod(null);
+    router.push("/cart");
+  }
+
+  function changePaymentMethod() {
+    if (!canLeaveInstructions) return;
+    clearRememberedCheckoutSession();
+    setSession(null);
+    setErrors({});
+    setStep(2);
+  }
+
   function validateDetails() {
     const next: Record<string, string> = {};
 
@@ -418,6 +453,40 @@ export default function CheckoutFlow() {
     {
       fallback: "We could not record that. Try again in a moment.",
       retry: true,
+    }
+  );
+
+  const {
+    run: submitProof,
+    pending: submittingProof,
+    error: proofError,
+  } = useAsyncAction(
+    async (sessionId: string) => {
+      const txHash = proofTxHash.trim();
+      if (!txHash) {
+        setErrors((current) => ({
+          ...current,
+          proofTxHash: "Enter the transaction hash or transfer reference.",
+        }));
+        return;
+      }
+      setErrors((current) => {
+        const next = { ...current };
+        delete next.proofTxHash;
+        return next;
+      });
+
+      const result = await submitPaymentProof(sessionId, {
+        txHash,
+        note: proofNote.trim() || undefined,
+      });
+      setSession(result.session);
+      setNow(Date.now());
+      toast.success("Proof of payment submitted — an admin will review shortly.");
+    },
+    {
+      silent: true,
+      fallback: "We could not submit your proof. Try again.",
     }
   );
 
@@ -673,18 +742,27 @@ export default function CheckoutFlow() {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  if (validateDetails()) {
-                    setStep(2);
-                  }
-                }}
-                className="mt-6 inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
-              >
-                Continue to payment
-                <ArrowIcon className="h-4 w-4" />
-              </button>
+              <div className="mt-6 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (validateDetails()) {
+                      setStep(2);
+                    }
+                  }}
+                  className={primaryButtonClass}
+                >
+                  Continue to payment
+                  <ArrowIcon className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelCheckout}
+                  className={secondaryButtonClass}
+                >
+                  Cancel
+                </button>
+              </div>
             </section>
           )}
 
@@ -787,10 +865,31 @@ export default function CheckoutFlow() {
                     </div>
                   )}
                   {selectedWallet && (
-                    <p className="mt-2 text-[11px] leading-relaxed text-[#80848e]">
-                      Send exactly the amount shown after checkout. Include
-                      reference {`PCM-…`} once you have an order reference.
-                    </p>
+                    <div className="mt-4 rounded-xl border border-[#5865F2]/30 bg-[#5865F2]/10 p-4">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5865F2]">
+                        Deposit preview
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-[#4e5058]">
+                        Estimated amount for order total{" "}
+                        <span className="font-semibold text-[#2e3338]">
+                          {formatMoney(total)}
+                        </span>
+                        :
+                      </p>
+                      <p className="mt-2 font-mono text-lg font-bold text-[#2e3338]">
+                        {cryptoAmountFor(total, selectedWallet.network)}{" "}
+                        {selectedWallet.currency}
+                      </p>
+                      <p className="mt-1 text-[11px] text-[#5c5e66]">
+                        {networkConfig(selectedWallet.network).label} ·{" "}
+                        {networkConfig(selectedWallet.network).chain} · exact
+                        amount shown after you continue
+                      </p>
+                      <p className="mt-2 text-[11px] leading-relaxed text-[#80848e]">
+                        Send exactly the amount shown on the next page. Include
+                        order reference once you have one.
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
@@ -811,7 +910,7 @@ export default function CheckoutFlow() {
                     void startPayment();
                   }}
                   disabled={startingPayment}
-                  className="inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:opacity-70"
+                  className={primaryButtonClass}
                 >
                   {startingPayment
                     ? "Preparing…"
@@ -823,9 +922,16 @@ export default function CheckoutFlow() {
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="inline-flex h-12 items-center justify-center rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-semibold text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
+                  className={secondaryButtonClass}
                 >
                   Back
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelCheckout}
+                  className={secondaryButtonClass}
+                >
+                  Cancel
                 </button>
               </div>
             </section>
@@ -1037,20 +1143,36 @@ export default function CheckoutFlow() {
                     </p>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (validateCard()) {
-                        setErrors({});
-                        void submitCard(session.id);
-                      }
-                    }}
-                    disabled={submittingCard}
-                    className="mt-4 inline-flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:opacity-70"
-                  >
-                    {submittingCard ? "Submitting…" : "Submit card for review"}
-                    {!submittingCard && <ArrowIcon className="h-4 w-4" />}
-                  </button>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (validateCard()) {
+                          setErrors({});
+                          void submitCard(session.id);
+                        }
+                      }}
+                      disabled={submittingCard}
+                      className="inline-flex h-12 flex-1 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:opacity-70"
+                    >
+                      {submittingCard ? "Submitting…" : "Submit card for review"}
+                      {!submittingCard && <ArrowIcon className="h-4 w-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={changePaymentMethod}
+                      className={secondaryButtonClass}
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelCheckout}
+                      className={secondaryButtonClass}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1184,6 +1306,90 @@ export default function CheckoutFlow() {
               )}
 
               <div className="mt-6 flex flex-wrap items-center gap-3">
+                {(session.status === "awaiting_payment" ||
+                  session.status === "awaiting_admin" ||
+                  session.status === "pending") &&
+                  (session.method === "crypto" || session.method === "wire") && (
+                  <div className="w-full rounded-xl border border-[#d2dbe8] bg-white p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
+                      Proof of payment
+                    </p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-[#5c5e66]">
+                      {session.method === "crypto"
+                        ? "Paste the transaction hash (txid) from your wallet after sending."
+                        : "Paste the bank transfer reference or confirmation number."}
+                    </p>
+
+                    <div className="mt-3 space-y-2">
+                      <div>
+                        <label
+                          htmlFor="proof-tx"
+                          className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
+                        >
+                          Transaction hash / reference
+                        </label>
+                        <input
+                          id="proof-tx"
+                          value={proofTxHash}
+                          onChange={(event) => setProofTxHash(event.target.value)}
+                          placeholder={
+                            session.method === "crypto"
+                              ? "0x… or wallet txid"
+                              : "Wire reference / IMAD"
+                          }
+                          className={`${fieldClass} font-mono ${
+                            errors.proofTxHash
+                              ? "border-[#DC2626]"
+                              : "border-[#d2dbe8]"
+                          }`}
+                        />
+                        {errors.proofTxHash && (
+                          <p className="mt-1.5 text-xs text-[#B91C1C]">
+                            {errors.proofTxHash}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="proof-note"
+                          className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
+                        >
+                          Note (optional)
+                        </label>
+                        <textarea
+                          id="proof-note"
+                          rows={2}
+                          value={proofNote}
+                          onChange={(event) => setProofNote(event.target.value)}
+                          placeholder="Anything the admin should know"
+                          className={`${fieldClass} h-auto py-2 border-[#d2dbe8]`}
+                        />
+                      </div>
+                      {(proofError || errors.form) && (
+                        <p
+                          role="alert"
+                          className="rounded-xl border border-[#DC2626]/30 bg-[#fdf2f2] px-3.5 py-2.5 text-xs leading-relaxed text-[#B91C1C]"
+                        >
+                          {proofError ?? errors.form}
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void submitProof(session.id);
+                        }}
+                        disabled={submittingProof}
+                        className={primaryButtonClass}
+                      >
+                        {submittingProof
+                          ? "Submitting…"
+                          : "Submit proof of payment"}
+                        {!submittingProof && <ArrowIcon className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {session.status === "paid" ? (
                   <span className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#15803D]/35 bg-[#15803D]/10 px-6 text-sm font-semibold text-[#15803D]">
                     <CheckIcon className="h-4 w-4" />
@@ -1203,7 +1409,12 @@ export default function CheckoutFlow() {
                 ) : session.status === "submitted" ? (
                   <span className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#15803D]/35 bg-[#15803D]/10 px-6 text-sm font-semibold text-[#15803D]">
                     <CheckIcon className="h-4 w-4" />
-                    Payment noted
+                    Proof submitted
+                  </span>
+                ) : session.status === "awaiting_payment" &&
+                  (session.method === "crypto" || session.method === "wire") ? (
+                  <span className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-6 text-sm font-semibold text-[#5c5e66]">
+                    Awaiting your proof of payment
                   </span>
                 ) : (
                   <button
@@ -1222,10 +1433,37 @@ export default function CheckoutFlow() {
                 )}
                 <Link
                   href="/profile"
-                  className="inline-flex h-12 items-center justify-center rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-semibold text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]"
+                  className={secondaryButtonClass}
                 >
                   View my orders
                 </Link>
+                {canLeaveInstructions && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={changePaymentMethod}
+                      className={secondaryButtonClass}
+                    >
+                      Change payment method
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelCheckout}
+                      className={secondaryButtonClass}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+                {session.status === "paid" && (
+                  <button
+                    type="button"
+                    onClick={cancelCheckout}
+                    className={secondaryButtonClass}
+                  >
+                    Back to cart
+                  </button>
+                )}
               </div>
             </section>
           )}

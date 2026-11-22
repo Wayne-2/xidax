@@ -1,4 +1,4 @@
-import type { CryptoNetwork, Env } from "./types";
+import { CRYPTO_NETWORKS, type CryptoNetwork, type Env } from "./types";
 
 export type WalletInput = {
   label: string;
@@ -19,8 +19,6 @@ export type WalletRow = {
   updatedAt: string;
 };
 
-const NETWORKS = new Set(["btc", "eth", "usdt", "sol"]);
-
 export function normalize(
   input: WalletInput
 ): { ok: true; value: Required<WalletInput> } | { ok: false; error: string } {
@@ -33,8 +31,11 @@ export function normalize(
     return { ok: false, error: "Label is required (max 80 characters)." };
   }
 
-  if (!NETWORKS.has(network)) {
-    return { ok: false, error: "Network must be btc, eth, usdt or sol." };
+  if (!CRYPTO_NETWORKS.has(network)) {
+    return {
+      ok: false,
+      error: `Network must be one of: ${[...CRYPTO_NETWORKS].join(", ")}.`,
+    };
   }
 
   if (!currency || currency.length > 12) {

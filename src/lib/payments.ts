@@ -8,7 +8,20 @@ export type RegisteredProductPayload = {
 
 export type PaymentMethod = "card" | "crypto" | "wire";
 
-export type CryptoNetwork = "btc" | "eth" | "usdt" | "sol";
+export type CryptoNetwork =
+  | "btc"
+  | "eth"
+  | "bnb"
+  | "doge"
+  | "ltc"
+  | "xrp"
+  | "sol"
+  | "usdc"
+  | "usdt_trc20"
+  | "usdt_erc20"
+  | "trx"
+  | "matic"
+  | "avax";
 
 export type PaymentStatus =
   | "pending"
@@ -40,6 +53,13 @@ export type WireDetails = {
   routing?: string;
   swift?: string;
   reference?: string;
+};
+
+/** Proof the customer submitted for a manual crypto/wire transfer. */
+export type PaymentProof = {
+  txHash: string;
+  note?: string;
+  submittedAt: string;
 };
 
 export type CryptoWallet = {
@@ -132,6 +152,7 @@ export type CheckoutSession = {
   walletId?: string | null;
   wireDetails?: WireDetails | null;
   receiptSentAt?: string | null;
+  paymentProof?: PaymentProof | null;
 };
 
 export type CardDetailsInput = {
@@ -166,7 +187,7 @@ export const paymentMethods: {
     value: "crypto",
     label: "Crypto",
     description:
-      "Send USDT, BTC, ETH or Solana to our wallet. Approve once the transfer lands.",
+      "Pay with BTC, ETH, USDT, SOL, BNB and more. Deposit preview shows the exact amount.",
     index: "02",
   },
   {
@@ -184,13 +205,36 @@ export const cryptoNetworks: {
   currency: string;
   chain: string;
   confirmations: number;
+  /** Hardcoded USD rate used for the deposit preview. Mirrors the Worker. */
+  rate: number;
+  decimals: number;
 }[] = [
   {
-    value: "usdt",
+    value: "usdt_trc20",
     label: "Tether",
     currency: "USDT",
     chain: "TRC20",
     confirmations: 1,
+    rate: 1,
+    decimals: 2,
+  },
+  {
+    value: "usdt_erc20",
+    label: "Tether",
+    currency: "USDT",
+    chain: "ERC20",
+    confirmations: 3,
+    rate: 1,
+    decimals: 2,
+  },
+  {
+    value: "usdc",
+    label: "USD Coin",
+    currency: "USDC",
+    chain: "Ethereum",
+    confirmations: 3,
+    rate: 1,
+    decimals: 2,
   },
   {
     value: "btc",
@@ -198,6 +242,8 @@ export const cryptoNetworks: {
     currency: "BTC",
     chain: "Bitcoin",
     confirmations: 2,
+    rate: 96000,
+    decimals: 6,
   },
   {
     value: "eth",
@@ -205,6 +251,17 @@ export const cryptoNetworks: {
     currency: "ETH",
     chain: "Ethereum",
     confirmations: 3,
+    rate: 3200,
+    decimals: 6,
+  },
+  {
+    value: "bnb",
+    label: "BNB",
+    currency: "BNB",
+    chain: "BNB Chain",
+    confirmations: 3,
+    rate: 650,
+    decimals: 5,
   },
   {
     value: "sol",
@@ -212,6 +269,62 @@ export const cryptoNetworks: {
     currency: "SOL",
     chain: "Solana",
     confirmations: 1,
+    rate: 150,
+    decimals: 4,
+  },
+  {
+    value: "doge",
+    label: "Dogecoin",
+    currency: "DOGE",
+    chain: "Dogecoin",
+    confirmations: 2,
+    rate: 0.12,
+    decimals: 2,
+  },
+  {
+    value: "ltc",
+    label: "Litecoin",
+    currency: "LTC",
+    chain: "Litecoin",
+    confirmations: 2,
+    rate: 100,
+    decimals: 5,
+  },
+  {
+    value: "xrp",
+    label: "XRP",
+    currency: "XRP",
+    chain: "XRP Ledger",
+    confirmations: 1,
+    rate: 0.6,
+    decimals: 2,
+  },
+  {
+    value: "trx",
+    label: "TRON",
+    currency: "TRX",
+    chain: "TRON",
+    confirmations: 1,
+    rate: 0.25,
+    decimals: 2,
+  },
+  {
+    value: "matic",
+    label: "Polygon",
+    currency: "MATIC",
+    chain: "Polygon",
+    confirmations: 2,
+    rate: 0.45,
+    decimals: 4,
+  },
+  {
+    value: "avax",
+    label: "Avalanche",
+    currency: "AVAX",
+    chain: "Avalanche",
+    confirmations: 2,
+    rate: 25,
+    decimals: 4,
   },
 ];
 
@@ -219,6 +332,12 @@ export function networkConfig(network: CryptoNetwork) {
   return (
     cryptoNetworks.find((entry) => entry.value === network) ?? cryptoNetworks[0]
   );
+}
+
+/** Converts an order total into a crypto amount for the deposit preview. */
+export function cryptoAmountFor(total: number, network: CryptoNetwork): string {
+  const config = networkConfig(network);
+  return (total / config.rate).toFixed(config.decimals);
 }
 
 export function formatCountdown(remainingMs: number) {

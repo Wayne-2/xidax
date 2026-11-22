@@ -54,7 +54,7 @@ function session(
               method: "crypto",
               walletId: "w1",
               walletLabel: "USDT",
-              network: "usdt",
+              network: "usdt_trc20",
               currency: "USDT",
               address: "Tabc",
               amount: "100.00",
@@ -203,14 +203,14 @@ describe("wallet validation", () => {
   it("accepts a valid wallet", () => {
     const result = normalize({
       label: "USDT treasury",
-      network: "USDT",
+      network: "USDT_TRC20",
       currency: "usdt",
       address: "TExample",
     });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.network).toBe("usdt");
+    expect(result.value.network).toBe("usdt_trc20");
     expect(result.value.currency).toBe("USDT");
     expect(result.value.active).toBe(true);
   });
@@ -218,13 +218,25 @@ describe("wallet validation", () => {
   it("rejects unknown networks", () => {
     const result = normalize({
       label: "X",
-      network: "doge",
-      currency: "DOGE",
+      network: "not-a-chain",
+      currency: "XXX",
       address: "D",
     });
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toMatch(/btc, eth, usdt or sol/i);
+    expect(result.error).toMatch(/Network must be one of/i);
+  });
+
+  it("accepts popular networks including doge, bnb and usdt variants", () => {
+    for (const network of ["doge", "bnb", "usdt_trc20", "usdt_erc20", "xrp"]) {
+      const result = normalize({
+        label: "W",
+        network,
+        currency: "X",
+        address: "A",
+      });
+      expect(result.ok).toBe(true);
+    }
   });
 
   it("requires a label and address", () => {

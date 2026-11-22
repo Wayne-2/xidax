@@ -101,8 +101,8 @@ async function persistOrder(env: Env, session: CheckoutSession) {
     `INSERT OR REPLACE INTO orders
        (id, reference, checkout_id, email, name, phone, country, postal_code,
         method, network, subtotal, shipping, discount, total, currency, promo_code,
-        status, created_at, card_summary, wallet_id, wire_details, expires_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)`
+        status, created_at, card_summary, wallet_id, wire_details, expires_at, payment_proof)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)`
   )
     .bind(
       session.id,
@@ -126,7 +126,8 @@ async function persistOrder(env: Env, session: CheckoutSession) {
       session.cardSummary ? JSON.stringify(session.cardSummary) : null,
       walletId,
       wireDetails ? JSON.stringify(wireDetails) : null,
-      session.expiresAt
+      session.expiresAt,
+      session.paymentProof ? JSON.stringify(session.paymentProof) : null
     )
     .run();
 
@@ -182,8 +183,9 @@ async function syncSessionStatus(env: Env, session: CheckoutSession) {
             card_summary = ?2,
             wire_details = ?3,
             expires_at = ?4,
-            receipt_sent_at = ?5
-      WHERE id = ?6`
+            receipt_sent_at = ?5,
+            payment_proof = ?6
+      WHERE id = ?7`
   )
     .bind(
       session.status,
@@ -195,6 +197,7 @@ async function syncSessionStatus(env: Env, session: CheckoutSession) {
           : null,
       session.expiresAt,
       session.receiptSentAt ?? null,
+      session.paymentProof ? JSON.stringify(session.paymentProof) : null,
       session.id
     )
     .run();
@@ -478,12 +481,117 @@ export async function confirmPaymentSent(
   return { ok: true, session: updated };
 }
 
+/** Customer submits proof of payment (tx hash / transfer reference) and is marked submitted. */
+export async function submitPaymentProof(
+  env: Env,
+  id: string,
+  payload: { txHash?: unknown; note?: unknown }
+): Promise<ConfirmResult> {
+  const current = await getLiveSession(env, id);
+
+  if (!current) {
+    return { ok: false, status: 410, error: "Checkout session expired." };
+  }
+
+  if (current.method === "card") {
+    return {
+      ok: false,
+      status: 400,
+      error: "Card payments do not use a proof-of-payment step.",
+    };
+  }
+
+  if (current.status === "paid") {
+    return { ok: false, status: 409, error: "This payment is already approved." };
+  }
+
+  if (current.status === "submitted") {
+    return {
+      ok: false,
+      status: 409,
+      error: "Your proof of payment has already been received.",
+    };
+  }
+
+  if (current.method === "wire" && !current.wireDetails) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Bank details have not been provided yet.",
+    };
+  }
+
+  if (
+    current.status !== "awaiting_payment" &&
+    current.status !== "awaiting_admin" &&
+    current.status !== "pending"
+  ) {
+    return {
+      ok: false,
+      status: 409,
+      error: "This payment is not awaiting confirmation.",
+    };
+  }
+
+  if (shouldExpireSession({ ...current, status: "awaiting_payment" })) {
+    await markExpired(env, current);
+    return { ok: false, status: 410, error: "Checkout session expired." };
+  }
+
+  const txHash = String(payload.txHash ?? "").trim();
+  const noteRaw = String(payload.note ?? "").trim();
+
+  if (!txHash || txHash.length > 200) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Enter the transaction hash or transfer reference (max 200 characters).",
+    };
+  }
+
+  if (noteRaw.length > 500) {
+    return { ok: false, status: 400, error: "Note is too long (max 500 characters)." };
+  }
+
+  const paymentProof = {
+    txHash,
+    note: noteRaw || undefined,
+    submittedAt: new Date().toISOString(),
+  };
+
+  const updated: CheckoutSession = {
+    ...current,
+    status: "submitted",
+    paymentProof,
+  };
+
+  await syncSessionStatus(env, updated);
+
+  const walletLabel =
+    updated.instructions.method === "crypto"
+      ? updated.instructions.walletLabel
+      : null;
+
+  void notifyAdminsPaymentEvent(env, {
+    kind: updated.method,
+    reference: updated.reference,
+    amount: updated.total,
+    currency: updated.currency,
+    customerName: updated.details.name,
+    customerEmail: updated.details.email,
+    detail:
+      updated.method === "crypto"
+        ? `Proof submitted for ${walletLabel ?? "wallet"} (tx ${txHash}) — awaiting approval`
+        : `Proof of bank transfer submitted (ref ${txHash}) — awaiting approval`,
+  } satisfies AdminPaymentAlertInput);
+
+  return { ok: true, session: updated };
+}
+
 function cryptoAmount(total: number, network: keyof typeof cryptoNetworks): string {
   const config = cryptoNetworks[network];
   const amount = total / config.rate;
-  return network === "usdt" || network === "btc"
-    ? amount.toFixed(2)
-    : amount.toFixed(6);
+  return amount.toFixed(config.decimals);
 }
 
 export type CheckoutResult =

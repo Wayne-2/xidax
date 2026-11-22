@@ -1,5 +1,5 @@
 import { markSessionPaid } from "./checkout";
-import type { CardSummary, Env, WireDetails } from "./types";
+import type { CardSummary, Env, PaymentProof, WireDetails } from "./types";
 
 export type AdminOrder = {
   id: string;
@@ -22,6 +22,7 @@ export type AdminOrder = {
   walletLabel: string | null;
   wireDetails: WireDetails | null;
   receiptSentAt: string | null;
+  paymentProof: PaymentProof | null;
   lines: {
     id: string;
     productId: string;
@@ -87,6 +88,7 @@ type OrderRow = {
   wallet_id: string | null;
   wire_details: string | null;
   receipt_sent_at: string | null;
+  payment_proof: string | null;
 };
 
 async function loadLines(
@@ -149,13 +151,14 @@ async function mapOrderRow(env: Env, row: OrderRow): Promise<AdminOrder> {
     walletLabel: await walletLabel(env, row.wallet_id),
     wireDetails: parseJson<WireDetails>(row.wire_details),
     receiptSentAt: row.receipt_sent_at,
+    paymentProof: parseJson<PaymentProof>(row.payment_proof),
     lines: await loadLines(env, row.id),
   };
 }
 
 const ORDER_COLUMNS = `id, reference, email, name, phone, country, postal_code, method, network,
             subtotal, shipping, total, currency, status, created_at,
-            expires_at, card_summary, wallet_id, wire_details, receipt_sent_at`;
+            expires_at, card_summary, wallet_id, wire_details, receipt_sent_at, payment_proof`;
 
 /** Lists orders with optional filters. Admin-only. */
 export async function listAdminOrders(

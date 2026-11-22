@@ -18,6 +18,7 @@ import {
   getSessionById,
   listActiveWallets,
   submitCardPayment,
+  submitPaymentProof,
 } from "./checkout";
 import {
   type CheckoutRequest,
@@ -31,6 +32,12 @@ import {
   listWallets,
   updateWallet,
 } from "./admin-wallets";
+import {
+  createBankAccount,
+  deleteBankAccount,
+  listBankAccounts,
+  updateBankAccount,
+} from "./admin-bank-accounts";
 import { corsHeaders, isOriginAllowed } from "./cors";
 import { runConfigCheck } from "./config-check";
 import { parseFirebaseConfig } from "./auth";
@@ -1033,6 +1040,87 @@ const worker = {
           return jsonWithCors({ ok: true }, request, env);
         }
 
+        /* ---- Bank accounts (wire destinations) ---- */
+
+        if (request.method === "GET" && path === "/api/admin/bank-accounts") {
+          const accounts = await listBankAccounts(env, false);
+          return jsonWithCors({ accounts }, request, env);
+        }
+
+        if (request.method === "POST" && path === "/api/admin/bank-accounts") {
+          const body = await readJson(request);
+
+          if (!body) {
+            return jsonWithCors({ error: "Invalid request." }, request, env, 400);
+          }
+
+          const result = await createBankAccount(env, {
+            label: String(body.label ?? ""),
+            bankName: String(body.bankName ?? ""),
+            accountNumber: String(body.accountNumber ?? ""),
+            beneficiary: String(body.beneficiary ?? ""),
+            routing: typeof body.routing === "string" ? body.routing : "",
+            swift: typeof body.swift === "string" ? body.swift : "",
+            currency: typeof body.currency === "string" ? body.currency : "USD",
+            active: body.active !== false,
+          });
+
+          if (!result.ok) {
+            return jsonWithCors({ error: result.error }, request, env, 400);
+          }
+
+          return jsonWithCors({ account: result.account }, request, env, 201);
+        }
+
+        const adminBankMatch = path.match(/^\/api\/admin\/bank-accounts\/([^/]+)$/);
+
+        if (request.method === "PATCH" && adminBankMatch) {
+          const body = await readJson(request);
+
+          if (!body) {
+            return jsonWithCors({ error: "Invalid request." }, request, env, 400);
+          }
+
+          const patch: Record<string, unknown> = {};
+          if (typeof body.label === "string") patch.label = body.label;
+          if (typeof body.bankName === "string") patch.bankName = body.bankName;
+          if (typeof body.accountNumber === "string")
+            patch.accountNumber = body.accountNumber;
+          if (typeof body.beneficiary === "string") patch.beneficiary = body.beneficiary;
+          if (typeof body.routing === "string") patch.routing = body.routing;
+          if (typeof body.swift === "string") patch.swift = body.swift;
+          if (typeof body.currency === "string") patch.currency = body.currency;
+          if (typeof body.active === "boolean") patch.active = body.active;
+
+          const result = await updateBankAccount(env, adminBankMatch[1], patch);
+
+          if (!result.ok) {
+            return jsonWithCors(
+              { error: result.error },
+              request,
+              env,
+              result.status ?? 400
+            );
+          }
+
+          return jsonWithCors({ account: result.account }, request, env);
+        }
+
+        if (request.method === "DELETE" && adminBankMatch) {
+          const result = await deleteBankAccount(env, adminBankMatch[1]);
+
+          if (result.notFound) {
+            return jsonWithCors(
+              { error: "Bank account not found." },
+              request,
+              env,
+              404
+            );
+          }
+
+          return jsonWithCors({ ok: true }, request, env);
+        }
+
         /* ---- Users ---- */
 
         if (request.method === "GET" && path === "/api/admin/users") {
@@ -1572,6 +1660,26 @@ const worker = {
 
       if (request.method === "POST" && confirmMatch) {
         const result = await confirmPaymentSent(env, confirmMatch[1]);
+
+        if (!result.ok) {
+          return json({ error: result.error }, result.status);
+        }
+
+        return json({ status: result.session.status, session: result.session });
+      }
+
+      const proofMatch = path.match(/^\/api\/checkout\/([^/]+)\/proof$/);
+
+      if (request.method === "POST" && proofMatch) {
+        const body = (await request.json().catch(() => null)) as
+          | Record<string, unknown>
+          | null;
+
+        if (!body) {
+          return json({ error: "Invalid request." }, 400);
+        }
+
+        const result = await submitPaymentProof(env, proofMatch[1], body);
 
         if (!result.ok) {
           return json({ error: result.error }, result.status);

@@ -1,5 +1,7 @@
 import {
   METHOD_TTL_MS,
+  cryptoNetworks,
+  networkConfig,
   type CardDetailsInput,
   type CheckoutRequest,
   type CheckoutSession,
@@ -8,7 +10,6 @@ import {
   type RegisteredProductPayload,
 } from "@/lib/payments";
 import { AppError, isOffline } from "@/lib/errors";
-import { cryptoNetworks } from "@/lib/payments";
 
 const DEFAULT_API_BASE = "https://generic-pcs-api.pcmarketweb.workers.dev";
 
@@ -37,7 +38,7 @@ function mockWallets(): CryptoWallet[] {
     {
       id: "wal_usdt",
       label: "USDT treasury",
-      network: "usdt",
+      network: "usdt_trc20",
       currency: "USDT",
       address: "TExampleWalletAddressDoNotUse",
       active: true,
@@ -84,10 +85,8 @@ function mockInstructions(
   if (request.method === "crypto") {
     const wallet =
       wallets.find((entry) => entry.id === request.walletId) ?? wallets[0];
-    const amount =
-      wallet.network === "usdt" || wallet.network === "btc"
-        ? request.total.toFixed(2)
-        : request.total.toFixed(4);
+    const config = networkConfig(wallet.network);
+    const amount = (request.total / config.rate).toFixed(config.decimals);
 
     return {
       method: "crypto",
@@ -98,7 +97,7 @@ function mockInstructions(
       address: wallet.address,
       amount,
       billingCurrency: request.currency,
-      confirmations: wallet.network === "btc" ? 2 : wallet.network === "eth" ? 3 : 1,
+      confirmations: config.confirmations,
     };
   }
 
@@ -135,6 +134,7 @@ function mockSession(request: CheckoutRequest): CheckoutSession {
     walletId: request.method === "crypto" ? wallets[0]?.id ?? null : null,
     wireDetails: null,
     receiptSentAt: null,
+    paymentProof: null,
   };
 }
 
@@ -308,6 +308,41 @@ export async function confirmPayment(
   return request<{ status: string; session: CheckoutSession }>(
     `/api/checkout/${encodeURIComponent(id)}/confirm`,
     { method: "POST" }
+  );
+}
+
+/** Crypto/wire: customer submits tx hash / transfer reference as proof. */
+export async function submitPaymentProof(
+  id: string,
+  payload: { txHash: string; note?: string }
+): Promise<{ status: string; session: CheckoutSession }> {
+  if (!API_BASE) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return {
+      status: "submitted",
+      session: {
+        ...mockSession({
+          lines: [],
+          details: { name: "", email: "", phone: "", country: "", postalCode: "" },
+          method: "crypto",
+          subtotal: 0,
+          shipping: 0,
+          total: 0,
+          currency: "USD",
+        }),
+        status: "submitted",
+        paymentProof: {
+          txHash: payload.txHash,
+          note: payload.note,
+          submittedAt: new Date().toISOString(),
+        },
+      },
+    };
+  }
+
+  return request<{ status: string; session: CheckoutSession }>(
+    `/api/checkout/${encodeURIComponent(id)}/proof`,
+    { method: "POST", body: JSON.stringify(payload) }
   );
 }
 

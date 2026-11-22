@@ -7,14 +7,14 @@ import { fetchAdminUserStats } from "@/lib/admin-api";
 import { adminSignOut, hasAdminSession } from "@/lib/admin-auth";
 import AdminAdmins from "@/components/admin/AdminAdmins";
 import AdminOrders from "@/components/admin/AdminOrders";
+import AdminPayments from "@/components/admin/AdminPayments";
 import AdminProducts from "@/components/admin/AdminProducts";
 import AdminCatalog from "@/components/admin/AdminCatalog";
 import AdminUsers from "@/components/admin/AdminUsers";
-import AdminWallets from "@/components/admin/AdminWallets";
 
 type Tab =
   | "orders"
-  | "wallets"
+  | "payments"
   | "users"
   | "admins"
   | "products"
@@ -23,7 +23,7 @@ type Tab =
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "orders", label: "Orders" },
-  { id: "wallets", label: "Wallets" },
+  { id: "payments", label: "Payments" },
   { id: "users", label: "Users" },
   { id: "admins", label: "Admins" },
   { id: "products", label: "Prebuilds" },
@@ -146,6 +146,7 @@ export default function AdminDashboard({
           </p>
           <nav className="mt-8 space-y-1">
             <NavButton active={tab === "orders"} onClick={() => setTab("orders")} label="Orders" icon={<path d="M6 2h9l5 5v15H6zM14 2v6h6M9 13h6M9 17h6" strokeLinecap="round" strokeLinejoin="round" />} />
+            <NavButton active={tab === "payments"} onClick={() => setTab("payments")} label="Payments" icon={<><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M2 10h20M6 14h4" strokeLinecap="round" /></>} />
             <NavButton active={tab === "users"} onClick={() => setTab("users")} label="Users" icon={<><circle cx="9" cy="8" r="3.2" /><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 4.5a3 3 0 0 1 0 6M18 20c0-2 0-3.5-1-4.6" strokeLinecap="round" /></>} />
             <NavButton active={tab === "admins"} onClick={() => setTab("admins")} label="Admins" icon={<><circle cx="12" cy="8" r="3.2" /><path d="M5 20c0-3.3 3.1-6 7-6s7 2.7 7 6" strokeLinecap="round" /><path d="m16 4 1.5 1.5L20 3" strokeLinecap="round" strokeLinejoin="round" /></>} />
             <NavButton active={tab === "products"} onClick={() => setTab("products")} label="Prebuilds" icon={<><path d="m3 7 9-4 9 4-9 4-9-4Z" strokeLinejoin="round" /><path d="M3 7v10l9 4 9-4V7M12 11v10" strokeLinejoin="round" /></>} />
@@ -210,7 +211,7 @@ export default function AdminDashboard({
           </div>
 
           {tab === "orders" && <AdminOrders />}
-          {tab === "wallets" && <AdminWallets />}
+          {tab === "payments" && <AdminPayments />}
           {tab === "users" && <AdminUsers />}
           {tab === "admins" && <AdminAdmins />}
           {tab === "products" && <AdminProducts />}

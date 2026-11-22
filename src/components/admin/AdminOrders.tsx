@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
 import {
+  fetchAdminBankAccounts,
   fetchAdminOrder,
   fetchAdminOrderStats,
   fetchAdminOrders,
   submitWireDetails,
   updateAdminOrderStatus,
+  type AdminBankAccount,
   type AdminOrder,
   type AdminOrderStats,
 } from "@/lib/admin-api";
@@ -82,8 +84,37 @@ export default function AdminOrders() {
     routing: "",
     swift: "",
   });
+  const [bankAccounts, setBankAccounts] = useState<AdminBankAccount[]>([]);
+  const [selectedBankId, setSelectedBankId] = useState("");
   const [savingWire, setSavingWire] = useState(false);
   const LIMIT = 20;
+
+  const loadBankAccounts = useCallback(async () => {
+    try {
+      const result = await fetchAdminBankAccounts();
+      setBankAccounts(result.accounts.filter((account) => account.active));
+    } catch {
+      // Optional convenience — manual entry still works.
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadBankAccounts(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadBankAccounts]);
+
+  function applyBankAccount(accountId: string) {
+    setSelectedBankId(accountId);
+    const account = bankAccounts.find((entry) => entry.id === accountId);
+    if (!account) return;
+    setWireDraft({
+      bankName: account.bankName,
+      accountNumber: account.accountNumber,
+      beneficiary: account.beneficiary,
+      routing: account.routing ?? "",
+      swift: account.swift ?? "",
+    });
+  }
 
   const loadStats = useCallback(async () => {
     try {
@@ -378,6 +409,22 @@ export default function AdminOrders() {
                     <p className="mt-1 text-sm font-semibold">{selected.walletLabel}</p>
                   </div>
                 )}
+                {selected.paymentProof && (
+                  <div className="mt-3 border-t border-[#e4e9f0] pt-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#80848e]">Proof of payment</p>
+                    <p className="mt-1 break-all font-mono text-sm font-semibold">
+                      {selected.paymentProof.txHash}
+                    </p>
+                    {selected.paymentProof.note && (
+                      <p className="mt-1 text-xs text-[#5c5e66]">
+                        {selected.paymentProof.note}
+                      </p>
+                    )}
+                    <p className="mt-1 text-[11px] text-[#80848e]">
+                      Submitted {new Date(selected.paymentProof.submittedAt).toLocaleString()}
+                    </p>
+                  </div>
+                )}
                 {selected.receiptSentAt && (
                   <p className="mt-2 text-xs text-[#15803D]">
                     Receipt sent {new Date(selected.receiptSentAt).toLocaleString()}
@@ -405,6 +452,20 @@ export default function AdminOrders() {
                   )}
                   {selected.status !== "paid" && selected.status !== "submitted" && (
                     <div className="mt-3 space-y-2">
+                      {bankAccounts.length > 0 && (
+                        <select
+                          value={selectedBankId}
+                          onChange={(e) => applyBankAccount(e.target.value)}
+                          className="h-9 w-full rounded-lg border border-[#d2dbe8] bg-white px-3 text-sm outline-none focus:border-[#5865F2]"
+                        >
+                          <option value="">Fill from saved bank account…</option>
+                          {bankAccounts.map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.label} — {account.bankName}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                       <input
                         value={wireDraft.bankName}
                         onChange={(e) => setWireDraft((d) => ({ ...d, bankName: e.target.value }))}
