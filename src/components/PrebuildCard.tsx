@@ -26,7 +26,7 @@ export default function PrebuildCard({ product }: { product: Prebuild }) {
   );
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card transition-colors hover:border-[#5865F2]/60 hover:shadow-card-hover">
+    <article className="group flex flex-col overflow-hidden rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card transition-colors hover:border-[#5865F2]/60 hover:shadow-card-hover">
       <div className="relative aspect-[4/3] overflow-hidden bg-[#dce3ee]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

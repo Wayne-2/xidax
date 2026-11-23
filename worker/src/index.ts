@@ -86,6 +86,7 @@ import {
   validateProductInput,
 } from "./admin-products";
 import { deleteImage, serveImage, uploadImage } from "./images";
+import { lookupPromo } from "./promo";
 import {
   assignUserPromo,
   deleteUserPromo,
@@ -842,6 +843,27 @@ const worker = {
         }
 
         return jsonWithCors({ item }, request, env);
+      }
+
+      if (request.method === "POST" && path === "/api/promo/validate") {
+        let payload: { code?: unknown; lineId?: unknown } | null = null;
+
+        try {
+          payload = (await request.json()) as { code?: unknown; lineId?: unknown };
+        } catch {
+          payload = null;
+        }
+
+        const code = typeof payload?.code === "string" ? payload.code : "";
+        const lineId = typeof payload?.lineId === "string" ? payload.lineId : "";
+
+        const promo = code && lineId ? await lookupPromo(env, code, [lineId]) : null;
+
+        if (!promo) {
+          return jsonWithCors({ error: "Invalid promo code." }, request, env, 404);
+        }
+
+        return jsonWithCors({ promo }, request, env);
       }
 
       if (request.method === "GET" && path === "/api/me/promo") {

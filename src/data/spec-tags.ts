@@ -49,6 +49,40 @@ export const SPEC_TAGS: Record<ProductKind, SpecTag[]> = {
   ],
 };
 
+/**
+ * Iconify icon name (mdi set) per standard spec tag, so every tag renders its
+ * own exact icon wherever specs are displayed — storefront lists, product
+ * detail pages, and the admin spec inputs.
+ */
+export const SPEC_TAG_ICONS: Record<string, string> = {
+  // Prebuild
+  Processor: "mdi:cpu-64-bit",
+  "Graphics card": "mdi:expansion-card",
+  FPS: "mdi:speedometer",
+  Memory: "mdi:memory",
+  Storage: "mdi:harddisk",
+  Motherboard: "mdi:integrated-circuit-chip",
+  "Power supply": "mdi:power-plug",
+  Cooling: "mdi:fan",
+  Case: "mdi:desktop-tower",
+  "Operating system": "mdi:microsoft-windows",
+  Warranty: "mdi:shield-check",
+  // Laptop
+  Display: "mdi:monitor",
+  Battery: "mdi:battery",
+  Weight: "mdi:weight-kilogram",
+  // Console
+  Panel: "mdi:television",
+  Resolution: "mdi:aspect-ratio",
+  "Refresh rate": "mdi:refresh",
+  "Response time": "mdi:timer",
+  "Colour gamut": "mdi:palette-swatch",
+  HDR: "mdi:hdr",
+  Sync: "mdi:sync",
+  Connectivity: "mdi:lan",
+  Stand: "mdi:desk",
+};
+
 /** Builds the flat display string used by legacy card layouts. */
 export function specsToSummary(
   specs: { label: string; value: string }[]

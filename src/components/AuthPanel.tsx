@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Suspense } from "react";
 import AuthForm, { type AuthMode } from "@/components/AuthForm";
 
 function BackIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
@@ -64,7 +65,9 @@ export default function AuthPanel({ mode }: { mode: AuthMode }) {
         </div>
 
         <div className="mt-8 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5 shadow-card sm:p-7">
-          <AuthForm mode={mode} />
+          <Suspense fallback={null}>
+            <AuthForm mode={mode} />
+          </Suspense>
         </div>
 
         <p className="mt-6 text-center text-sm text-[#5c5e66]">

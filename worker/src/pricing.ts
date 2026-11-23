@@ -19,7 +19,7 @@ export type RecomputedTotals = {
   adjusted: boolean;
 };
 
-function parseLineId(id: string): { kind: string; productId: string } | null {
+export function parseLineId(id: string): { kind: string; productId: string } | null {
   const match = id.match(/^(prebuild|laptop|console)-(.+)$/);
 
   if (!match) return null;

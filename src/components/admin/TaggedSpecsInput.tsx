@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { SPEC_TAGS, type ProductKind } from "@/data/spec-tags";
+import SpecTagIcon from "@/components/SpecTagIcon";
 
 export type Spec = { label: string; value: string };
 
@@ -86,6 +87,10 @@ export default function TaggedSpecsInput({
               key={`${spec.label}-${index}`}
               className="flex items-center gap-2 rounded-lg border border-[#d2dbe8] bg-white px-3 py-2 text-sm"
             >
+              <SpecTagIcon
+                label={spec.label}
+                className="h-4 w-4 shrink-0 text-[#5865F2]"
+              />
               <span className="shrink-0 rounded-full bg-[#5865F2]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#4752C4]">
                 {spec.label}
               </span>

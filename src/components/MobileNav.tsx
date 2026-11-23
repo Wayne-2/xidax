@@ -37,6 +37,12 @@ export default function MobileNav({
   onOpenChange,
 }: MobileNavProps) {
   const pathname = usePathname() ?? "";
+  const authPaths = ["/login", "/signup", "/verify-otp"];
+  const authReturn = authPaths.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`)
+  )
+    ? ""
+    : pathname;
   const { count: cartCount } = useCart();
   const { user } = useAccount();
   const emailLabel = user
@@ -149,7 +155,7 @@ export default function MobileNav({
                 <>
                   <li>
                     <Link
-                      href="/login"
+                      href={authReturn ? `/login?next=${encodeURIComponent(authReturn)}` : "/login"}
                       onClick={() => onOpenChange(false)}
                       className="flex items-center gap-3 py-3.5 pl-4 text-[15px] font-semibold text-[#2e3338] transition-colors hover:text-[#5865F2]"
                     >
@@ -161,7 +167,7 @@ export default function MobileNav({
                   </li>
                   <li>
                     <Link
-                      href="/signup"
+                      href={authReturn ? `/signup?next=${encodeURIComponent(authReturn)}` : "/signup"}
                       onClick={() => onOpenChange(false)}
                       className="flex items-center gap-3 py-3.5 pl-4 text-[15px] font-semibold text-[#5865F2] transition-colors hover:text-[#4752C4]"
                     >

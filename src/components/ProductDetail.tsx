@@ -7,6 +7,8 @@ import { useCart } from "@/components/CartProvider";
 import { useRegion } from "@/components/RegionProvider";
 import { useToast } from "@/components/ToastProvider";
 import ProductGallery from "@/components/ProductGallery";
+import SpecTagIcon from "@/components/SpecTagIcon";
+import { validateProductPromo } from "@/lib/api";
 import { resolveImageUrls, resolveImageUrl } from "@/lib/image-url";
 import {
   cartItemFromConsole,
@@ -64,6 +66,10 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
   const [product, setProduct] = useState<DetailProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [promoInput, setPromoInput] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; rate: number } | null>(null);
+  const [promoError, setPromoError] = useState("");
+  const [applyingPromo, setApplyingPromo] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -141,6 +147,42 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
   const discount = product.originalPrice
     ? Math.round((1 - product.price / product.originalPrice) * 100)
     : 0;
+  const promoKind: "prebuild" | "laptop" | "console" =
+    kind === "prebuilds" ? "prebuild" : kind === "laptops" ? "laptop" : "console";
+  const promoLineId = `${promoKind}-${product.id}`;
+  const promoRate = appliedPromo?.rate ?? 0;
+  const displayPrice = appliedPromo
+    ? Math.round(product.price * (1 - promoRate) * 100) / 100
+    : product.price;
+
+  async function handleApplyPromo(event: React.FormEvent) {
+    event.preventDefault();
+    const code = promoInput.trim().toUpperCase();
+
+    if (!code) return;
+
+    setApplyingPromo(true);
+    setPromoError("");
+
+    try {
+      const result = await validateProductPromo(code, promoLineId);
+
+      if (!result.promo) {
+        setAppliedPromo(null);
+        setPromoError("That promo code is not valid for this product.");
+        return;
+      }
+
+      setAppliedPromo({ code: result.promo.code, rate: result.promo.discount / 100 });
+    } catch (err) {
+      setAppliedPromo(null);
+      setPromoError(
+        (err as { message?: string }).message ?? "We could not apply that promo code."
+      );
+    } finally {
+      setApplyingPromo(false);
+    }
+  }
 
   return (
     <main className="relative flex-1 overflow-hidden">
@@ -188,18 +230,20 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
 
             <div className="mt-6 flex flex-wrap items-baseline gap-3">
               <span className="text-3xl font-extrabold text-[#2e3338]">
-                {formatMoney(product.price)}
+                {formatMoney(displayPrice)}
               </span>
               {product.originalPrice && (
                 <>
                   <span className="text-lg text-[#80848e] line-through">
                     {formatMoney(product.originalPrice)}
                   </span>
-                  {discount > 0 && (
+                  {(appliedPromo && appliedPromo.rate > 0) || discount > 0 ? (
                     <span className="rounded-full bg-[#DC2626]/10 px-2.5 py-1 text-xs font-bold text-[#B91C1C]">
-                      Save {discount}%
+                      {appliedPromo && appliedPromo.rate > 0
+                        ? `Promo −${Math.round(appliedPromo.rate * 100)}%`
+                        : `Save ${discount}%`}
                     </span>
-                  )}
+                  ) : null}
                 </>
               )}
             </div>
@@ -211,7 +255,14 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
             <button
               type="button"
               onClick={() => {
-                add(cartItem);
+                add({
+                  ...cartItem,
+                  promoCode: appliedPromo?.code ?? cartItem.promoCode ?? null,
+                  promoDiscount: appliedPromo
+                    ? Math.round(cartItem.price * appliedPromo.rate)
+                    : cartItem.promoDiscount,
+                  promoEnabled: appliedPromo ? true : cartItem.promoEnabled,
+                });
                 toast.success(`${product.name} added to cart.`);
               }}
               disabled={inCart}
@@ -219,6 +270,40 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
             >
               {inCart ? "In cart" : "Add to cart"}
             </button>
+
+            <form onSubmit={handleApplyPromo} className="mt-6">
+              <label
+                htmlFor="product-promo"
+                className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
+              >
+                Promo code
+              </label>
+              <div className="mt-2 flex gap-2">
+                <input
+                  id="product-promo"
+                  value={promoInput}
+                  onChange={(event) => setPromoInput(event.target.value)}
+                  placeholder="PCM-XXXXXX"
+                  disabled={applyingPromo}
+                  className="h-11 flex-1 rounded-xl border border-[#d2dbe8] bg-white px-3.5 text-sm text-[#2e3338] outline-none transition-colors placeholder:text-[#80848e] focus:border-[#5865F2]"
+                />
+                <button
+                  type="submit"
+                  disabled={applyingPromo || !promoInput.trim()}
+                  className="inline-flex h-11 items-center rounded-xl bg-[#5865F2] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {applyingPromo ? "Applying…" : "Apply"}
+                </button>
+              </div>
+              {promoError ? (
+                <p className="mt-2 text-xs text-[#B91C1C]">{promoError}</p>
+              ) : appliedPromo ? (
+                <p className="mt-2 text-xs font-semibold text-[#15803D]">
+                  Promo {appliedPromo.code} applied — saving{" "}
+                  {Math.round(appliedPromo.rate * 100)}%.
+                </p>
+              ) : null}
+            </form>
 
             {product.highlights.length > 0 && (
               <section className="mt-8">
@@ -244,7 +329,11 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
             <dl className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2">
               {product.specs.map((spec, index) => (
                 <div key={`${spec.label}-${index}`} className="border-b border-[#eef1f6] pb-3 text-left">
-                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#80848e]">
+                  <dt className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#80848e]">
+                    <SpecTagIcon
+                      label={spec.label}
+                      className="h-3.5 w-3.5 shrink-0 text-[#5865F2]"
+                    />
                     {spec.label}
                   </dt>
                   <dd className="mt-1 text-sm font-semibold text-[#2e3338]">

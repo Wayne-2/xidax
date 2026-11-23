@@ -148,10 +148,20 @@ export default function CheckoutFlow() {
   const [cardCvv, setCardCvv] = useState("");
   const [cardHolder, setCardHolder] = useState("");
 
-  const discount = promo ? Math.round(subtotal * promo.rate * 100) / 100 : 0;
+  const productDiscount = items.reduce((sum, item) => {
+    if (!item.promoEnabled || !item.promoCode) return sum;
+    return sum + item.price * item.quantity * ((item.promoDiscount ?? 0) / 100);
+  }, 0);
+  const discount = productDiscount > 0
+    ? Math.round(productDiscount * 100) / 100
+    : promo
+      ? Math.round(subtotal * promo.rate * 100) / 100
+      : 0;
   const discountedSubtotal = Math.max(0, Math.round((subtotal - discount) * 100) / 100);
   const shipping = discountedSubtotal >= 99 || discountedSubtotal === 0 ? 0 : 19;
   const total = Math.round((discountedSubtotal + shipping) * 100) / 100;
+  const productPromoCode =
+    items.find((item) => item.promoEnabled && item.promoCode)?.promoCode ?? undefined;
   const selectedMethod: PaymentMethod = method ?? region.payment;
   const countryValue = country ?? user?.country ?? region.country;
 
@@ -430,7 +440,7 @@ export default function CheckoutFlow() {
           shipping,
           total,
           currency: "USD",
-          promoCode: promo?.code,
+          promoCode: promo?.code ?? productPromoCode,
         },
         token
       );

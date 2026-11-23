@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useAccount } from "@/components/AccountProvider";
 import { useCart } from "@/components/CartProvider";
@@ -22,6 +23,13 @@ function truncateEmail(email: string, max = 18) {
 export default function Header() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname() ?? "";
+  const authPaths = ["/login", "/signup", "/verify-otp"];
+  const authReturn = authPaths.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`)
+  )
+    ? ""
+    : pathname;
   const { user } = useAccount();
   const { count: cartCount, ready: cartReady } = useCart();
 
@@ -76,13 +84,13 @@ export default function Header() {
           ) : (
             <div className="hidden items-center gap-2 sm:flex">
               <Link
-                href="/login"
+                href={authReturn ? `/login?next=${encodeURIComponent(authReturn)}` : "/login"}
                 className="inline-flex h-9 items-center rounded-full px-3.5 text-sm font-semibold text-[#5c5e66] transition-colors hover:bg-black/5 hover:text-[#2e3338]"
               >
                 Log in
               </Link>
               <Link
-                href="/signup"
+                href={authReturn ? `/signup?next=${encodeURIComponent(authReturn)}` : "/signup"}
                 className="inline-flex h-9 items-center rounded-full bg-[#5865F2] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
               >
                 Sign up

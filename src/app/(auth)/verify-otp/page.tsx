@@ -144,8 +144,12 @@ export default function VerifyOtpPage() {
 
       // Full navigation is intentional: it re-initialises AccountProvider
       // with the freshly issued D1 session token.
-      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-      window.location.assign("/profile");
+      const nextParam = new URLSearchParams(window.location.search).get("next");
+      const destination =
+        nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//")
+          ? nextParam
+          : "/profile";
+      window.location.assign(destination);
     } catch (err) {
       const apiError = err as OtpApiError;
       setStatus("sent");

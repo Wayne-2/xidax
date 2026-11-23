@@ -553,6 +553,21 @@ export async function fetchMyPromo(token: string) {
   });
 }
 
+export type ProductPromoPayload = {
+  code: string;
+  discount: number;
+  productId: string;
+  kind: string;
+};
+
+/** Validates a product-level promo code against a specific cart line. */
+export async function validateProductPromo(code: string, lineId: string) {
+  return accountRequest<{ promo: ProductPromoPayload | null }>(
+    "/api/promo/validate",
+    { method: "POST", body: { code, lineId } }
+  );
+}
+
 /* ---------------- Server-backed cart ---------------- */
 
 function cartHeaders(token?: string | null): Record<string, string> {

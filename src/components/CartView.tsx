@@ -25,7 +25,15 @@ export default function CartView() {
   const toast = useToast();
   const [promoInput, setPromoInput] = useState("");
 
-  const discount = promo ? Math.round(subtotal * promo.rate * 100) / 100 : 0;
+  const productDiscount = items.reduce((sum, item) => {
+    if (!item.promoEnabled || !item.promoCode) return sum;
+    return sum + item.price * item.quantity * ((item.promoDiscount ?? 0) / 100);
+  }, 0);
+  const discount = productDiscount > 0
+    ? Math.round(productDiscount * 100) / 100
+    : promo
+      ? Math.round(subtotal * promo.rate * 100) / 100
+      : 0;
   const discounted = Math.max(0, Math.round((subtotal - discount) * 100) / 100);
   const shipping = items.length === 0 || discounted >= 99 ? 0 : 19;
   const total = Math.round((discounted + shipping) * 100) / 100;
@@ -160,9 +168,12 @@ export default function CartView() {
               <dt className="text-[#5c5e66]">Subtotal</dt>
               <dd className="font-semibold">{formatMoney(subtotal)}</dd>
             </div>
-            {promo && discount > 0 && (
+            {discount > 0 && (
               <div className="flex justify-between text-[#15803D]">
-                <dt className="flex items-center gap-1"><CheckIcon className="h-3.5 w-3.5" /> {promo.code}</dt>
+                <dt className="flex items-center gap-1">
+                  <CheckIcon className="h-3.5 w-3.5" />
+                  {promo?.code ?? items.find((item) => item.promoEnabled && item.promoCode)?.promoCode}
+                </dt>
                 <dd className="font-semibold">−{formatMoney(discount)}</dd>
               </div>
             )}

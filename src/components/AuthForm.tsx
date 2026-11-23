@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { ArrowIcon } from "@/components/BuildIcons";
 import { useAccount } from "@/components/AccountProvider";
 import { useToast } from "@/components/ToastProvider";
@@ -67,6 +67,7 @@ function EyeIcon({ className = "h-4 w-4" }: { className?: string }) {
 
 export default function AuthForm({ mode }: { mode: AuthMode }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, ready, signIn, signUp, busy } = useAccount();
   const toast = useToast();
   const [name, setName] = useState("");
@@ -80,12 +81,17 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
   const [errors, setErrors] = useState<Errors>({});
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const nextParam = searchParams?.get("next");
+  const destination =
+    nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//")
+      ? nextParam
+      : "/profile";
 
   useEffect(() => {
     if (ready && user) {
-      router.replace("/profile");
+      router.replace(destination);
     }
-  }, [ready, user, router]);
+  }, [ready, user, router, destination]);
 
   function validate(): Errors {
     const next: Errors = {};
@@ -166,7 +172,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
           return;
         }
 
-        router.push("/profile");
+        router.push(destination);
         return;
       }
 
@@ -194,7 +200,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
       const idToken = await getIdToken();
       await sendOtp(idToken).catch(() => undefined);
 
-      router.push("/verify-otp");
+      router.push(`/verify-otp?next=${encodeURIComponent(destination)}`);
     } catch (error) {
       const code = (error as { code?: string }).code ?? "";
 
@@ -258,6 +264,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
     "h-11 w-full rounded-xl border bg-[#f8fafe] px-3.5 text-sm text-[#2e3338] outline-none transition-colors placeholder:text-[#80848e]";
 
   return (
+    <Suspense fallback={null}>
     <form onSubmit={handleSubmit} noValidate className="space-y-4">
       {mode === "signup" && (
         <div>
@@ -539,5 +546,6 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
         {!submitting && <ArrowIcon className="h-4 w-4" />}
       </button>
     </form>
+    </Suspense>
   );
 }

@@ -10,8 +10,8 @@ import {
   type AdminPaymentAlertInput,
   type ReceiptLine,
 } from "./email";
-import { recomputeCheckoutTotals } from "./pricing";
-import { roundMoney } from "./promo";
+import { recomputeCheckoutTotals, parseLineId } from "./pricing";
+import { lookupPromo, roundMoney } from "./promo";
 import { getUserPromoByCode } from "./user-promo";
 import {
   cryptoNetworks,
@@ -594,8 +594,26 @@ export async function createCheckout(
 
   if (typeof payload.promoCode === "string" && payload.promoCode.trim()) {
     const token = readToken(request);
+    const lineIds = priced.lines.map((line) => line.id);
+    const productPromo = await lookupPromo(env, payload.promoCode, lineIds);
 
-    if (token) {
+    if (productPromo) {
+      promoCode = productPromo.code;
+
+      let productDiscount = 0;
+
+      for (const line of priced.lines) {
+        const parsed = parseLineId(line.id);
+
+        if (!parsed) continue;
+        if (parsed.kind !== productPromo.kind) continue;
+        if (parsed.productId !== productPromo.productId) continue;
+
+        productDiscount += line.price * line.quantity * (productPromo.discount / 100);
+      }
+
+      discount = roundMoney(productDiscount);
+    } else if (token) {
       try {
         const { auth } = await ensureInitialized(env);
         const uid = (await auth.verifyIdToken(token, true)).uid;
