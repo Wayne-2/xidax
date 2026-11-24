@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 const cards = [
@@ -7,7 +8,7 @@ const cards = [
       "Preconfigured battle-stations. 24hrs burn-in tested, packed and shipped, in 1-3 business days",
     cta: "Shop prebuilds",
     href: "/prebuilds",
-    video: "/display_vid1.mp4",
+    image: "/pc_display/gaming-pc-02-RDY-Y50-R02-front-2.png",
     badge: "Available stocks",
     withArrow: true,
   },
@@ -17,7 +18,7 @@ const cards = [
       "Configure every part. Designed and supported world wide, and backed by lifetime service and labor",
     cta: "Start building",
     href: "/custom-builds",
-    video: "/display_vid2.mp4",
+    image: "/pc_display/gaming-pc-05-RDY-Y50-R02-Back-24.png",
     badge: "Customer lifetime service",
     withArrow: true,
   },
@@ -51,17 +52,13 @@ export default function DisplayCards() {
           style={{ animationDelay: `${index * 140}ms` }}
           className="group relative flex aspect-[900/590] min-h-[26rem] w-full min-w-0 overflow-hidden border border-transparent transition-[border-color,box-shadow] duration-300 hover:border-[#5865F2] hover:shadow-[0_0_40px_rgba(88,101,242,0.35)] focus-within:border-[#5865F2] focus-within:shadow-[0_0_40px_rgba(88,101,242,0.35)] md:min-h-[15rem]"
         >
-          <video
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="metadata"
-            aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-110 group-focus-within:scale-110"
-          >
-            <source src={card.video} type="video/mp4" />
-          </video>
+          <Image
+            src={card.image}
+            alt=""
+            fill
+            sizes="(min-width: 768px) 50vw, 100vw"
+            className="object-cover transition-transform duration-500 ease-out group-hover:scale-110 group-focus-within:scale-110"
+          />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black" />
           <span className="absolute left-8 top-6 z-10 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)] sm:left-10">
             <span className="h-2 w-2 animate-pulse rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.7)]" />
