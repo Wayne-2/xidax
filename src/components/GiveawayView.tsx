@@ -180,7 +180,9 @@ export default function GiveawayView() {
                     ? "Loading…"
                     : countdown.ended || status?.closed
                       ? "Entries have closed."
-                      : `${status?.totalEntries ?? 0} entries so far`}
+                      : status?.closesAt
+                        ? `Entries close ${new Date(status.closesAt).toUTCString()} — ${status.totalEntries ?? 0} entries so far`
+                        : `${status?.totalEntries ?? 0} entries so far`}
                 </p>
               </div>
             </div>

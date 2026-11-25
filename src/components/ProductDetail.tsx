@@ -54,7 +54,7 @@ const API_BASE = (
 const COPY: Record<Kind, { label: string; href: string }> = {
   prebuilds: { label: "Prebuilds", href: "/prebuilds" },
   laptops: { label: "Laptops", href: "/laptops" },
-  consoles: { label: "Consoles", href: "/consoles" },
+  consoles: { label: "Monitors", href: "/monitors" },
 };
 
 export default function ProductDetail({ kind }: { kind: Kind }) {
@@ -70,6 +70,7 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; rate: number } | null>(null);
   const [promoError, setPromoError] = useState("");
   const [applyingPromo, setApplyingPromo] = useState(false);
+  const [quantity, setQuantity] = useState(1);
 
   useEffect(() => {
     let cancelled = false;
@@ -155,6 +156,8 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
     ? Math.round(product.price * (1 - promoRate) * 100) / 100
     : product.price;
 
+  const safeQuantity = Math.max(1, Math.min(99, quantity));
+
   async function handleApplyPromo(event: React.FormEvent) {
     event.preventDefault();
     const code = promoInput.trim().toUpperCase();
@@ -182,6 +185,23 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
     } finally {
       setApplyingPromo(false);
     }
+  }
+
+  function handleAddToCart() {
+    add({
+      ...cartItem,
+      quantity: safeQuantity,
+      promoCode: appliedPromo?.code ?? cartItem.promoCode ?? null,
+      promoDiscount: appliedPromo
+        ? Math.round(cartItem.price * appliedPromo.rate)
+        : cartItem.promoDiscount,
+      promoEnabled: appliedPromo ? true : cartItem.promoEnabled,
+    });
+    toast.success(
+      safeQuantity > 1
+        ? `${safeQuantity} × ${product?.name ?? "Product"} added to cart.`
+        : `${product?.name ?? "Product"} added to cart.`
+    );
   }
 
   return (
@@ -252,24 +272,37 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
               {product.stock === "in-stock" ? "In stock — ready to ship" : "Built to order"}
             </p>
 
-            <button
-              type="button"
-              onClick={() => {
-                add({
-                  ...cartItem,
-                  promoCode: appliedPromo?.code ?? cartItem.promoCode ?? null,
-                  promoDiscount: appliedPromo
-                    ? Math.round(cartItem.price * appliedPromo.rate)
-                    : cartItem.promoDiscount,
-                  promoEnabled: appliedPromo ? true : cartItem.promoEnabled,
-                });
-                toast.success(`${product.name} added to cart.`);
-              }}
-              disabled={inCart}
-              className="mt-6 inline-flex h-13 w-full items-center justify-center rounded-xl bg-[#5865F2] px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {inCart ? "In cart" : "Add to cart"}
-            </button>
+            <div className="mt-6 flex gap-2">
+              <div className="inline-flex h-11 items-center rounded-xl border border-[#d2dbe8] bg-white">
+                <button
+                  type="button"
+                  onClick={() => setQuantity((current) => Math.max(1, current - 1))}
+                  disabled={quantity <= 1}
+                  aria-label="Decrease quantity"
+                  className="flex h-11 w-11 items-center justify-center rounded-xl text-lg font-semibold text-[#5c5e66] transition-colors hover:text-[#2e3338] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  −
+                </button>
+                <span className="w-9 text-center text-sm font-semibold text-[#2e3338]">{safeQuantity}</span>
+                <button
+                  type="button"
+                  onClick={() => setQuantity((current) => Math.min(99, current + 1))}
+                  disabled={quantity >= 99}
+                  aria-label="Increase quantity"
+                  className="flex h-11 w-11 items-center justify-center rounded-xl text-lg font-semibold text-[#5c5e66] transition-colors hover:text-[#2e3338] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  +
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddToCart}
+                disabled={inCart}
+                className="inline-flex h-13 flex-1 items-center justify-center rounded-xl bg-[#5865F2] px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {inCart ? "In cart" : "Add to cart"}
+              </button>
+            </div>
 
             <form onSubmit={handleApplyPromo} className="mt-6">
               <label
@@ -326,6 +359,25 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
         {product.specs.length > 0 && (
           <section className="mt-12 rounded-2xl border border-[#dce3ee] bg-white p-6 shadow-card sm:p-8">
             <h2 className="text-xl font-bold text-[#2e3338]">Specifications</h2>
+
+            {kind === "prebuilds" && (
+              <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-[#d2dbe8] bg-[#f0f4fa] p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-bold text-[#2e3338]">
+                    The graphics card will be shipped uninstalled
+                  </p>
+                  <p className="mt-1 text-sm text-[#5c5e66]">
+                    The graphics card ships outside the case so you can install it in your own build.
+                  </p>
+                </div>
+                <Link href="#installation-guide" className="shrink-0 text-sm font-semibold text-[#5865F2] transition-colors hover:text-[#4752C4]">
+                  Installation guide
+                </Link>
+              </div>
+            )}
+
+            {kind === "prebuilds" && <InstallGuideSection id="installation-guide" />}
+
             <dl className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2">
               {product.specs.map((spec, index) => (
                 <div key={`${spec.label}-${index}`} className="border-b border-[#eef1f6] pb-3 text-left">
@@ -345,38 +397,44 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
           </section>
         )}
 
-        {kind === "prebuilds" && (
-          <section className="mt-12 rounded-2xl border border-[#dce3ee] bg-white p-6 shadow-card sm:p-8">
-            <h2 className="text-xl font-bold text-[#2e3338]">
-              How To Install Graphic Processor Unit (GPU/Graphics Card)
-            </h2>
-            <p className="mt-2 text-sm font-semibold text-[#5865F2]">
-              Tools Required: Philips Head Screw Driver
-            </p>
-
-            <div className="mt-8 grid gap-6 md:grid-cols-2">
-              {installSteps.map((step) => (
-                <div
-                  key={step.image}
-                  className="rounded-2xl border border-[#dce3ee] bg-[#f8fafe] p-5"
-                >
-                  <h3 className="text-sm font-bold text-[#2e3338]">{step.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-[#5c5e66]">
-                    {step.content}
-                  </p>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={step.image}
-                    alt={`${step.title} — installation step`}
-                    className="mt-4 h-64 w-full rounded-xl border border-[#dce3ee] object-contain"
-                  />
-                </div>
-              ))}
-            </div>
-          </section>
+        {kind === "prebuilds" && product.specs.length === 0 && (
+          <InstallGuideSection id="installation-guide" />
         )}
       </div>
     </main>
+  );
+}
+
+function InstallGuideSection({ id }: { id: string }) {
+  return (
+    <section id={id} className="mt-8 rounded-2xl border border-[#dce3ee] bg-white p-6 shadow-card sm:p-8">
+      <h2 className="text-xl font-bold text-[#2e3338]">
+        How To Install Graphic Processor Unit (GPU/Graphics Card)
+      </h2>
+      <p className="mt-2 text-sm font-semibold text-[#5865F2]">
+        Tools Required: Philips Head Screw Driver
+      </p>
+
+      <div className="mt-8 grid gap-6 md:grid-cols-2">
+        {installSteps.map((step) => (
+          <div
+            key={step.image}
+            className="rounded-2xl border border-[#dce3ee] bg-[#f8fafe] p-5"
+          >
+            <h3 className="text-sm font-bold text-[#2e3338]">{step.title}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-[#5c5e66]">
+              {step.content}
+            </p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={step.image}
+              alt={`${step.title} — installation step`}
+              className="mt-4 h-64 w-full rounded-xl border border-[#dce3ee] object-contain"
+            />
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

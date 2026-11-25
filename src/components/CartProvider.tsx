@@ -157,10 +157,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             return existing
               ? current.map((entry) =>
                   entry.id === item.id
-                    ? { ...entry, quantity: entry.quantity + 1 }
+                    ? {
+                        ...entry,
+                        quantity: Math.min(99, entry.quantity + Math.max(1, item.quantity)),
+                      }
                     : entry
                 )
-              : [...current, { ...item, quantity: 1 }];
+              : [...current, { ...item, quantity: Math.max(1, item.quantity) }];
           });
         });
     },

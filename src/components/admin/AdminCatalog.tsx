@@ -220,7 +220,7 @@ export default function AdminCatalog({ kind }: { kind: CatalogKind }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight">
-            {isLaptop ? "Laptops" : "Consoles"}
+            {isLaptop ? "Laptops" : "Monitors"}
           </h1>
           <p className="mt-1 text-sm text-[#5c5e66]">
             Create and publish {isLaptop ? "laptop" : "console"} products. Published items appear on the storefront.

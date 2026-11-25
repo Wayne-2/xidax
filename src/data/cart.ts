@@ -61,7 +61,7 @@ export function cartItemFromConsole(
     category: category.label,
     price: console.price,
     quantity: 1,
-    href: `/consoles#${console.category}`,
+    href: `/monitors#${console.category}`,
     accent: category.accent,
     artCategory: console.category,
     image: console.images?.[0],

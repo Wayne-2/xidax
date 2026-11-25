@@ -128,7 +128,7 @@ export default function HeaderSearch({ open, onOpenChange }: HeaderSearchProps) 
         title: console.name,
         subtitle: console.description,
         kind: category?.label ?? "Console",
-        href: `/consoles#${console.category}`,
+        href: `/monitors#${console.category}`,
         price: console.price,
         keywords: [
           console.description,
@@ -239,7 +239,7 @@ export default function HeaderSearch({ open, onOpenChange }: HeaderSearchProps) 
             value={query}
             tabIndex={open ? 0 : -1}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search laptops, consoles, prebuilds…"
+            placeholder="Search laptops, monitors, prebuilds…"
             autoComplete="off"
             className="min-w-0 flex-1 bg-transparent text-sm text-[#2e3338] outline-none placeholder:text-[#80848e]"
           />

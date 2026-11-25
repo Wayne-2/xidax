@@ -72,6 +72,23 @@ export async function getGiveawayStatus(
   };
 }
 
+export async function setGiveawayClosing(
+  env: Env,
+  closesAt: string
+): Promise<{ ok: true; status: GiveawayStatus } | { ok: false; error: string }> {
+  const parsed = new Date(closesAt);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return { ok: false, error: "Enter a valid closing time." };
+  }
+
+  await env.SESSIONS.put(CLOSING_KEY, parsed.toISOString());
+
+  const status = await getGiveawayStatus(env, { userId: null, guestId: null });
+
+  return { ok: true, status };
+}
+
 export async function redeemGiveaway(
   env: Env,
   identity: { userId: string | null; guestId: string | null },

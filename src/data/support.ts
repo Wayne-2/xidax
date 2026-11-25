@@ -1,4 +1,4 @@
-export type SupportChannelId = "phone" | "chat" | "email";
+export type SupportChannelId = "chat" | "email";
 
 export type SupportChannel = {
   id: SupportChannelId;
@@ -16,24 +16,10 @@ export type SupportDay = {
   hours: string;
 };
 
-export const supportPhone = "+1-202-555-0147";
-export const supportPhoneHref = "tel:+234907649842";
-export const supportEmail = "support@genericpcs.com";
+export const supportEmail = "supportsgenericpcs@gmail.com";
 export const ownersEmail = "owners@genericpcs.com";
 
 export const supportChannels: SupportChannel[] = [
-  {
-    id: "phone",
-    title: "Phone Support",
-    description:
-      "Talk to a technician about an order, a build, a repair, or a warranty claim.",
-    action: "Call Now",
-    details: [
-      supportPhone,
-      "Mon–Sat · 9:00 AM – 6:00 PM",
-    ],
-    accent: "#5865F2",
-  },
   {
     id: "chat",
     title: "Live Chat",

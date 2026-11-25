@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import SocialLinks from "@/components/SocialLinks";
 
 function CopyrightYear() {
   return <>{new Date().getFullYear()}</>;
@@ -9,7 +8,7 @@ function CopyrightYear() {
 const columns = [
   {
     title: "Shop",
-    links: ["Prebuilt PCs", "Custom Builds", "Consoles", "Sales"],
+    links: ["Prebuilt PCs", "Custom Builds", "Monitors", "Sales"],
   },
   {
     title: "Support",
@@ -24,7 +23,7 @@ const columns = [
 const routeMap: Record<string, string> = {
   "Prebuilt PCs": "/prebuilds",
   "Custom Builds": "/custom-builds",
-  Consoles: "/consoles",
+  Monitors: "/monitors",
   "Support Center": "/support",
 };
 
@@ -44,17 +43,15 @@ export default function Footer() {
               />
             </Link>
 
-            <SocialLinks />
-
             <p className="mt-6 max-w-xs text-sm leading-relaxed text-[#5c5e66]">
               Designed &amp; Supported worldwide. Lifetime service &amp; labor
             </p>
 
             <a
-              href="tel:+234907649842"
+              href="mailto:supportsgenericpcs@gmail.com"
               className="mt-3 inline-block text-sm font-semibold text-[#5865F2] transition-colors hover:text-[#4752C4]"
             >
-              +1-202-555-0147
+              supportsgenericpcs@gmail.com
             </a>
           </div>
 

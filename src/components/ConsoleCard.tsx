@@ -69,7 +69,7 @@ export default function ConsoleCard({
       <div className="flex flex-1 flex-col p-5">
         <ExpandableContent collapsedHeight={230} label="specs">
           <div className="space-y-2">
-          <Link href={`/consoles/${consoleItem.id}`} className="block text-base font-semibold leading-snug text-[#2e3338] transition-colors hover:text-[#5865F2]">
+          <Link href={`/monitors/${consoleItem.id}`} className="block text-base font-semibold leading-snug text-[#2e3338] transition-colors hover:text-[#5865F2]">
               {consoleItem.name}
             </Link>
           <p className="text-xs font-semibold uppercase tracking-wide text-[#5865F2]">
@@ -90,7 +90,7 @@ export default function ConsoleCard({
         </ExpandableContent>
 
         <Link
-          href={`/consoles/${consoleItem.id}`}
+          href={`/monitors/${consoleItem.id}`}
           className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#5865F2] hover:text-[#4752C4]"
         >
           View details →

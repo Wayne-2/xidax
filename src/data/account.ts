@@ -105,7 +105,7 @@ export const demoUser: AccountUser = {
   id: "acct-20418",
   name: "Wayne Adebayo",
   email: "wayne@example.com",
-  phone: "+1-202-555-0147",
+  phone: "supportsgenericpcs@gmail.com",
   country: "United States",
   postalCode: "100001",
   tier: "Gold member",
@@ -190,7 +190,7 @@ export const accountOrders: AccountOrder[] = [
     detail: "Hot-swap magnetic switches · 8K polling",
     total: 149,
     status: "In transit",
-    href: "/consoles",
+    href: "/monitors",
   },
 ];
 
@@ -208,7 +208,7 @@ export const savedItems: SavedItem[] = [
     name: "Nova 27 QHD 240Hz",
     detail: "27-inch QHD IPS · 240Hz · HDR400",
     price: 449,
-    href: "/consoles#monitors",
+    href: "/monitors#monitors",
     kind: "Monitor",
   },
   {
@@ -216,7 +216,7 @@ export const savedItems: SavedItem[] = [
     name: "Volt 850W Gold",
     detail: "80+ Gold · ATX 3.1 · fully modular",
     price: 129,
-    href: "/consoles#power-adaptors",
+    href: "/monitors#power-adaptors",
     kind: "Power",
   },
 ];

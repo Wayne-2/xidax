@@ -200,10 +200,10 @@ export default function MobileNav({
 
             <div className="border-t border-[#d2dbe8] py-4 pl-4 pr-4">
               <a
-                href="tel:+234907649842"
+                href="mailto:supportsgenericpcs@gmail.com"
                 className="text-sm font-semibold text-[#5c5e66] transition-colors hover:text-[#5865F2]"
               >
-                +1-202-555-0147
+                supportsgenericpcs@gmail.com
               </a>
 
               <div className="mt-3">

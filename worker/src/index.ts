@@ -43,7 +43,7 @@ import { runConfigCheck } from "./config-check";
 import { parseFirebaseConfig } from "./auth";
 import { adminGuard } from "./admin-auth";
 import { findUserByToken } from "./auth";
-import { getGiveawayStatus, redeemGiveaway } from "./giveaway";
+import { getGiveawayStatus, redeemGiveaway, setGiveawayClosing } from "./giveaway";
 import {
   answerQuestion,
   appendMessage,
@@ -898,6 +898,29 @@ const worker = {
         const guard = await adminGuard(request, env, jsonWithCors);
 
         if (!guard.authorized) return guard.response;
+
+        // GET /api/admin/giveaway — giveaway status
+        if (request.method === "GET" && path === "/api/admin/giveaway") {
+          const status = await getGiveawayStatus(env, { userId: null, guestId: null });
+          return jsonWithCors(status, request, env);
+        }
+
+        // PUT /api/admin/giveaway — set the giveaway closing timer
+        if (request.method === "PUT" && path === "/api/admin/giveaway") {
+          const body = await readJson(request);
+
+          if (!body || typeof body.closesAt !== "string" || !body.closesAt.trim()) {
+            return jsonWithCors({ error: "Closing time is required." }, request, env, 400);
+          }
+
+          const result = await setGiveawayClosing(env, body.closesAt);
+
+          if (!result.ok) {
+            return jsonWithCors({ error: result.error }, request, env, 400);
+          }
+
+          return jsonWithCors(result, request, env);
+        }
 
         // GET /api/admin/orders
         if (request.method === "GET" && path === "/api/admin/orders") {

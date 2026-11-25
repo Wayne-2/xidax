@@ -1,11 +1,7 @@
 "use client";
 
 import { useChat } from "@/components/ChatProvider";
-import {
-  supportChannels,
-  supportEmail,
-  supportPhoneHref,
-} from "@/data/support";
+import { supportChannels, supportEmail } from "@/data/support";
 
 export default function SupportChannels() {
   const { openChat } = useChat();
@@ -47,15 +43,6 @@ export default function SupportChannels() {
             </ul>
 
             <div className="mt-auto pt-6">
-              {channel.id === "phone" && (
-                <a
-                  href={supportPhoneHref}
-                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#5865F2] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4]"
-                >
-                  {channel.action}
-                </a>
-              )}
-
               {channel.id === "email" && (
                 <a
                   href={`mailto:${supportEmail}`}

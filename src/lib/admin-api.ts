@@ -542,3 +542,23 @@ export type AdminWallet = {
   createdAt: string;
   updatedAt: string;
 };
+
+/* ---------------- Giveaway ---------------- */
+
+export type AdminGiveawayStatus = {
+  closesAt: string;
+  closed: boolean;
+  entered: boolean;
+  totalEntries: number;
+};
+
+export function fetchAdminGiveaway() {
+  return adminFetch<AdminGiveawayStatus>("/api/admin/giveaway");
+}
+
+export function updateAdminGiveawayClosing(closesAt: string) {
+  return adminFetch<{ ok: boolean; status: AdminGiveawayStatus }>(
+    "/api/admin/giveaway",
+    { method: "PUT", body: JSON.stringify({ closesAt }) }
+  );
+}

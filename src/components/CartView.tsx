@@ -61,8 +61,8 @@ export default function CartView() {
             <Link href="/laptops" className="rounded-xl border border-[#d2dbe8] px-5 py-2.5 text-sm font-semibold text-[#5c5e66] hover:border-[#5865F2]/50">
               Laptops
             </Link>
-            <Link href="/consoles" className="rounded-xl border border-[#d2dbe8] px-5 py-2.5 text-sm font-semibold text-[#5c5e66] hover:border-[#5865F2]/50">
-              Consoles
+            <Link href="/monitors" className="rounded-xl border border-[#d2dbe8] px-5 py-2.5 text-sm font-semibold text-[#5c5e66] hover:border-[#5865F2]/50">
+              Monitors
             </Link>
           </div>
         </div>

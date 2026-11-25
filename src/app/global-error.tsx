@@ -61,7 +61,7 @@ export default function GlobalError({
             }}
           >
             Reload the page to try again. If it keeps happening, email
-            support@genericpcs.com and we will sort it out.
+            supportsgenericpcs@gmail.com and we will sort it out.
           </p>
           <button
             type="button"

@@ -135,7 +135,7 @@ export async function addToCart(
   const items = existing
     ? cart.items.map((entry) =>
         entry.id === item.id
-          ? { ...entry, quantity: Math.min(MAX_QUANTITY, entry.quantity + 1) }
+          ? { ...entry, quantity: Math.min(MAX_QUANTITY, entry.quantity + item.quantity) }
           : entry
       )
     : [...cart.items, item];

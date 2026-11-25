@@ -7,13 +7,13 @@ import Money from "@/components/Money";
 import { consoleCategories, consoles } from "@/data/consoles";
 
 export const metadata: Metadata = {
-  title: "Consoles | generic pcs",
+  title: "Monitors | generic pcs",
 };
 
 const gridMask =
   "linear-gradient(to right, transparent 0%, black 55%, black 100%)";
 
-export default function ConsolesPage() {
+export default function MonitorsPage() {
   return (
     <main className="relative flex-1">
       <section className="relative overflow-hidden border-b border-[#dce3ee] bg-[#f0f4fa]">
@@ -49,11 +49,11 @@ export default function ConsolesPage() {
               /
             </span>
             <Link
-              href="/consoles"
+              href="/monitors"
               aria-current="page"
               className="text-[#2e3338] transition-colors hover:text-[#5865F2]"
             >
-              Consoles
+              Monitors
             </Link>
           </nav>
 
@@ -66,7 +66,7 @@ export default function ConsolesPage() {
                 </p>
               </div>
               <h1 className="mt-5 text-5xl font-extrabold tracking-tight text-balance text-[#2e3338] sm:text-6xl lg:text-7xl">
-                CONSOLES
+                MONITORS
               </h1>
               <p className="mt-6 max-w-xl text-base leading-relaxed text-[#5c5e66] sm:text-lg">
                 The details that make a setup yours. Displays, input, audio, and

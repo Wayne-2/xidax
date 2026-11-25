@@ -3,7 +3,7 @@ import CartView from "@/components/CartView";
 
 export const metadata: Metadata = {
   title: "Cart | generic pcs",
-  description: "Review the machines and consoles in your generic pcs basket.",
+  description: "Review the machines and monitors in your generic pcs basket.",
 };
 
 export default function CartPage() {
