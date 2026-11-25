@@ -143,14 +143,6 @@ export default function SupportPage() {
               </h2>
             </div>
 
-            <p
-              data-reveal="up"
-              style={{ animationDelay: "160ms" }}
-              className="max-w-md text-sm leading-relaxed text-[#5c5e66]"
-            >
-              Three ways to reach the same team. Whichever you pick, you are
-              talking to the people who built and support your PC.
-            </p>
           </div>
 
           <div className="mt-10">
