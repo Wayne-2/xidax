@@ -4,13 +4,19 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useAccount } from "@/components/AccountProvider";
-import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
+import { ArrowIcon, CheckIcon, InfoIcon } from "@/components/BuildIcons";
 import { useToast } from "@/components/ToastProvider";
+import { resolveImageUrls } from "@/lib/image-url";
 import {
   fetchGiveawayStatus,
   redeemGiveaway,
   type GiveawayStatus,
 } from "@/lib/api";
+
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  "https://generic-pcs-api.pcmarketweb.workers.dev"
+).replace(/\/+$/, "");
 
 function useCountdown(closesAt: string | null) {
   const [remaining, setRemaining] = useState(0);
@@ -47,6 +53,7 @@ export default function GiveawayView() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [prizeImages, setPrizeImages] = useState<string[]>([]);
   const countdown = useCountdown(status?.closesAt ?? null);
 
   const load = useCallback(async () => {
@@ -65,6 +72,37 @@ export default function GiveawayView() {
 
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPrizeImages() {
+      try {
+        const response = await fetch(`${API_BASE}/api/products`);
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as {
+          products?: { images?: (string | null)[] }[];
+        };
+
+        if (cancelled) return;
+
+        const images = (payload.products ?? []).flatMap((p) =>
+          resolveImageUrls(p.images)
+        );
+
+        setPrizeImages([...new Set(images)]);
+      } catch {
+        if (!cancelled) setPrizeImages([]);
+      }
+    }
+
+    void loadPrizeImages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleRedeem(event: React.FormEvent) {
     event.preventDefault();
@@ -308,24 +346,35 @@ export default function GiveawayView() {
           </div>
 
           <div className="mt-10 grid gap-4 sm:grid-cols-3">
-            {[
-              "/hero_image.png",
-              "/display_section.png",
-              "/display_section2.png",
-            ].map((src, index) => (
-              <div
-                key={src}
-                className="relative aspect-square overflow-hidden rounded-2xl border border-[#dce3ee] bg-white shadow-card"
-              >
-                <Image
-                  src={src}
-                  alt={`Giveaway gaming PC ${index + 1}`}
-                  fill
-                  sizes="(min-width: 640px) 33vw, 100vw"
-                  className="object-contain"
-                />
+            {prizeImages.length > 0 ? (
+              prizeImages.slice(0, 3).map((src, index) => (
+                <div
+                  key={src}
+                  className="relative aspect-square overflow-hidden rounded-2xl border border-[#dce3ee] bg-white shadow-card"
+                >
+                  <Image
+                    src={src}
+                    alt={`Giveaway gaming PC ${index + 1}`}
+                    fill
+                    sizes="(min-width: 640px) 33vw, 100vw"
+                    className="object-contain"
+                  />
+                </div>
+              ))
+            ) : (
+              <div className="relative aspect-square overflow-hidden rounded-2xl border border-dashed border-[#c7d2e0] bg-[#f8fafe] shadow-card sm:col-span-3">
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center">
+                  <InfoIcon className="h-10 w-10 text-[#80848e]" />
+                  <p className="text-sm font-semibold text-[#2e3338]">
+                    Prize image coming soon
+                  </p>
+                  <p className="text-xs text-[#80848e]">
+                    The giveaway product image will appear here once uploaded
+                    from the admin dashboard.
+                  </p>
+                </div>
               </div>
-            ))}
+            )}
           </div>
         </div>
       </section>

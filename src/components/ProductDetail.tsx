@@ -370,7 +370,7 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
                     The graphics card ships outside the case so you can install it in your own build.
                   </p>
                 </div>
-                <Link href="/install" className="shrink-0 text-sm font-semibold text-[#5865F2] transition-colors hover:text-[#4752C4]">
+                <Link href={`/install?product=${product.id}`} className="shrink-0 text-sm font-semibold text-[#5865F2] transition-colors hover:text-[#4752C4]">
                   Installation guide
                 </Link>
               </div>

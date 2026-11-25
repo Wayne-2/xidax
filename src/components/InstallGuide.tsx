@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter, useSearchParams } from "next/navigation";
 import { InfoIcon } from "@/components/BuildIcons";
 
 const installSteps: {
@@ -52,14 +53,33 @@ const installSteps: {
 ];
 
 export default function InstallGuide() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const productId = searchParams.get("product");
+
   return (
     <section className="rounded-2xl border border-[#dce3ee] bg-white p-5 shadow-card sm:p-6">
-      <div className="flex items-start gap-3">
-        <InfoIcon className="mt-1 h-6 w-6 shrink-0 text-[#5865F2]" />
-        <h2 className="text-xl font-bold text-[#2e3338]">
-          How To Install Graphic Processor Unit (GPU/Graphics Card)
-        </h2>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <InfoIcon className="mt-1 h-6 w-6 shrink-0 text-[#5865F2]" />
+          <h2 className="text-xl font-bold text-[#2e3338]">
+            How To Install Graphic Processor Unit (GPU/Graphics Card)
+          </h2>
+        </div>
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="inline-flex h-10 shrink-0 items-center rounded-xl border border-[#d2dbe8] bg-white px-4 text-sm font-semibold text-[#5c5e66] transition-colors hover:border-[#5865F2]/50"
+        >
+          Back
+        </button>
       </div>
+
+      {productId ? (
+        <p className="mt-2 text-sm text-[#5c5e66]">
+          Installation guide for product <span className="font-semibold">{productId}</span>.
+        </p>
+      ) : null}
 
       <p className="mt-2 text-sm font-semibold text-[#5865F2]">
         Tools Required: Philips Head Screw Driver

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import InstallGuide from "@/components/InstallGuide";
 import RevealObserver from "@/components/RevealObserver";
@@ -27,7 +28,9 @@ export default function InstallGuidePage() {
         </nav>
 
         <div className="mt-8">
-          <InstallGuide />
+          <Suspense fallback={null}>
+            <InstallGuide />
+          </Suspense>
         </div>
       </div>
       <RevealObserver />
