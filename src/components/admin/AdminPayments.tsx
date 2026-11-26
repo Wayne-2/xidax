@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
 import AdminWallets from "@/components/admin/AdminWallets";
-import AdminBankAccounts from "@/components/admin/AdminBankAccounts";
 import {
   fetchAdminBankAccounts,
   fetchAdminOrders,
@@ -130,10 +129,7 @@ export default function AdminPayments() {
         <AdminWallets embedded />
       </section>
 
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-[#80848e]">Wire bank accounts</h2>
-        <AdminBankAccounts />
-      </section>
+
     </div>
   );
 }

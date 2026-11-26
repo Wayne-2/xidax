@@ -382,11 +382,23 @@ export default function CheckoutFlow() {
       promoCode: discountCode,
       discountCode,
     };
-    const created = await createCheckoutSession(payload, token);
-    rememberCheckoutSession(created.id);
-    setSession(created);
-    setNow(Date.now());
-    setStep(3);
+    try {
+      const created = await createCheckoutSession(payload, token);
+      rememberCheckoutSession(created.id);
+      setSession(created);
+      setNow(Date.now());
+      setStep(3);
+    } catch (e) {
+      const err = e as AppError & { code?: string };
+      if (err instanceof AppError && (err.code === "checkout_otp_required" || err.status === 403)) {
+        setCheckoutOtpVerified(false);
+        setOtpStep(true);
+        setStep(1);
+        void requestCheckoutOtp();
+        return;
+      }
+      throw e;
+    }
   }, { silent: true, fallback: "Could not prepare checkout. Try again." });
 
   const { run: submitCard, pending: submittingCard, error: cardError } = useAsyncAction(async (sessionId: string) => {
