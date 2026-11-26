@@ -13,11 +13,6 @@ import {
   type GiveawayStatus,
 } from "@/lib/api";
 
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "https://generic-pcs-api.pcmarketweb.workers.dev"
-).replace(/\/+$/, "");
-
 function useCountdown(closesAt: string | null) {
   const [remaining, setRemaining] = useState(0);
 
@@ -53,7 +48,8 @@ export default function GiveawayView() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [prizeImages, setPrizeImages] = useState<string[]>([]);
+  const prize = status?.prize ?? null;
+  const prizeImages = resolveImageUrls(prize?.images ?? []);
   const countdown = useCountdown(status?.closesAt ?? null);
 
   const load = useCallback(async () => {
@@ -73,36 +69,7 @@ export default function GiveawayView() {
     return () => window.clearTimeout(timer);
   }, [load]);
 
-  useEffect(() => {
-    let cancelled = false;
 
-    async function loadPrizeImages() {
-      try {
-        const response = await fetch(`${API_BASE}/api/products`);
-        if (!response.ok) return;
-
-        const payload = (await response.json()) as {
-          products?: { images?: (string | null)[] }[];
-        };
-
-        if (cancelled) return;
-
-        const images = (payload.products ?? []).flatMap((p) =>
-          resolveImageUrls(p.images)
-        );
-
-        setPrizeImages([...new Set(images)]);
-      } catch {
-        if (!cancelled) setPrizeImages([]);
-      }
-    }
-
-    void loadPrizeImages();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   async function handleRedeem(event: React.FormEvent) {
     event.preventDefault();
@@ -337,11 +304,10 @@ export default function GiveawayView() {
               The prize
             </p>
             <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-[#2e3338] sm:text-3xl">
-              A machine worth winning
+              {prize?.name || "A machine worth winning"}
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[#5c5e66]">
-              A custom-built gaming PC with premium cooling, RGB lighting and
-              components built to last.
+              {prize?.description || "The giveaway prize will be announced here once an admin posts it."}
             </p>
           </div>
 

@@ -721,11 +721,18 @@ export async function clearChatHistory() {
 
 /* ---------------- Giveaway ---------------- */
 
+export type GiveawayPrize = {
+  name: string;
+  description: string;
+  images: string[];
+};
+
 export type GiveawayStatus = {
   closesAt: string;
   closed: boolean;
   entered: boolean;
   totalEntries: number;
+  prize: GiveawayPrize | null;
 };
 
 function guestHeaders(token?: string | null): Record<string, string> {

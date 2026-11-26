@@ -2,12 +2,20 @@ import type { Env } from "./types";
 
 /** Giveaway closes 30 days after the first request (stable once set). */
 const CLOSING_KEY = "giveaway.closing";
+const PRIZE_KEY = "giveaway.prize";
+
+export type GiveawayPrize = {
+  name: string;
+  description: string;
+  images: string[];
+};
 
 export type GiveawayStatus = {
   closesAt: string;
   closed: boolean;
   entered: boolean;
   totalEntries: number;
+  prize: GiveawayPrize | null;
 };
 
 type Row = {
@@ -33,6 +41,54 @@ async function getClosingAt(env: Env): Promise<string> {
   await env.SESSIONS.put(CLOSING_KEY, iso);
 
   return iso;
+}
+
+function normalizePrize(raw: unknown): GiveawayPrize | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as { name?: unknown; description?: unknown; images?: unknown };
+  const name = typeof value.name === "string" ? value.name.trim().slice(0, 200) : "";
+  const description = typeof value.description === "string" ? value.description.trim().slice(0, 1000) : "";
+  const images = Array.isArray(value.images)
+    ? value.images.filter((img): img is string => typeof img === "string" && img.trim().length > 0).slice(0, 12)
+    : [];
+
+  if (!name && !description && images.length === 0) return null;
+
+  return { name, description, images };
+}
+
+async function getPrize(env: Env): Promise<GiveawayPrize | null> {
+  const stored = await env.SESSIONS.get(PRIZE_KEY, "text");
+  if (!stored) return null;
+
+  try {
+    return normalizePrize(JSON.parse(stored));
+  } catch {
+    return null;
+  }
+}
+
+export async function setGiveawayPrize(
+  env: Env,
+  prize: unknown
+): Promise<{ ok: true; status: GiveawayStatus } | { ok: false; error: string }> {
+  const normalized = normalizePrize(prize);
+
+  if (!normalized) {
+    return { ok: false, error: "Add a prize name or at least one image." };
+  }
+
+  await env.SESSIONS.put(PRIZE_KEY, JSON.stringify(normalized));
+  const status = await getGiveawayStatus(env, { userId: null, guestId: null });
+  return { ok: true, status };
+}
+
+export async function clearGiveawayPrize(
+  env: Env
+): Promise<{ ok: true; status: GiveawayStatus }> {
+  await env.SESSIONS.delete(PRIZE_KEY);
+  const status = await getGiveawayStatus(env, { userId: null, guestId: null });
+  return { ok: true, status };
 }
 
 export async function getGiveawayStatus(
@@ -63,12 +119,14 @@ export async function getGiveawayStatus(
   const countRow = await env.DB.prepare(
     "SELECT COUNT(*) AS count FROM giveaway_entries"
   ).first<{ count: number }>();
+  const prize = await getPrize(env);
 
   return {
     closesAt,
     closed,
     entered,
     totalEntries: countRow?.count ?? 0,
+    prize,
   };
 }
 

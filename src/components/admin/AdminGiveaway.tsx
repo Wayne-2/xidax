@@ -5,6 +5,8 @@ import { useToast } from "@/components/ToastProvider";
 import {
   fetchAdminGiveaway,
   updateAdminGiveawayClosing,
+  updateAdminGiveawayPrize,
+  uploadProductImage,
   type AdminGiveawayStatus,
 } from "@/lib/admin-api";
 
@@ -14,6 +16,11 @@ export default function AdminGiveaway() {
   const [loading, setLoading] = useState(true);
   const [closesAtInput, setClosesAtInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [prizeName, setPrizeName] = useState("");
+  const [prizeDescription, setPrizeDescription] = useState("");
+  const [prizeImages, setPrizeImages] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [savingPrize, setSavingPrize] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -22,6 +29,9 @@ export default function AdminGiveaway() {
       setClosesAtInput(
         result.closesAt ? new Date(result.closesAt).toISOString().slice(0, 16) : ""
       );
+      setPrizeName(result.prize?.name ?? "");
+      setPrizeDescription(result.prize?.description ?? "");
+      setPrizeImages(result.prize?.images ?? []);
     } catch {
       // Keep the panel neutral when the status cannot be loaded.
     } finally {
@@ -74,6 +84,71 @@ export default function AdminGiveaway() {
       toast.error(payload.error ?? "Could not close the giveaway.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handlePrizeImages(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []).slice(0, 12);
+    if (files.length === 0) return;
+
+    setUploading(true);
+    try {
+      const uploaded: string[] = [];
+      for (const file of files) {
+        const result = await uploadProductImage(file);
+        uploaded.push(result.url);
+      }
+      setPrizeImages((prev) => [...prev, ...uploaded].slice(0, 12));
+      toast.success("Prize image uploaded.");
+    } catch (error) {
+      toast.error((error as { error?: string }).error ?? "Could not upload image.");
+    } finally {
+      setUploading(false);
+      event.target.value = "";
+    }
+  }
+
+  async function handleSavePrize(event: React.FormEvent) {
+    event.preventDefault();
+    if (savingPrize || loading) return;
+
+    const payload = {
+      name: prizeName.trim().slice(0, 200),
+      description: prizeDescription.trim().slice(0, 1000),
+      images: prizeImages,
+    };
+
+    if (!payload.name && !payload.description && payload.images.length === 0) {
+      toast.error("Add a prize name or image before saving.");
+      return;
+    }
+
+    setSavingPrize(true);
+    try {
+      const result = await updateAdminGiveawayPrize(payload);
+      setStatus(result.status);
+      toast.success("Giveaway prize saved.");
+    } catch (error) {
+      toast.error((error as { error?: string }).error ?? "Could not save prize.");
+    } finally {
+      setSavingPrize(false);
+    }
+  }
+
+  async function handleClearPrize() {
+    if (savingPrize || loading) return;
+    setSavingPrize(true);
+    try {
+      const result = await updateAdminGiveawayPrize(null);
+      setStatus(result.status);
+      setPrizeName("");
+      setPrizeDescription("");
+      setPrizeImages([]);
+      toast.success("Giveaway prize cleared.");
+    } catch (error) {
+      toast.error((error as { error?: string }).error ?? "Could not clear prize.");
+    } finally {
+      setSavingPrize(false);
     }
   }
 
@@ -157,6 +232,46 @@ export default function AdminGiveaway() {
             className="inline-flex h-11 items-center rounded-xl border border-[#d2dbe8] bg-white px-5 text-sm font-semibold text-[#5c5e66] transition-colors hover:border-[#5865F2]/50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Close now
+          </button>
+        </div>
+      </form>
+
+      <form onSubmit={handleSavePrize} className="mt-6 rounded-2xl border border-[#dce3ee] bg-[#f8fafe] p-5">
+        <h3 className="text-sm font-bold text-[#2e3338]">Giveaway prize</h3>
+        <p className="mt-1 text-xs text-[#5c5e66]">This is shown in the storefront prize section.</p>
+
+        <div className="mt-4 grid gap-4">
+          <label className="block">
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">Prize name</span>
+            <input value={prizeName} onChange={(e) => setPrizeName(e.target.value)} disabled={savingPrize || loading} className="h-11 w-full rounded-xl border border-[#d2dbe8] bg-white px-3.5 text-sm outline-none focus:border-[#5865F2] disabled:opacity-60" placeholder="Custom Gaming PC" />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">Description</span>
+            <textarea value={prizeDescription} onChange={(e) => setPrizeDescription(e.target.value)} disabled={savingPrize || loading} rows={3} className="w-full rounded-xl border border-[#d2dbe8] bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[#5865F2] disabled:opacity-60" placeholder="Describe the prize..." />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">Prize images</span>
+            <input type="file" accept="image/*" multiple onChange={handlePrizeImages} disabled={uploading || savingPrize || loading} className="block w-full text-sm text-[#5c5e66] file:mr-3 file:rounded-lg file:border-0 file:bg-[#5865F2]/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-[#5865F2]" />
+          </label>
+          {prizeImages.length > 0 && (
+            <div className="grid gap-3 sm:grid-cols-3">
+              {prizeImages.map((src, idx) => (
+                <div key={`${src}-${idx}`} className="relative overflow-hidden rounded-xl border border-[#dce3ee] bg-white">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt={`Prize image ${idx + 1}`} className="aspect-square w-full object-contain" />
+                  <button type="button" onClick={() => setPrizeImages((prev) => prev.filter((_, i) => i !== idx))} className="absolute right-2 top-2 rounded-md bg-white/90 px-2 py-1 text-xs font-semibold text-[#B91C1C] shadow">Remove</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button type="submit" disabled={savingPrize || uploading || loading} className="inline-flex h-11 items-center rounded-xl bg-[#5865F2] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:cursor-not-allowed disabled:opacity-60">
+            {savingPrize ? "Saving…" : uploading ? "Uploading…" : "Save prize"}
+          </button>
+          <button type="button" onClick={handleClearPrize} disabled={savingPrize || uploading || loading} className="inline-flex h-11 items-center rounded-xl border border-[#d2dbe8] bg-white px-5 text-sm font-semibold text-[#5c5e66] transition-colors hover:border-[#DC2626]/40 hover:text-[#B91C1C] disabled:cursor-not-allowed disabled:opacity-60">
+            Clear prize
           </button>
         </div>
       </form>

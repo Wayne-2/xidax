@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { CheckIcon } from "@/components/BuildIcons";
 import PaymentFailedModal from "@/components/PaymentFailedModal";
 import { useAccount } from "@/components/AccountProvider";
@@ -623,7 +624,11 @@ export default function CheckoutFlow() {
               </div>
               <div className="rounded-2xl bg-[#F4F7FB] p-4 sm:p-5">
                 <div className="grid gap-5 sm:grid-cols-[160px_minmax(0,1fr)]">
-                  <div className="flex h-40 w-40 items-center justify-center rounded-xl bg-white border border-[#DCE1ED] text-xs text-[#737D94]">QR code</div>
+                  <div className="flex h-40 w-40 items-center justify-center rounded-xl bg-white border border-[#DCE1ED] p-2">
+                    {session.instructions.method === "crypto" && (
+                      <QRCodeSVG value={session.instructions.address} size={144} bgColor="#FFFFFF" fgColor="#20212B" level="M" includeMargin={false} />
+                    )}
+                  </div>
                   <div className="min-w-0">
                     <p className="text-sm text-[#737D94]">Send exactly</p>
                     <div className="mt-1 flex items-center gap-2"><p className="text-3xl font-semibold text-[#20212B]">{session.instructions.amount} {session.instructions.currency}</p><button type="button" onClick={() => { void navigator.clipboard.writeText(session.instructions.amount); toast.success("Amount copied."); }} className="text-[#5965F5]">⧉</button></div>

@@ -545,11 +545,18 @@ export type AdminWallet = {
 
 /* ---------------- Giveaway ---------------- */
 
+export type AdminGiveawayPrize = {
+  name: string;
+  description: string;
+  images: string[];
+};
+
 export type AdminGiveawayStatus = {
   closesAt: string;
   closed: boolean;
   entered: boolean;
   totalEntries: number;
+  prize: AdminGiveawayPrize | null;
 };
 
 export function fetchAdminGiveaway() {
@@ -560,5 +567,12 @@ export function updateAdminGiveawayClosing(closesAt: string) {
   return adminFetch<{ ok: boolean; status: AdminGiveawayStatus }>(
     "/api/admin/giveaway",
     { method: "PUT", body: JSON.stringify({ closesAt }) }
+  );
+}
+
+export function updateAdminGiveawayPrize(prize: AdminGiveawayPrize | null) {
+  return adminFetch<{ ok: boolean; status: AdminGiveawayStatus }>(
+    "/api/admin/giveaway",
+    { method: "PUT", body: JSON.stringify({ prize }) }
   );
 }

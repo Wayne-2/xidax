@@ -45,7 +45,7 @@ import { runConfigCheck } from "./config-check";
 import { parseFirebaseConfig } from "./auth";
 import { adminGuard } from "./admin-auth";
 import { findUserByToken } from "./auth";
-import { getGiveawayStatus, redeemGiveaway, setGiveawayClosing } from "./giveaway";
+import { clearGiveawayPrize, getGiveawayStatus, redeemGiveaway, setGiveawayClosing, setGiveawayPrize } from "./giveaway";
 import {
   answerQuestion,
   appendMessage,
@@ -907,21 +907,33 @@ const worker = {
           return jsonWithCors(status, request, env);
         }
 
-        // PUT /api/admin/giveaway — set the giveaway closing timer
+        // PUT /api/admin/giveaway — set closing timer and/or prize
         if (request.method === "PUT" && path === "/api/admin/giveaway") {
           const body = await readJson(request);
 
-          if (!body || typeof body.closesAt !== "string" || !body.closesAt.trim()) {
-            return jsonWithCors({ error: "Closing time is required." }, request, env, 400);
+          if (!body) {
+            return jsonWithCors({ error: "Invalid request." }, request, env, 400);
           }
 
-          const result = await setGiveawayClosing(env, body.closesAt);
-
-          if (!result.ok) {
-            return jsonWithCors({ error: result.error }, request, env, 400);
+          if (typeof body.closesAt === "string" && body.closesAt.trim()) {
+            const closing = await setGiveawayClosing(env, body.closesAt);
+            if (!closing.ok) {
+              return jsonWithCors({ error: closing.error }, request, env, 400);
+            }
           }
 
-          return jsonWithCors(result, request, env);
+          if ("prize" in body) {
+            const prizeResult = body.prize === null
+              ? await clearGiveawayPrize(env)
+              : await setGiveawayPrize(env, body.prize);
+            if (!prizeResult.ok) {
+              return jsonWithCors({ error: prizeResult.error }, request, env, 400);
+            }
+            return jsonWithCors(prizeResult, request, env);
+          }
+
+          const status = await getGiveawayStatus(env, { userId: null, guestId: null });
+          return jsonWithCors({ ok: true, status }, request, env);
         }
 
         // GET /api/admin/orders
