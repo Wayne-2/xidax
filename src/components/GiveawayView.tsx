@@ -345,34 +345,31 @@ export default function GiveawayView() {
             </p>
           </div>
 
-          <div className="mt-10 grid gap-4 sm:grid-cols-3">
+          <div className="mt-10">
             {prizeImages.length > 0 ? (
-              prizeImages.slice(0, 3).map((src, index) => (
-                <div
-                  key={src}
-                  className="relative aspect-square overflow-hidden rounded-2xl border border-[#dce3ee] bg-white shadow-card"
-                >
-                  <Image
-                    src={src}
-                    alt={`Giveaway gaming PC ${index + 1}`}
-                    fill
-                    sizes="(min-width: 640px) 33vw, 100vw"
-                    className="object-contain"
-                  />
-                </div>
-              ))
+              <div className="grid gap-4 sm:grid-cols-3">
+                {prizeImages.slice(0, 3).map((src, index) => (
+                  <div
+                    key={src}
+                    className="relative aspect-square overflow-hidden rounded-2xl border border-[#dce3ee] bg-white shadow-card"
+                  >
+                    <Image
+                      src={src}
+                      alt={`Giveaway gaming PC ${index + 1}`}
+                      fill
+                      sizes="(min-width: 640px) 33vw, 100vw"
+                      className="object-contain"
+                    />
+                  </div>
+                ))}
+              </div>
             ) : (
-              <div className="relative aspect-square overflow-hidden rounded-2xl border border-dashed border-[#c7d2e0] bg-[#f8fafe] shadow-card sm:col-span-3">
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center">
-                  <InfoIcon className="h-10 w-10 text-[#80848e]" />
-                  <p className="text-sm font-semibold text-[#2e3338]">
-                    Prize image coming soon
-                  </p>
-                  <p className="text-xs text-[#80848e]">
-                    The giveaway product image will appear here once uploaded
-                    from the admin dashboard.
-                  </p>
-                </div>
+              <div className="rounded-2xl border border-dashed border-[#c7d2e0] bg-[#f8fafe] px-6 py-12 text-center shadow-card">
+                <InfoIcon className="mx-auto h-10 w-10 text-[#80848e]" />
+                <p className="mt-3 text-sm font-semibold text-[#2e3338]">No giveaway prize yet</p>
+                <p className="mt-1 text-xs text-[#80848e]">
+                  The prize will appear here once an admin posts a giveaway product.
+                </p>
               </div>
             )}
           </div>
