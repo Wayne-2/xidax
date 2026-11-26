@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { CheckIcon } from "@/components/BuildIcons";
 import PaymentFailedModal from "@/components/PaymentFailedModal";
 import { useAccount } from "@/components/AccountProvider";
@@ -147,6 +147,7 @@ export default function CheckoutFlow() {
   const { region, setCountry: setRegionCountry } = useRegion();
   const toast = useToast();
   const [autoOtpSent, setAutoOtpSent] = useState(false);
+  const draftRef = useRef<Draft>(defaultDraft);
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [otpStep, setOtpStep] = useState(false);
@@ -190,7 +191,7 @@ export default function CheckoutFlow() {
     return () => window.clearTimeout(timer);
   }, [region.country, user?.country, user?.email]);
 
-  useEffect(() => { if (draftReady) saveDraft(draft); }, [draft, draftReady]);
+  useEffect(() => { draftRef.current = draft; if (draftReady) saveDraft(draft); }, [draft, draftReady]);
 
   useEffect(() => {
     if (!draftReady || restoring || session || checkoutOtpVerified || autoOtpSent) return;
@@ -198,9 +199,10 @@ export default function CheckoutFlow() {
       const params = new URLSearchParams(window.location.search);
       if (params.get("verify") !== "1") return;
       setOtpStep(true);
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) { setOtpStep(false); setStep(1); return; }
+      const email = draftRef.current.email.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setOtpStep(false); setStep(1); return; }
       setAutoOtpSent(true);
-      void requestCheckoutOtp();
+      void requestCheckoutOtp(email);
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftReady, restoring, session, checkoutOtpVerified, autoOtpSent]);
@@ -323,8 +325,8 @@ export default function CheckoutFlow() {
     return Object.keys(next).length === 0;
   }
 
-  async function requestCheckoutOtp() {
-    const email = draft.email.trim().toLowerCase();
+  async function requestCheckoutOtp(emailOverride?: string) {
+    const email = (emailOverride ?? draft.email).trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setOtpStep(false);
       setStep(1);
@@ -356,8 +358,8 @@ export default function CheckoutFlow() {
       await verifyCheckoutOtp(draft.email.trim().toLowerCase(), otp);
       setCheckoutOtpVerified(true);
       setOtpStep(false);
-      setStep(2);
-      toast.success("Email verified.");
+      setStep(1);
+      toast.success("Email verified. Continue with your details.");
     } catch (e) {
       setOtpError(e instanceof Error ? e.message : "Could not verify code.");
       setOtpDigits(Array(6).fill(""));
@@ -598,7 +600,7 @@ export default function CheckoutFlow() {
           </div>
         </section>
         <div className="flex items-center justify-end">
-          <button type="button" disabled={otpVerifying || otpDigits.join("").length !== 6} onClick={() => void verifyCheckoutOtpCode()} className="rounded-xl bg-[#5965F5] px-6 py-3 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{otpVerifying ? "Verifying..." : "Verify and continue"}</button>
+          <button type="button" disabled={otpVerifying || otpDigits.join("").length !== 6 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())} onClick={() => void verifyCheckoutOtpCode()} className="rounded-xl bg-[#5965F5] px-6 py-3 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{otpVerifying ? "Verifying..." : "Verify and continue"}</button>
         </div>
       </div>
       {summary}
