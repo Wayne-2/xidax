@@ -17,7 +17,6 @@ import {
   expireStaleSessions,
   getSessionById,
   listActiveWallets,
-  markSessionPaid,
   submitCardPayment,
   isCheckoutOtpVerified,
   notifyWirePending,
@@ -707,7 +706,7 @@ const worker = {
           return jsonWithCors({ error: "Invalid cart identifier." }, request, env, 400);
         }
 
-        // Resolve the signed-in user (if any) from the session token.
+        // Cart/checkout requires a signed-in user.
         let userId: string | null = null;
         let userEmail: string | null = null;
         const sessionToken = readToken(request);
@@ -716,6 +715,10 @@ const worker = {
           const user = await findUserByToken(env, sessionToken);
           userId = user?.id ?? null;
           userEmail = user?.email ?? null;
+        }
+
+        if (!userId) {
+          return jsonWithCors({ error: "Sign in required.", code: "auth_required" }, request, env, 401);
         }
 
         if (request.method === "GET" && path === "/api/cart") {
@@ -1695,6 +1698,12 @@ const worker = {
 
         if (!payload) {
           return json({ error: "Invalid checkout request." }, 400);
+        }
+
+        const sessionToken = readToken(request);
+        const authedUser = sessionToken ? await findUserByToken(env, sessionToken) : null;
+        if (!authedUser) {
+          return json({ error: "Sign in required.", code: "auth_required" }, 401);
         }
 
         const email = typeof payload.details?.email === "string" ? payload.details.email : "";

@@ -602,17 +602,9 @@ export async function createCheckout(
   payload: CheckoutRequest
 ): Promise<CheckoutResult> {
   const sessionToken = readToken(request);
-
-  if (sessionToken) {
-    const user = await findUserByToken(env, sessionToken);
-
-    if (!user || !user.emailVerified) {
-      return {
-        ok: false,
-        status: 403,
-        error: "Please verify your email address before checking out.",
-      };
-    }
+  const user = sessionToken ? await findUserByToken(env, sessionToken) : null;
+  if (!user) {
+    return { ok: false, status: 401, error: "Sign in required." };
   }
 
   if (!isValidRequest(payload)) {
@@ -819,8 +811,9 @@ export async function getSessionById(
 /** Admin sets wire bank details for an order; status moves to awaiting_payment. */
 function checkoutOtpKey(email: string) { return `checkout-otp:${email.trim().toLowerCase()}`; }
 function randomOtp() { return String(Math.floor(100000 + Math.random() * 900000)); }
-async function hashCheckoutOtp(email: string, otp: string) {
-  const data = new TextEncoder().encode(`${email.toLowerCase()}:${otp}:${(globalThis as any).OTP_SALT || "checkout"}`);
+async function hashCheckoutOtp(env: Env, email: string, otp: string) {
+  const salt = typeof env.OTP_SECRET === "string" && env.OTP_SECRET ? env.OTP_SECRET : "checkout";
+  const data = new TextEncoder().encode(`${email.toLowerCase()}:${otp}:${salt}`);
   const buf = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(buf)).map((b)=>b.toString(16).padStart(2,"0")).join("");
 }
@@ -834,7 +827,7 @@ export async function sendCheckoutOtp(env: Env, emailRaw: string): Promise<{ ok:
   const now = Date.now();
   if (existing?.lastSentAt && now - existing.lastSentAt < 60_000) return { ok: false, status: 429, error: "Please wait before requesting another code." };
   const otp = randomOtp();
-  const hash = await hashCheckoutOtp(email, otp);
+  const hash = await hashCheckoutOtp(env, email, otp);
   await env.SESSIONS.put(key, JSON.stringify({ hash, expiresAt: now + 5 * 60_000, attempts: 0, lastSentAt: now }), { expirationTtl: 600 });
   const { sendVerificationEmail } = await import("./email");
   const sent = await sendVerificationEmail({ apiKey: env.RESEND_API_KEY, to: email, otp });
@@ -853,7 +846,7 @@ export async function verifyCheckoutOtp(env: Env, emailRaw: string, otpRaw: stri
   if (!rec) return { ok: false, status: 400, error: "Code expired or not found. Request a new one." };
   if (Date.now() > rec.expiresAt) { await env.SESSIONS.delete(key); return { ok: false, status: 400, error: "Code expired. Request a new one." }; }
   if (rec.attempts >= 5) { await env.SESSIONS.delete(key); return { ok: false, status: 400, error: "Too many attempts. Request a new code." }; }
-  const hash = await hashCheckoutOtp(email, otp);
+  const hash = await hashCheckoutOtp(env, email, otp);
   if (hash !== rec.hash) {
     await env.SESSIONS.put(key, JSON.stringify({ ...rec, attempts: rec.attempts + 1 }), { expirationTtl: 600 });
     return { ok: false, status: 400, error: "Incorrect code." };
