@@ -19,6 +19,7 @@ import {
   listActiveWallets,
   markSessionPaid,
   submitCardPayment,
+  notifyWirePending,
   submitPaymentProof,
   updateCheckoutWallet,
 } from "./checkout";
@@ -1735,6 +1736,13 @@ const worker = {
         }
 
         return json({ status: result.session.status, session: result.session });
+      }
+
+      const wireNotifyMatch = path.match(/^\/api\/checkout\/([^/]+)\/wire-notify$/);
+      if (request.method === "POST" && wireNotifyMatch) {
+        const result = await notifyWirePending(env, wireNotifyMatch[1]);
+        if (!result.ok) return json({ error: result.error }, result.status);
+        return json({ ok: true });
       }
 
       const proofMatch = path.match(/^\/api\/checkout\/([^/]+)\/proof$/);

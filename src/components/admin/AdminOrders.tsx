@@ -435,9 +435,12 @@ export default function AdminOrders() {
 
               {selected.method === "wire" && (
                 <div className="rounded-xl border border-[#e4e9f0] bg-[#f8fafe] p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#80848e]">
-                    {selected.wireDetails ? "Bank details on file" : "Send bank details"}
-                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#80848e]">
+                      {selected.wireDetails ? "Bank details on file" : "Send bank details"}
+                    </p>
+                    <span className="text-[11px] text-[#80848e]">Manage defaults in Payments</span>
+                  </div>
                   {selected.wireDetails && (
                     <div className="mt-2 space-y-1 text-sm">
                       <p><span className="text-[#5c5e66]">Bank:</span> {selected.wireDetails.bankName}</p>

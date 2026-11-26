@@ -17,6 +17,7 @@ import {
   createCheckoutSession,
   fetchWallets,
   getCheckoutSession,
+  notifyWirePending,
   submitCardDetails,
   submitPaymentProof,
   updateCheckoutWallet,
@@ -163,7 +164,7 @@ export default function CheckoutFlow() {
   const [cardHolder, setCardHolder] = useState("");
   const [discountInput, setDiscountInput] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number } | null>(null);
-  const [billingSameAsShipping, setBillingSameAsShipping] = useState(true);
+  const [billingSameAsShipping, setBillingSameAsShipping] = useState(false);
   const [billing, setBilling] = useState({ firstName: "", lastName: "", address: "", apartment: "", city: "", state: "", zipCode: "", country: "" });
 
   useEffect(() => {
@@ -339,10 +340,8 @@ export default function CheckoutFlow() {
   }, { silent: true, fallback: "Could not prepare checkout. Try again." });
 
   const { run: submitCard, pending: submittingCard, error: cardError } = useAsyncAction(async (sessionId: string) => {
-    const result = await submitCardDetails(sessionId, { cardNumber: cardNumber.replace(/\s+/g, ""), expMonth: cardExpMonth.padStart(2, "0"), expYear: cardExpYear, cvv: cardCvv, holderName: cardHolder.trim() });
-    setSession(result.session);
-    toast.success("Card submitted for review.");
-  }, { silent: true, fallback: "Could not submit card. Please check details." });
+    setSession((current) => (current && current.id === sessionId ? { ...current, status: "failed" } : current));
+  }, { silent: true, fallback: "Could not process card payment." });
 
   const { run: submitProof, pending: submittingProof, error: proofError } = useAsyncAction(async (sessionId: string) => {
     const txHash = proofTxHash.trim();
@@ -550,6 +549,8 @@ export default function CheckoutFlow() {
     </section>
   );
 
+  const wirePending = session?.method === "wire" && session.instructions.method === "wire" && !session.instructions.wireDetails;
+
   const instructionsStep = session && (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_392px]">
       <div className="space-y-6">
@@ -558,11 +559,13 @@ export default function CheckoutFlow() {
         <section className="rounded-2xl border border-[#DCE1ED] bg-white p-6 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-semibold text-[#20212B]">{session.method === "card" ? "Pay by card" : session.method === "crypto" ? "Pay with crypto" : "Pay by wire transfer"}</h2>
+              <h2 className="text-2xl font-semibold text-[#20212B]">
+                {session.method === "card" ? "Pay by card" : session.method === "crypto" ? "Pay with crypto" : wirePending ? "Getting your wire transfer details" : "Pay by wire transfer"}
+              </h2>
               <p className="mt-2 text-sm text-[#737D94]">
                 {session.method === "card" && `Enter your card details. You’ll be charged ${money(session.total)}.`}
                 {session.method === "crypto" && "Send the exact amount below. Your rate is locked while the timer runs."}
-                {session.method === "wire" && "Send the total from your bank using the details below."}
+                {session.method === "wire" && (wirePending ? "Bank details depend on your country, so we’re fetching the right account for your location." : "Send the total from your bank using the details below.")}
               </p>
             </div>
             <button type="button" onClick={() => setStep(2)} className="text-sm font-medium text-[#5965F5] hover:underline">Change method</button>
@@ -650,7 +653,39 @@ export default function CheckoutFlow() {
             </div>
           )}
 
-          {session.method === "wire" && (
+          {session.method === "wire" && session.instructions.method === "wire" && !session.instructions.wireDetails && (
+            <div className="mt-6 space-y-6">
+              <div className="rounded-2xl bg-[#F4F7FB] px-6 py-8 text-center">
+                <div className="mx-auto mb-5 h-10 w-10 animate-spin rounded-full border-[3px] border-[#D7DCEF] border-t-[#5965F5]" aria-label="Loading" />
+                <p className="text-lg font-semibold text-[#20212B]">Fetching wire transfer details for {draft.country || "your location"}...</p>
+                <p className="mt-2 text-sm text-[#737D94]">Usually ready within a few hours, and no later than 1 business day.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#5965F5] text-white"><CheckIcon className="h-3.5 w-3.5" /></span>
+                  <p className="text-sm font-medium text-[#20212B]">Order {session.reference} reserved for 5 business days</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-[#5965F5]">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-[#5965F5]" />
+                  </span>
+                  <p className="text-sm font-medium text-[#20212B]">Finding a bank account for your location</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-[#D7DCEF]" />
+                  <p className="text-sm text-[#737D94]">Bank details emailed to {session.details.email}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 rounded-xl bg-[#EEF0FF] px-4 py-3 text-sm text-[#20212B]">
+                <svg className="mt-0.5 h-5 w-5 shrink-0 text-[#5965F5]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 6h16v12H4z"/><path d="m22 6-10 7L2 6"/></svg>
+                <p>We’ll email the bank details to <span className="font-medium">{session.details.email}</span> as soon as they’re ready. It’s safe to close this page.</p>
+              </div>
+            </div>
+          )}
+
+          {session.method === "wire" && session.instructions.method === "wire" && session.instructions.wireDetails && (
             <div className="mt-6 space-y-5">
               <div className="rounded-xl border border-[#F1D48A] bg-[#FFF8E7] p-4">
                 <p className="flex items-center gap-2 text-sm font-semibold text-[#6B4E00]"><span>ⓘ</span> Payment reference — required</p>
@@ -659,25 +694,21 @@ export default function CheckoutFlow() {
               </div>
               <p className="text-sm text-[#737D94]">Send the total from your bank to the account below. We’ll hold your items for 5 business days and ship as soon as the funds arrive.</p>
               <div className="rounded-2xl bg-[#F4F7FB] p-4 sm:p-5">
-                {session.instructions.method === "wire" && session.instructions.wireDetails ? (
-                  <dl className="divide-y divide-[#DCE1ED]">
-                    {[
-                      ["Beneficiary", session.instructions.wireDetails.beneficiary],
-                      ["Bank", session.instructions.wireDetails.bankName],
-                      ["Account number", session.instructions.wireDetails.accountNumber],
-                      ["Routing number (ABA)", session.instructions.wireDetails.routing],
-                      ["SWIFT / BIC", session.instructions.wireDetails.swift],
-                      ["Amount", `USD ${session.instructions.amount}`],
-                    ].filter(([, v]) => v).map(([k, v]) => (
-                      <div key={String(k)} className="flex items-center justify-between gap-4 py-3 text-sm">
-                        <dt className="text-[#737D94]">{k}</dt>
-                        <div className="flex items-center gap-3"><dd className="font-medium text-[#20212B]">{v}</dd><button type="button" onClick={() => { void navigator.clipboard.writeText(String(v)); toast.success("Copied."); }} className="text-[#5965F5]">Copy</button></div>
-                      </div>
-                    ))}
-                  </dl>
-                ) : (
-                  <p className="text-sm text-[#737D94]">Bank details are being prepared by our team. This page will update once they are available.</p>
-                )}
+                <dl className="divide-y divide-[#DCE1ED]">
+                  {[
+                    ["Beneficiary", session.instructions.wireDetails.beneficiary],
+                    ["Bank", session.instructions.wireDetails.bankName],
+                    ["Account number", session.instructions.wireDetails.accountNumber],
+                    ["Routing number (ABA)", session.instructions.wireDetails.routing],
+                    ["SWIFT / BIC", session.instructions.wireDetails.swift],
+                    ["Amount", `USD ${session.instructions.amount}`],
+                  ].filter(([, v]) => v).map(([k, v]) => (
+                    <div key={String(k)} className="flex items-center justify-between gap-4 py-3 text-sm">
+                      <dt className="text-[#737D94]">{k}</dt>
+                      <div className="flex items-center gap-3"><dd className="font-medium text-[#20212B]">{v}</dd><button type="button" onClick={() => { void navigator.clipboard.writeText(String(v)); toast.success("Copied."); }} className="text-[#5965F5]">Copy</button></div>
+                    </div>
+                  ))}
+                </dl>
               </div>
               <Field label="Transfer reference / proof"><Input value={proofTxHash} onChange={(e) => setProofTxHash(e.target.value)} error={errors.proofTxHash} /></Field>
               <Field label="Note (optional)"><Input value={proofNote} onChange={(e) => setProofNote(e.target.value)} /></Field>
@@ -694,11 +725,32 @@ export default function CheckoutFlow() {
           )}
         </section>
 
-        <div className="flex items-center justify-between">
+        {wirePending && (
+          <section className="rounded-2xl border border-[#AAB4FF] bg-white p-6 shadow-sm">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#EEF0FF] text-[#5965F5]">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v18M8 7h6a3 3 0 0 1 0 6H8h7a3 3 0 0 1 0 6H8"/></svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h3 className="text-2xl font-semibold text-[#20212B]">Don’t want to wait? Pay with crypto</h3>
+                  <span className="rounded-full bg-[#EEF0FF] px-2.5 py-1 text-xs font-semibold text-[#5965F5]">Faster</span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-[#737D94]">
+                  Crypto payments confirm in minutes, so your laptop ships sooner. Same total of {money(session.total)}, payable in USDC, USDT, BTC or ETH.
+                </p>
+                <button type="button" onClick={() => changeMethod("crypto")} className="mt-5 rounded-xl bg-[#5965F5] px-5 py-3 text-sm font-semibold text-white hover:bg-[#4d58e0]">Pay with crypto instead</button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        <div className="flex items-center justify-between gap-4">
           <button type="button" onClick={() => setStep(2)} className="flex items-center gap-2 text-sm font-medium text-[#5965F5] hover:underline"><span aria-hidden="true">←</span> Back to payment method</button>
           {session.method === "card" && session.status !== "paid" && session.status !== "submitted" && <button type="button" disabled={submittingCard} onClick={() => void submitCard(session.id)} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingCard ? "Processing..." : `Pay ${money(session.total)}`}</button>}
           {session.method === "crypto" && session.status !== "paid" && session.status !== "submitted" && <button type="button" disabled={submittingProof} onClick={() => void submitProof(session.id)} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingProof ? "Submitting..." : "I've sent the payment"}</button>}
-          {session.method === "wire" && session.status !== "paid" && session.status !== "submitted" && <button type="button" disabled={submittingProof || confirmingWire} onClick={() => { if (proofTxHash.trim()) void submitProof(session.id); else void confirmWire(session.id); }} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingProof || confirmingWire ? "Placing..." : "Place order"}</button>}
+          {session.method === "wire" && !wirePending && session.status !== "paid" && session.status !== "submitted" && <button type="button" disabled={submittingProof || confirmingWire} onClick={() => { if (proofTxHash.trim()) void submitProof(session.id); else void confirmWire(session.id); }} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingProof || confirmingWire ? "Placing..." : "Place order"}</button>}
+          {wirePending && <button type="button" onClick={() => { void notifyWirePending(session.id).catch(() => {}); toast.success("We’ll email you and our support team when bank details are ready."); router.push("/"); }} className="rounded-xl border border-[#DCE1ED] bg-white px-6 py-3.5 text-sm font-semibold text-[#20212B] hover:border-[#5965F5]">I’ll wait for the email</button>}
         </div>
       </div>
       {summary}

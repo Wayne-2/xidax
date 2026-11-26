@@ -319,6 +319,11 @@ export async function confirmPayment(
   );
 }
 
+export async function notifyWirePending(id: string): Promise<{ ok: boolean }> {
+  if (!API_BASE) return { ok: true };
+  return request<{ ok: boolean }>(`/api/checkout/${encodeURIComponent(id)}/wire-notify`, { method: "POST" });
+}
+
 export async function updateCheckoutWallet(
   id: string,
   walletId: string

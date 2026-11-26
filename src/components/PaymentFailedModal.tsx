@@ -44,7 +44,7 @@ export default function PaymentFailedModal({
 
         <h2 id="card-declined-title" className="mt-5 text-3xl font-semibold tracking-tight text-[#20212B]">Your card was declined</h2>
         <p className="mt-3 text-sm leading-6 text-[#737D94]">
-          Your bank didn’t approve this payment of {amount}, so you haven’t been charged. Check your card details and try again, use a different card, or pay another way.
+          Your bank didn’t approve this payment of {amount}, so you haven’t been charged. Some countries or card types aren’t accepted for card payments. Check your details, try another card, or pay another way.
         </p>
 
         <button type="button" onClick={onUpdateCard} className="mt-6 h-12 w-full rounded-xl bg-[#5965F5] text-sm font-semibold text-white hover:bg-[#4d58e0]">Update card details</button>

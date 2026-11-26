@@ -6,6 +6,7 @@ import {
   notifyAdminsPaymentEvent,
   sendReceiptEmail,
   sendWireDetailsEmail,
+  sendWirePendingEmails,
   sendWireRequestEmail,
   type AdminPaymentAlertInput,
   type ReceiptLine,
@@ -814,6 +815,43 @@ export async function getSessionById(
 }
 
 /** Admin sets wire bank details for an order; status moves to awaiting_payment. */
+export async function notifyWirePending(
+  env: Env,
+  orderId: string
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const current = await getLiveSession(env, orderId);
+  if (!current) return { ok: false, status: 404, error: "Order not found." };
+  if (current.method !== "wire") return { ok: false, status: 400, error: "Not a wire transfer order." };
+
+  if (env.RESEND_API_KEY && current.details.email) {
+    await sendWirePendingEmails({
+      apiKey: env.RESEND_API_KEY,
+      customerEmail: current.details.email,
+      supportEmail: "supportsgenericpcs@gmail.com",
+      reference: current.reference,
+      customerName: customerName(current.details),
+      amount: current.instructions.amount,
+      currency: current.instructions.billingCurrency,
+      country: current.details.country || "Unknown",
+    }).catch((error) => {
+      console.error("wire pending email failed:", error);
+    });
+  }
+
+  void notifyAdminsPaymentEvent(env, {
+    kind: "wire",
+    event: "requested",
+    reference: current.reference,
+    amount: current.total,
+    currency: current.currency,
+    customerName: customerName(current.details),
+    customerEmail: current.details.email,
+    detail: "Customer is waiting for wire bank details. Please send account details from admin Payments/Orders.",
+  } satisfies AdminPaymentAlertInput);
+
+  return { ok: true };
+}
+
 export async function applyWireDetails(
   env: Env,
   orderId: string,

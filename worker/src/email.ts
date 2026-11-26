@@ -647,6 +647,77 @@ export async function sendWireRequestEmail(
   );
 }
 
+export type SendWirePendingInput = {
+  apiKey: string;
+  customerEmail: string;
+  supportEmail?: string;
+  reference: string;
+  customerName: string;
+  amount: string;
+  currency: string;
+  country: string;
+};
+
+export function buildWirePendingCustomerEmailHtml(input: SendWirePendingInput): string {
+  const body = `
+          <tr>
+            <td style="padding:32px 32px 8px;">
+              <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:800;letter-spacing:-0.02em;color:${BRAND.ink};">
+                We’re preparing your wire transfer details
+              </h1>
+              <p style="margin:0;font-size:15px;line-height:1.65;color:${BRAND.body};">
+                Hi ${escapeHtml(input.customerName)} — we’re finding the correct bank account for <strong style="color:${BRAND.ink};">${escapeHtml(input.country || "your location")}</strong> for order <strong style="color:${BRAND.ink};">${escapeHtml(input.reference)}</strong>.
+                Your order is reserved for 5 business days. We’ll email you as soon as the bank details are ready.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${BRAND.surface};border-radius:12px;">
+                <tr><td style="padding:18px 20px;">
+                  <p style="margin:0 0 8px;font-size:13px;color:${BRAND.muted};">Order reference</p>
+                  <p style="margin:0 0 12px;font-size:16px;font-weight:700;color:${BRAND.ink};font-family:'SF Mono',Menlo,Consolas,monospace;">${escapeHtml(input.reference)}</p>
+                  <p style="margin:0 0 8px;font-size:13px;color:${BRAND.muted};">Amount</p>
+                  <p style="margin:0;font-size:16px;font-weight:700;color:${BRAND.ink};">${escapeHtml(input.amount)} ${escapeHtml(input.currency)}</p>
+                </td></tr>
+              </table>
+            </td>
+          </tr>`;
+  return shell("Wire transfer pending", "Wire transfer", body);
+}
+
+export function buildWirePendingSupportEmailHtml(input: SendWirePendingInput): string {
+  const body = `
+          <tr>
+            <td style="padding:32px 32px 8px;">
+              <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:800;letter-spacing:-0.02em;color:${BRAND.ink};">
+                Wire details needed
+              </h1>
+              <p style="margin:0;font-size:15px;line-height:1.65;color:${BRAND.body};">
+                A customer is waiting for wire transfer bank details. Send the account details from the admin Payments/Orders page when ready.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${BRAND.surface};border-radius:12px;">
+                <tr><td style="padding:18px 20px;">
+                  ${[["Reference", input.reference], ["Customer", input.customerName], ["Email", input.customerEmail], ["Country", input.country || "Unknown"], ["Amount", `${input.amount} ${input.currency}`]].map(([k,v]) => `<p style="margin:0 0 8px;font-size:13px;color:${BRAND.muted};">${escapeHtml(k)}</p><p style="margin:0 0 12px;font-size:15px;font-weight:600;color:${BRAND.ink};">${escapeHtml(v)}</p>`).join("")}
+                </td></tr>
+              </table>
+            </td>
+          </tr>`;
+  return shell("Wire details needed", "Admin action", body);
+}
+
+export async function sendWirePendingEmails(input: SendWirePendingInput): Promise<void> {
+  const support = (input.supportEmail || FALLBACK_ADMIN_EMAILS[0]).trim().toLowerCase();
+  await Promise.allSettled([
+    postResend(input.apiKey, input.customerEmail, `Generic PCs — we’re preparing your wire details — ${input.reference}`, buildWirePendingCustomerEmailHtml(input)),
+    postResend(input.apiKey, support, `[${input.reference}] Wire bank details needed — ${input.country || "Unknown"}`, buildWirePendingSupportEmailHtml(input)),
+  ]);
+}
+
 /** Best-effort email to every admin about a payment event. */
 export async function notifyAdminsPaymentEvent(
   env: { RESEND_API_KEY?: string; DB: D1Database },
