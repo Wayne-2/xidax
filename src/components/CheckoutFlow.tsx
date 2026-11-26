@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
+import PaymentFailedModal from "@/components/PaymentFailedModal";
 import { useAccount } from "@/components/AccountProvider";
 import { useCart } from "@/components/CartProvider";
 import { useRegion } from "@/components/RegionProvider";
@@ -20,1639 +21,693 @@ import {
   submitPaymentProof,
 } from "@/lib/api";
 import {
-  cryptoAmountFor,
+  DELIVERY_OPTIONS,
+  formatCheckoutAddress,
   formatCountdown,
-  networkConfig,
+  formatDeliveryWindow,
+  getCheckoutCustomerName,
+  getCheckoutPostalCode,
   paymentMethods,
-  statusLabel,
   type CheckoutSession,
   type CryptoWallet,
+  type DeliveryMethod,
   type PaymentMethod,
 } from "@/lib/payments";
 
-function StepBadge({
-  index,
-  label,
-  active,
-  done,
-}: {
-  index: number;
-  label: string;
-  active: boolean;
-  done: boolean;
-}) {
+const CHECKOUT_SESSION_KEY = "genericpcs.checkout.session";
+const DRAFT_KEY = "genericpcs.checkout.draft";
+
+type Draft = {
+  email: string;
+  marketingOptIn: boolean;
+  firstName: string;
+  lastName: string;
+  address: string;
+  apartment: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+  phone: string;
+  deliveryMethod: DeliveryMethod;
+  paymentMethod: PaymentMethod;
+  discountCode: string;
+};
+
+const defaultDraft: Draft = {
+  email: "",
+  marketingOptIn: false,
+  firstName: "",
+  lastName: "",
+  address: "",
+  apartment: "",
+  city: "",
+  state: "",
+  zipCode: "",
+  country: "",
+  phone: "",
+  deliveryMethod: "standard",
+  paymentMethod: "crypto",
+  discountCode: "",
+};
+
+function loadDraft(): Draft {
+  if (typeof window === "undefined") return defaultDraft;
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    if (!raw) return defaultDraft;
+    return { ...defaultDraft, ...(JSON.parse(raw) as Partial<Draft>) };
+  } catch {
+    return defaultDraft;
+  }
+}
+
+function saveDraft(draft: Draft) {
+  try { window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
+}
+function rememberCheckoutSession(id: string) { try { window.localStorage.setItem(CHECKOUT_SESSION_KEY, id); } catch {} }
+function readRememberedCheckoutSession() { try { return window.localStorage.getItem(CHECKOUT_SESSION_KEY); } catch { return null; } }
+function clearRememberedCheckoutSession() { try { window.localStorage.removeItem(CHECKOUT_SESSION_KEY); } catch {} }
+
+function money(value: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+}
+
+function StepIcon({ state, index }: { state: "active" | "done" | "idle"; index: number }) {
+  if (state === "done") {
+    return <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#5965F5] text-white"><CheckIcon className="h-4 w-4" /></span>;
+  }
+  if (state === "active") {
+    return <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#5965F5] text-sm font-semibold text-white">{index}</span>;
+  }
+  return <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#DCE1ED] bg-white text-sm font-semibold text-[#737D94]">{index}</span>;
+}
+
+function Progress({ step }: { step: 1 | 2 | 3 }) {
+  const steps = ["Details", "Payment", "Instructions"] as const;
   return (
-    <div className="flex items-center gap-2">
-      <span
-        className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold transition-colors ${
-          done
-            ? "bg-[#16A34A] text-white"
-            : active
-              ? "bg-[#5865F2] text-white"
-              : "border border-[#d2dbe8] bg-[#f8fafe] text-[#80848e]"
-        }`}
-      >
-        {done ? <CheckIcon className="h-3.5 w-3.5" /> : index}
-      </span>
-      <span
-        className={`text-xs font-semibold uppercase tracking-[0.14em] ${
-          active ? "text-[#2e3338]" : "text-[#80848e]"
-        }`}
-      >
-        {label}
-      </span>
+    <div className="flex items-center justify-center gap-3 py-6">
+      {steps.map((label, i) => {
+        const index = (i + 1) as 1 | 2 | 3;
+        const state = step > index ? "done" : step === index ? "active" : "idle";
+        return (
+          <Fragment key={label}>
+            <div className="flex items-center gap-2">
+              <StepIcon state={state} index={index} />
+              <span className={`text-sm font-medium ${state === "idle" ? "text-[#737D94]" : "text-[#20212B]"}`}>{label}</span>
+            </div>
+            {i < 2 && <div className={`h-px w-10 sm:w-20 ${step > index ? "bg-[#5965F5]" : "bg-[#DCE1ED]"}`} />}
+          </Fragment>
+        );
+      })}
     </div>
   );
 }
 
-function CopyButton({ value, label }: { value: string; label: string }) {
-  const toast = useToast();
+function Field({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) {
+  return <label className={`block ${className}`}><span className="mb-1.5 block text-sm font-medium text-[#20212B]">{label}</span>{children}</label>;
+}
 
+function Input(props: React.InputHTMLAttributes<HTMLInputElement> & { error?: string }) {
+  const { error, className = "", ...rest } = props;
   return (
-    <button
-      type="button"
-      onClick={() => {
-        void navigator.clipboard.writeText(value).then(
-          () => toast.success(`${label} copied.`),
-          () => toast.error("Could not copy. Select the text manually.")
-        );
-      }}
-      className="rounded-lg border border-[#d2dbe8] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#5865F2] transition-colors hover:border-[#5865F2]/40"
-    >
-      Copy
-    </button>
+    <>
+      <input {...rest} className={`h-11 w-full rounded-xl border bg-white px-3.5 text-sm text-[#20212B] outline-none transition placeholder:text-[#737D94] focus:border-[#5965F5] ${error ? "border-red-400" : "border-[#DCE1ED]"} ${className}`} />
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+    </>
   );
 }
 
-const CHECKOUT_SESSION_KEY = "genericpcs.checkout.session";
-
-function rememberCheckoutSession(id: string) {
-  try {
-    window.localStorage.setItem(CHECKOUT_SESSION_KEY, id);
-  } catch {
-    // Storage full/blocked — restore simply won't happen.
-  }
-}
-
-function readRememberedCheckoutSession(): string | null {
-  try {
-    return window.localStorage.getItem(CHECKOUT_SESSION_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function clearRememberedCheckoutSession() {
-  try {
-    window.localStorage.removeItem(CHECKOUT_SESSION_KEY);
-  } catch {
-    // Ignore.
-  }
-}
-
-const secondaryButtonClass =
-  "inline-flex h-12 touch-manipulation items-center justify-center rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-5 text-sm font-semibold text-[#4e5058] transition-colors hover:border-[#b8c4d6] hover:text-[#2e3338]";
-
-const primaryButtonClass =
-  "inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:opacity-70";
-
 export default function CheckoutFlow() {
-  const { token } = useAccount();
   const router = useRouter();
+  const { token, user } = useAccount();
   const { items, subtotal, promo, ready } = useCart();
-  const { user } = useAccount();
-  const { region, formatMoney, formatBase, clock, setCountry: setRegionCountry } =
-    useRegion();
+  const { region, setCountry: setRegionCountry } = useRegion();
   const toast = useToast();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [country, setCountry] = useState<string | null>(null);
-  const [postalCode, setPostalCode] = useState("");
-  const [method, setMethod] = useState<PaymentMethod | null>(null);
-  const [walletId, setWalletId] = useState<string>("");
-  const [wallets, setWallets] = useState<CryptoWallet[]>([]);
-  const [walletsLoaded, setWalletsLoaded] = useState(false);
+  const [draft, setDraft] = useState<Draft>(defaultDraft);
+  const [draftReady, setDraftReady] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [session, setSession] = useState<CheckoutSession | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [now, setNow] = useState(0);
-
-  const [cardNumber, setCardNumber] = useState("");
+  const [wallets, setWallets] = useState<CryptoWallet[]>([]);
+  const [walletId, setWalletId] = useState("");
   const [proofTxHash, setProofTxHash] = useState("");
   const [proofNote, setProofNote] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
   const [cardExpMonth, setCardExpMonth] = useState("");
   const [cardExpYear, setCardExpYear] = useState("");
   const [cardCvv, setCardCvv] = useState("");
   const [cardHolder, setCardHolder] = useState("");
-
-  const productDiscount = items.reduce((sum, item) => {
-    if (!item.promoEnabled || !item.promoCode) return sum;
-    return sum + item.price * item.quantity * ((item.promoDiscount ?? 0) / 100);
-  }, 0);
-  const discount = productDiscount > 0
-    ? Math.round(productDiscount * 100) / 100
-    : promo
-      ? Math.round(subtotal * promo.rate * 100) / 100
-      : 0;
-  const discountedSubtotal = Math.max(0, Math.round((subtotal - discount) * 100) / 100);
-  const shipping = discountedSubtotal >= 99 || discountedSubtotal === 0 ? 0 : 19;
-  const total = Math.round((discountedSubtotal + shipping) * 100) / 100;
-  const productPromoCode =
-    items.find((item) => item.promoEnabled && item.promoCode)?.promoCode ?? undefined;
-  const selectedMethod: PaymentMethod = method ?? region.payment;
-  const countryValue = country ?? user?.country ?? region.country;
+  const [discountInput, setDiscountInput] = useState("");
+  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number } | null>(null);
+  const [billingSameAsShipping, setBillingSameAsShipping] = useState(true);
+  const [billing, setBilling] = useState({ firstName: "", lastName: "", address: "", apartment: "", city: "", state: "", zipCode: "", country: "" });
 
   useEffect(() => {
-    if (!user) return;
-
     const timer = window.setTimeout(() => {
-      setName((current) => current || user.name);
-      setEmail((current) => current || user.email);
-      setPhone((current) => current || user.phone);
-      setCountry((current) => current || user.country);
-      setPostalCode((current) => current || user.postalCode);
+      const loaded = loadDraft();
+      setDraft({ ...loaded, country: loaded.country || user?.country || region.country, email: loaded.email || user?.email || "" });
+      setDiscountInput(loaded.discountCode || "");
+      setDraftReady(true);
     }, 0);
-
     return () => window.clearTimeout(timer);
-  }, [user]);
+  }, [region.country, user?.country, user?.email]);
+
+  useEffect(() => { if (draftReady) saveDraft(draft); }, [draft, draftReady]);
 
   useEffect(() => {
-    if (ready && items.length === 0 && !session && !restoring) {
-      router.replace("/cart");
-    }
+    if (ready && items.length === 0 && !session && !restoring) router.replace("/cart");
   }, [ready, items.length, session, restoring, router]);
 
-  // Resume an in-flight checkout (e.g. waiting on wire bank details) after
-  // the user navigates away and comes back.
   useEffect(() => {
     let cancelled = false;
-
     async function restore() {
       const storedId = readRememberedCheckoutSession();
-
-      if (!storedId) {
-        if (!cancelled) setRestoring(false);
-        return;
-      }
-
+      if (!storedId) { if (!cancelled) setRestoring(false); return; }
       try {
         const fresh = await getCheckoutSession(storedId);
-
         if (cancelled) return;
-
-        if (!fresh || fresh.status === "expired") {
-          clearRememberedCheckoutSession();
-          setRestoring(false);
-          return;
-        }
-
-        if (fresh.status === "paid") {
-          clearRememberedCheckoutSession();
-        }
-
+        if (!fresh || fresh.status === "expired") { clearRememberedCheckoutSession(); setRestoring(false); return; }
+        if (fresh.status === "paid") clearRememberedCheckoutSession();
         setSession(fresh);
-        setNow(Date.now());
         setStep(3);
-        setName((current) => current || fresh.details.name);
-        setEmail((current) => current || fresh.details.email);
-        setPhone((current) => current || fresh.details.phone);
-        setCountry((current) => current || fresh.details.country);
-        setPostalCode((current) => current || fresh.details.postalCode);
-        setMethod((current) => current || fresh.method);
+        setNow(Date.now());
+        const d = fresh.details;
+        setDraft((current) => ({
+          ...current,
+          email: d.email || current.email,
+          marketingOptIn: Boolean(d.marketingOptIn),
+          firstName: d.firstName || current.firstName,
+          lastName: d.lastName || current.lastName,
+          address: d.address || current.address,
+          apartment: d.apartment || current.apartment || "",
+          city: d.city || current.city,
+          state: d.state || current.state,
+          zipCode: d.zipCode || d.postalCode || current.zipCode,
+          country: d.country || current.country,
+          phone: d.phone || current.phone,
+          deliveryMethod: d.deliveryMethod || current.deliveryMethod,
+          paymentMethod: fresh.method,
+          discountCode: fresh.discountCode || fresh.promoCode || current.discountCode,
+        }));
         if (fresh.walletId) setWalletId(fresh.walletId);
-      } catch {
-        // Keep the stored id on transient failures so a later visit can resume.
-      } finally {
-        if (!cancelled) setRestoring(false);
-      }
+        if (fresh.discountCode || fresh.promoCode) setAppliedDiscount({ code: fresh.discountCode || fresh.promoCode || "", amount: fresh.discount });
+      } catch {} finally { if (!cancelled) setRestoring(false); }
     }
-
     void restore();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     let cancelled = false;
-
     async function loadWallets() {
-      try {
-        const result = await fetchWallets();
-        if (cancelled) return;
-        setWallets(result.wallets);
-        setWalletId((current) => current || result.wallets[0]?.id || "");
-      } catch {
-        if (!cancelled) setWallets([]);
-      } finally {
-        if (!cancelled) setWalletsLoaded(true);
-      }
+      try { const result = await fetchWallets(); if (!cancelled) { setWallets(result.wallets); setWalletId((c) => c || result.wallets[0]?.id || ""); } }
+      catch { if (!cancelled) setWallets([]); }
     }
-
     void loadWallets();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     if (!session) return;
-
-    const update = () => setNow(Date.now());
-    const frame = window.setTimeout(update, 0);
-    const timer = window.setInterval(update, 1000);
-
-    return () => {
-      window.clearTimeout(frame);
-      window.clearInterval(timer);
-    };
+    const tick = () => setNow(Date.now());
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
   }, [session]);
 
-  // Poll the session so admin approval (paid) shows without a manual refresh.
   useEffect(() => {
-    if (!session || session.status === "paid" || session.status === "expired" || session.status === "failed") {
-      return;
-    }
-
+    if (!session || ["paid", "expired", "failed"].includes(session.status)) return;
     let cancelled = false;
-    let attempts = 0;
-
-    async function poll() {
-      if (cancelled) return;
+    const timer = window.setInterval(async () => {
       try {
-        const fresh = await getCheckoutSession(session!.id);
+        const fresh = await getCheckoutSession(session.id);
         if (cancelled || !fresh) return;
         setSession(fresh);
-
-        if (fresh.status === "paid") {
-          clearRememberedCheckoutSession();
-          toast.success("Payment approved — your receipt is on its way.");
-        } else if (fresh.status === "expired") {
-          clearRememberedCheckoutSession();
-        } else if (fresh.status === "awaiting_payment" && session!.status === "awaiting_admin") {
-          toast.success("Bank details are ready.");
-        }
-      } catch {
-        // Transient network blips are fine; keep polling.
-      }
-    }
-
-    const timer = window.setInterval(() => {
-      attempts += 1;
-      if (attempts > 180) return;
-      void poll();
+        if (fresh.status === "paid") { clearRememberedCheckoutSession(); toast.success("Payment confirmed."); }
+      } catch {}
     }, 4000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [session, toast]);
 
-  const lines = useMemo(
-    () =>
-      items.map((item) => ({
-        id: item.id,
-        name: item.name,
-        kind: item.category,
-        price: item.price,
-        quantity: item.quantity,
-      })),
-    [items]
-  );
+  const discountFromPromo = promo ? Math.round(subtotal * promo.rate * 100) / 100 : 0;
+  const discount = appliedDiscount?.amount ?? discountFromPromo;
+  const discountCode = appliedDiscount?.code ?? promo?.code;
+  const discountedSubtotal = Math.max(0, Math.round((subtotal - discount) * 100) / 100);
+  const shipping = draft.deliveryMethod === "express" ? 18 : 0;
+  const tax = Math.round(discountedSubtotal * 0.08 * 100) / 100;
+  const total = Math.round((discountedSubtotal + shipping + tax) * 100) / 100;
 
-  const remaining = session
-    ? Math.max(0, new Date(session.expiresAt).getTime() - now)
-    : 0;
-  const countdown = formatCountdown(remaining);
-  const instructions = session?.instructions;
+  const lines = useMemo(() => items.map((item) => ({ id: item.id, name: item.name, kind: item.kind, price: item.price, quantity: item.quantity })), [items]);
   const selectedWallet = wallets.find((entry) => entry.id === walletId) ?? wallets[0];
+  const remaining = session ? Math.max(0, new Date(session.expiresAt).getTime() - now) : 0;
+  const countdown = formatCountdown(remaining);
 
-  // Before the customer commits payment — or after the card rail fails —
-  // they can abandon or switch method.
-  const canLeaveInstructions =
-    Boolean(session) &&
-    (session!.status === "awaiting_payment" ||
-      session!.status === "awaiting_admin" ||
-      session!.status === "pending" ||
-      (session!.status === "failed" && session!.method === "card"));
-
-  const cardFailed = Boolean(
-    session && session.method === "card" && session.status === "failed"
-  );
-
-  function cancelCheckout() {
-    clearRememberedCheckoutSession();
-    setSession(null);
-    setErrors({});
-    setCardError(null);
-    clearCardFields();
-    setStep(1);
-    setMethod(null);
-    router.push("/cart");
-  }
-
-  function changePaymentMethod() {
-    if (!canLeaveInstructions) return;
-    clearRememberedCheckoutSession();
-    setSession(null);
-    setErrors({});
-    setCardError(null);
-    clearCardFields();
-    setStep(2);
-  }
-
-  /** After a failed card attempt, jump straight to another rail. */
-  function switchToMethod(next: PaymentMethod) {
-    clearRememberedCheckoutSession();
-    setSession(null);
-    setErrors({});
-    setCardError(null);
-    clearCardFields();
-    setMethod(next);
-    setStep(2);
-  }
-
-  function clearCardFields() {
-    setCardNumber("");
-    setCardExpMonth("");
-    setCardExpYear("");
-    setCardCvv("");
-    setCardHolder("");
+  function setField<K extends keyof Draft>(key: K, value: Draft[K]) {
+    setDraft((current) => ({ ...current, [key]: value }));
+    setErrors((current) => { const next = { ...current }; delete next[key]; return next; });
   }
 
   function validateDetails() {
     const next: Record<string, string> = {};
-
-    if (!name.trim()) next.name = "Tell us who the order is for.";
-    if (!email.trim()) {
-      next.email = "We need an email for the receipt.";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      next.email = "That email address does not look right.";
-    }
-    if (!phone.trim()) next.phone = "Add a phone number for delivery.";
-    if (!countryValue.trim()) next.country = "Choose the delivery country.";
-    if (!postalCode.trim()) next.postalCode = "Add the delivery postal code.";
-
+    if (!draft.email.trim()) next.email = "Email is required.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) next.email = "Enter a valid email address.";
+    if (!draft.firstName.trim()) next.firstName = "First name is required.";
+    if (!draft.lastName.trim()) next.lastName = "Last name is required.";
+    if (!draft.address.trim()) next.address = "Address is required.";
+    if (!draft.city.trim()) next.city = "City is required.";
+    if (!draft.state.trim()) next.state = "State is required.";
+    if (!draft.zipCode.trim()) next.zipCode = "ZIP code is required.";
+    if (!draft.country.trim()) next.country = "Country is required.";
+    if (!draft.phone.trim()) next.phone = "Phone is required.";
     setErrors(next);
-
     return Object.keys(next).length === 0;
   }
 
-  function validateCard() {
-    const next: Record<string, string> = {};
-    const digits = cardNumber.replace(/\s+/g, "");
-
-    if (!/^\d{12,19}$/.test(digits)) next.cardNumber = "Enter a valid card number.";
-    if (!/^(0[1-9]|1[0-2])$/.test(cardExpMonth.padStart(2, "0"))) {
-      next.cardExp = "Enter a valid expiry (MM/YY).";
+  function applyDiscountCode() {
+    const code = discountInput.trim().toUpperCase();
+    if (!code) { setErrors((c) => ({ ...c, discount: "Enter a discount or gift card code." })); return; }
+    if (appliedDiscount?.code === code) { setErrors((c) => ({ ...c, discount: "This code is already applied." })); return; }
+    if (promo && promo.code.toUpperCase() === code) {
+      const amount = Math.round(subtotal * promo.rate * 100) / 100;
+      setAppliedDiscount({ code, amount });
+      setDraft((c) => ({ ...c, discountCode: code }));
+      setErrors((c) => { const n = { ...c }; delete n.discount; return n; });
+      toast.success("Discount applied.");
+      return;
     }
-    if (!/^\d{2}$/.test(cardExpYear)) next.cardExp = "Enter a valid expiry (MM/YY).";
-    if (!/^\d{3,4}$/.test(cardCvv)) next.cardCvv = "Enter a valid security code.";
-    if (!cardHolder.trim()) next.cardHolder = "Enter the cardholder name.";
-
-    setErrors((current) => ({ ...current, ...next }));
-
-    return Object.keys(next).length === 0;
+    setErrors((c) => ({ ...c, discount: "This code is invalid or not available." }));
   }
 
-  const {
-    run: startPayment,
-    pending: startingPayment,
-    error: paymentError,
-  } = useAsyncAction(
-    async () => {
-      if (selectedMethod === "crypto" && !walletId) {
-        setErrors({ form: "Choose a wallet to send the crypto to." });
-        return;
-      }
+  const { run: startPayment, pending: startingPayment, error: paymentError } = useAsyncAction(async () => {
+    if (draft.paymentMethod === "crypto" && !selectedWallet) throw new AppError("No crypto wallet is available.");
+    const payload = {
+      lines,
+      details: {
+        email: draft.email.trim(),
+        marketingOptIn: draft.marketingOptIn,
+        firstName: draft.firstName.trim(),
+        lastName: draft.lastName.trim(),
+        address: draft.address.trim(),
+        apartment: draft.apartment.trim(),
+        city: draft.city.trim(),
+        state: draft.state.trim(),
+        zipCode: draft.zipCode.trim(),
+        country: draft.country.trim(),
+        phone: draft.phone.trim(),
+        deliveryMethod: draft.deliveryMethod,
+      },
+      method: draft.paymentMethod,
+      walletId: draft.paymentMethod === "crypto" ? selectedWallet?.id : undefined,
+      subtotal,
+      shipping,
+      tax,
+      discount,
+      total,
+      currency: "USD",
+      promoCode: discountCode,
+      discountCode,
+    };
+    const created = await createCheckoutSession(payload, token);
+    rememberCheckoutSession(created.id);
+    setSession(created);
+    setNow(Date.now());
+    setStep(3);
+  }, { silent: true, fallback: "Could not prepare checkout. Try again." });
 
-      const created = await createCheckoutSession(
-        {
-          lines,
-          details: { name, email, phone, country: countryValue, postalCode },
-          method: selectedMethod,
-          walletId: selectedMethod === "crypto" ? walletId : undefined,
-          subtotal,
-          shipping,
-          total,
-          currency: "USD",
-          promoCode: promo?.code ?? productPromoCode,
-        },
-        token
-      );
-
-      rememberCheckoutSession(created.id);
-      setSession(created);
-      setNow(Date.now());
-      setStep(3);
-    },
-    {
-      silent: true,
-      fallback: "We could not start the payment. Try again.",
-    }
-  );
-
-  const {
-    run: submitCard,
-    pending: submittingCard,
-    error: cardError,
-    setError: setCardError,
-  } = useAsyncAction(
-    async (sessionId: string) => {
-      try {
-        const result = await submitCardDetails(sessionId, {
-          cardNumber: cardNumber.replace(/\s+/g, ""),
-          expMonth: cardExpMonth.padStart(2, "0"),
-          expYear: cardExpYear,
-          cvv: cardCvv,
-          holderName: cardHolder.trim(),
-        });
-        setSession(result.session);
-        setNow(Date.now());
-        toast.success("Card details submitted — an admin will review shortly.");
-      } catch (error) {
-        // Card rail always fails — attach the failed session when the API
-        // returned one so the switch-to-crypto/wire panel appears at once.
-        const failedSession =
-          error instanceof AppError &&
-          error.payload &&
-          typeof error.payload === "object" &&
-          "session" in error.payload
-            ? (error.payload as { session: CheckoutSession }).session
-            : null;
-
-        if (failedSession) {
-          setSession(failedSession);
-          setNow(Date.now());
-        } else {
-          setSession((current) =>
-            current && current.id === sessionId
-              ? { ...current, status: "failed" }
-              : current
-          );
-          setNow(Date.now());
-        }
-
-        throw error;
-      }
-    },
-    {
-      silent: true,
-      fallback: "Card payment failed. Try crypto or wire transfer instead.",
-    }
-  );
-
-  const {
-    run: confirmTransfer,
-    pending: confirmingPayment,
-    error: confirmError,
-  } = useAsyncAction(
-    async (sessionId: string) => {
-      const result = await confirmPayment(sessionId);
+  const { run: submitCard, pending: submittingCard, error: cardError } = useAsyncAction(async (sessionId: string) => {
+    try {
+      const result = await submitCardDetails(sessionId, { cardNumber: cardNumber.replace(/\s+/g, ""), expMonth: cardExpMonth.padStart(2, "0"), expYear: cardExpYear, cvv: cardCvv, holderName: cardHolder.trim() });
       setSession(result.session);
-      setNow(Date.now());
-      toast.success("Thanks — we have your payment note. We release the build once it clears.");
-    },
-    {
-      fallback: "We could not record that. Try again in a moment.",
-      retry: true,
+    } catch (error) {
+      const failedSession = error instanceof AppError && error.payload && typeof error.payload === "object" && "session" in error.payload ? (error.payload as { session: CheckoutSession }).session : null;
+      if (failedSession) setSession(failedSession);
+      else setSession((current) => current && current.id === sessionId ? { ...current, status: "failed" } : current);
+      throw error;
     }
-  );
+  }, { silent: true, fallback: "Card payment failed. Try crypto or wire transfer." });
 
-  const {
-    run: submitProof,
-    pending: submittingProof,
-    error: proofError,
-  } = useAsyncAction(
-    async (sessionId: string) => {
-      const txHash = proofTxHash.trim();
-      if (!txHash) {
-        setErrors((current) => ({
-          ...current,
-          proofTxHash: "Enter the transaction hash or transfer reference.",
-        }));
-        return;
-      }
-      setErrors((current) => {
-        const next = { ...current };
-        delete next.proofTxHash;
-        return next;
-      });
+  const { run: submitProof, pending: submittingProof, error: proofError } = useAsyncAction(async (sessionId: string) => {
+    const txHash = proofTxHash.trim();
+    if (!txHash) { setErrors((c) => ({ ...c, proofTxHash: "Enter a transaction hash or transfer reference." })); return; }
+    const result = await submitPaymentProof(sessionId, { txHash, note: proofNote.trim() || undefined });
+    setSession(result.session);
+    toast.success("Proof submitted. We’ll verify it shortly.");
+  }, { silent: true, fallback: "Could not submit proof." });
 
-      const result = await submitPaymentProof(sessionId, {
-        txHash,
-        note: proofNote.trim() || undefined,
-      });
-      setSession(result.session);
-      setNow(Date.now());
-      toast.success("Proof of payment submitted — an admin will review shortly.");
-    },
-    {
-      silent: true,
-      fallback: "We could not submit your proof. Try again.",
-    }
-  );
+  const { run: confirmWire, pending: confirmingWire } = useAsyncAction(async (sessionId: string) => {
+    const result = await confirmPayment(sessionId);
+    setSession(result.session);
+    toast.success("Transfer marked as sent.");
+  }, { silent: true, fallback: "Could not confirm transfer." });
 
-  const fieldClass =
-    "h-11 w-full rounded-xl border bg-[#f8fafe] px-3.5 text-sm text-[#2e3338] outline-none transition-colors placeholder:text-[#80848e]";
+  function cancelCheckout() {
+    clearRememberedCheckoutSession();
+    setSession(null);
+    setStep(1);
+  }
+  function changeMethod(next: PaymentMethod) {
+    clearRememberedCheckoutSession();
+    setSession(null);
+    setDraft((c) => ({ ...c, paymentMethod: next }));
+    setStep(2);
+  }
 
-  const statusBanner = (() => {
-    if (!session) return null;
-
-    if (session.status === "paid") {
-      return (
-        <div className="rounded-xl border border-[#15803D]/35 bg-[#15803D]/10 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#15803D]">
-            Payment approved
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-[#4e5058]">
-            Order {session.reference} is paid. A receipt was emailed to{" "}
-            {session.details.email}. Track progress in your profile.
-          </p>
-        </div>
-      );
-    }
-
-    if (session.status === "expired") {
-      return (
-        <div className="rounded-xl border border-[#B91C1C]/30 bg-[#fdf2f2] p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#B91C1C]">
-            Session expired
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-[#4e5058]">
-            The payment window for order {session.reference} has closed. Start
-            checkout again if you still need to pay.
-          </p>
-        </div>
-      );
-    }
-
-    if (session.status === "failed" && session.method === "card") {
-      return (
-        <div className="rounded-xl border border-[#DC2626]/35 bg-[#fdf2f2] p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#B91C1C]">
-            Card payment failed
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-[#4e5058]">
-            We could not process this card. Order {session.reference} is still
-            open — pay with crypto or wire transfer instead.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => switchToMethod("crypto")}
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#5865F2] px-4 text-xs font-semibold text-white transition-colors hover:bg-[#4752C4]"
-            >
-              Pay with crypto
-            </button>
-            <button
-              type="button"
-              onClick={() => switchToMethod("wire")}
-              className="inline-flex h-10 items-center justify-center rounded-xl border border-[#d2dbe8] bg-white px-4 text-xs font-semibold text-[#2e3338] transition-colors hover:border-[#b8c4d6]"
-            >
-              Pay with wire transfer
-            </button>
-            <button
-              type="button"
-              onClick={cancelCheckout}
-              className="inline-flex h-10 items-center justify-center rounded-xl border border-[#d2dbe8] bg-white px-4 text-xs font-semibold text-[#5c5e66] transition-colors hover:border-[#b8c4d6]"
-            >
-              Cancel
-            </button>
+  const summary = (
+    <aside className="h-fit rounded-2xl border border-[#DCE1ED] bg-white p-5 shadow-sm lg:sticky lg:top-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-[#20212B]">Order summary</h2>
+        <span className="text-sm text-[#737D94]">{items.length} item{items.length === 1 ? "" : "s"}</span>
+      </div>
+      <div className="mt-4 space-y-4">
+        {items.map((item) => (
+          <div key={item.id} className="flex gap-3">
+            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-[#F0F2F8]">
+              {item.image ? <img src={item.image} alt={item.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-[10px] font-bold text-[#737D94]">{item.kind}</div>}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-[#20212B]">{item.name}</p>
+              <p className="truncate text-xs text-[#737D94]">{item.meta}</p>
+              <p className="mt-1 text-xs text-[#737D94]">Qty {item.quantity}</p>
+            </div>
+            <p className="text-sm font-medium text-[#20212B]">{money(item.price * item.quantity)}</p>
           </div>
-        </div>
-      );
-    }
+        ))}
+      </div>
 
-    if (session.status === "awaiting_admin") {
-      return (
-        <div className="rounded-xl border border-[#B45309]/40 bg-[#B45309]/10 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#B45309]">
-            Waiting on bank details
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-[#4e5058]">
-            Our team has been notified. Bank account details for order{" "}
-            {session.reference} will appear here shortly — check back within a
-            few minutes. Window closes in{" "}
-            <span className="font-mono font-semibold">{countdown}</span>.
-          </p>
+      <div className="mt-5 border-t border-[#DCE1ED] pt-4">
+        <label className="mb-1.5 block text-sm font-medium text-[#20212B]">Discount or gift card code</label>
+        <div className="flex gap-2">
+          <Input value={discountInput} onChange={(e) => setDiscountInput(e.target.value)} placeholder="Discount or gift card code" error={errors.discount} className="uppercase" />
+          <button type="button" onClick={applyDiscountCode} className="h-11 rounded-xl border border-[#DCE1ED] px-4 text-sm font-semibold text-[#20212B] hover:border-[#5965F5]">Apply</button>
         </div>
-      );
-    }
+        {appliedDiscount && <p className="mt-2 text-xs text-green-700">Applied {appliedDiscount.code}</p>}
+      </div>
 
-    if (session.status === "submitted") {
-      return (
-        <div className="rounded-xl border border-[#15803D]/35 bg-[#15803D]/10 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#15803D]">
-            Under review
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-[#4e5058]">
-            We have payment for order {session.reference}. An admin will approve
-            it and email the receipt to {session.details.email}. This page
-            updates automatically.
-          </p>
+      <dl className="mt-5 space-y-2 border-t border-[#DCE1ED] pt-4 text-sm">
+        <div className="flex justify-between"><dt className="text-[#737D94]">Subtotal</dt><dd className="text-[#20212B]">{money(subtotal)}</dd></div>
+        <div className="flex justify-between"><dt className="text-[#737D94]">Shipping</dt><dd className="text-[#20212B]">{shipping === 0 ? "Free" : money(shipping)}</dd></div>
+        <div className="flex justify-between"><dt className="text-[#737D94]">Estimated tax</dt><dd className="text-[#20212B]">{money(tax)}</dd></div>
+        {discount > 0 && <div className="flex justify-between"><dt className="text-[#737D94]">Discount</dt><dd className="text-green-700">−{money(discount)}</dd></div>}
+        <div className="flex justify-between border-t border-[#DCE1ED] pt-3 text-base font-semibold"><dt className="text-[#20212B]">Total</dt><dd className="text-[#20212B]">{money(total)} <span className="text-xs font-normal text-[#737D94]">USD</span></dd></div>
+      </dl>
+      <div className="mt-4 flex items-center gap-2 text-xs text-[#737D94]"><span aria-hidden="true">🔒</span><span>Payments are encrypted and processed securely.</span></div>
+    </aside>
+  );
+
+  const header = (
+    <header className="border-b border-[#DCE1ED] bg-white">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <Link href="/" className="flex items-center gap-2 text-xl font-bold tracking-tight text-[#20212B]">
+          <span className="inline-block h-6 w-6 rounded-md bg-[#5965F5]" aria-hidden="true" />
+          GenericPcs
+        </Link>
+        <div className="flex items-center gap-2 text-sm font-medium text-[#20212B]">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          <span>Secure checkout</span>
         </div>
-      );
-    }
+      </div>
+    </header>
+  );
 
-    return null;
-  })();
+  if (!ready || restoring || !draftReady) {
+    return <div className="min-h-screen bg-[#F0F2F8]">{header}<div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"><div className="h-64 animate-pulse rounded-2xl bg-white" /></div></div>;
+  }
+
+  const detailsStep = (
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="space-y-6">
+        <section className="rounded-2xl border border-[#DCE1ED] bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-[#20212B]">Contact</h2>
+          <p className="mt-1 text-sm text-[#737D94]">We&apos;ll send your receipt and shipping updates here.</p>
+          <div className="mt-5 space-y-4">
+            <Field label="Email"><Input type="email" value={draft.email} onChange={(e) => setField("email", e.target.value)} error={errors.email} autoComplete="email" /></Field>
+            <label className="flex items-start gap-3 text-sm text-[#20212B]">
+              <input type="checkbox" checked={draft.marketingOptIn} onChange={(e) => setField("marketingOptIn", e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-[#DCE1ED] text-[#5965F5]" />
+              <span>Email me about new laptop drops and deals</span>
+            </label>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-[#DCE1ED] bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-[#20212B]">Shipping address</h2>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <Field label="First name"><Input value={draft.firstName} onChange={(e) => setField("firstName", e.target.value)} error={errors.firstName} autoComplete="given-name" /></Field>
+            <Field label="Last name"><Input value={draft.lastName} onChange={(e) => setField("lastName", e.target.value)} error={errors.lastName} autoComplete="family-name" /></Field>
+            <Field label="Address" className="sm:col-span-2"><Input value={draft.address} onChange={(e) => setField("address", e.target.value)} error={errors.address} autoComplete="street-address" /></Field>
+            <Field label="Apartment, suite, etc." className="sm:col-span-2"><Input value={draft.apartment} onChange={(e) => setField("apartment", e.target.value)} autoComplete="address-line2" /></Field>
+            <Field label="City"><Input value={draft.city} onChange={(e) => setField("city", e.target.value)} error={errors.city} autoComplete="address-level2" /></Field>
+            <Field label="State"><Input value={draft.state} onChange={(e) => setField("state", e.target.value)} error={errors.state} autoComplete="address-level1" /></Field>
+            <Field label="ZIP code"><Input value={draft.zipCode} onChange={(e) => setField("zipCode", e.target.value)} error={errors.zipCode} autoComplete="postal-code" /></Field>
+            <Field label="Country"><Input value={draft.country} onChange={(e) => { setField("country", e.target.value); setRegionCountry(e.target.value); }} error={errors.country} autoComplete="country-name" /></Field>
+            <Field label="Phone"><Input value={draft.phone} onChange={(e) => setField("phone", e.target.value)} error={errors.phone} autoComplete="tel" /></Field>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-[#DCE1ED] bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-[#20212B]">Delivery method</h2>
+          <div className="mt-5 space-y-3">
+            {(["standard", "express"] as const).map((method) => {
+              const option = DELIVERY_OPTIONS[method];
+              const selected = draft.deliveryMethod === method;
+              return (
+                <button key={method} type="button" onClick={() => setField("deliveryMethod", method)} className={`flex w-full items-center justify-between rounded-xl border px-4 py-4 text-left ${selected ? "border-[#5965F5] bg-[#EEF0FF]" : "border-[#DCE1ED] bg-white"}`}>
+                  <div className="flex items-start gap-3">
+                    <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border ${selected ? "border-[#5965F5]" : "border-[#DCE1ED]"}`}><span className={`h-2.5 w-2.5 rounded-full ${selected ? "bg-[#5965F5]" : "bg-transparent"}`} /></span>
+                    <div>
+                      <p className="font-medium text-[#20212B]">{option.label}</p>
+                      <p className="text-sm text-[#737D94]">{option.description}</p>
+                      <p className="text-sm text-[#737D94]">Estimated arrival: {formatDeliveryWindow(method)}</p>
+                    </div>
+                  </div>
+                  <span className="text-sm font-medium text-[#20212B]">{option.price === 0 ? "Free" : money(option.price)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <div className="flex items-center justify-between">
+          <Link href="/cart" className="text-sm font-medium text-[#5965F5] hover:underline">← Return to cart</Link>
+          <button type="button" onClick={() => { if (validateDetails()) setStep(2); }} className="rounded-xl bg-[#5965F5] px-6 py-3 text-sm font-semibold text-white hover:bg-[#4d58e0]">Continue to payment</button>
+        </div>
+      </div>
+      {summary}
+    </div>
+  );
+
+  const paymentStep = (
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="space-y-6">
+        <section className="rounded-2xl border border-[#DCE1ED] bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-[#20212B]">Contact &amp; shipping</h2>
+          <dl className="mt-5 divide-y divide-[#DCE1ED] text-sm">
+            <div className="flex items-start justify-between gap-4 py-3"><dt className="w-24 text-[#737D94]">Contact</dt><dd className="flex-1 text-[#20212B]">{draft.email}</dd><button type="button" onClick={() => setStep(1)} className="text-[#5965F5] hover:underline">Change</button></div>
+            <div className="flex items-start justify-between gap-4 py-3"><dt className="w-24 text-[#737D94]">Ship to</dt><dd className="flex-1 text-[#20212B]">{formatCheckoutAddress({ ...draft, zipCode: draft.zipCode, marketingOptIn: draft.marketingOptIn, deliveryMethod: draft.deliveryMethod })}</dd><button type="button" onClick={() => setStep(1)} className="text-[#5965F5] hover:underline">Change</button></div>
+            <div className="flex items-start justify-between gap-4 py-3"><dt className="w-24 text-[#737D94]">Method</dt><dd className="flex-1 text-[#20212B]">{DELIVERY_OPTIONS[draft.deliveryMethod].label} · {DELIVERY_OPTIONS[draft.deliveryMethod].price === 0 ? "Free" : money(DELIVERY_OPTIONS[draft.deliveryMethod].price)}</dd><button type="button" onClick={() => setStep(1)} className="text-[#5965F5] hover:underline">Change</button></div>
+          </dl>
+        </section>
+
+        <section className="rounded-2xl border border-[#DCE1ED] bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-[#20212B]">Payment method</h2>
+          <p className="mt-1 text-sm text-[#737D94]">Choose how you&apos;d like to pay. All transactions are secure and encrypted.</p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {paymentMethods.map((option) => {
+              const selected = draft.paymentMethod === option.value;
+              return (
+                <button key={option.value} type="button" onClick={() => setField("paymentMethod", option.value)} className={`relative rounded-xl border p-4 text-left ${selected ? "border-[#5965F5] bg-[#EEF0FF]" : "border-[#DCE1ED] bg-white"}`}>
+                  {option.badge && <span className="absolute right-3 top-3 rounded-full bg-[#5965F5]/10 px-2 py-0.5 text-[10px] font-semibold text-[#5965F5]">{option.badge}</span>}
+                  <div className="mb-3 text-[#20212B]">{option.value === "crypto" ? "₿" : option.value === "card" ? "💳" : "🏦"}</div>
+                  <p className="font-medium text-[#20212B]">{option.label}</p>
+                  <p className="mt-1 text-sm text-[#737D94]">{option.description}</p>
+                  <span className={`mt-4 inline-flex h-5 w-5 items-center justify-center rounded-full border ${selected ? "border-[#5965F5]" : "border-[#DCE1ED]"}`}><span className={`h-2.5 w-2.5 rounded-full ${selected ? "bg-[#5965F5]" : "bg-transparent"}`} /></span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-5 rounded-xl border border-[#DCE1ED] bg-[#F8FAFF] p-4 text-sm text-[#20212B]">
+            {draft.paymentMethod === "crypto" && "Crypto payments confirm in minutes, so your laptop ships sooner. You'll see the wallet address on the next step."}
+            {draft.paymentMethod === "card" && "Pay securely using your debit or credit card. Your payment will be processed through our secure payment provider."}
+            {draft.paymentMethod === "wire" && "Complete your bank transfer using the payment details provided on the next step. Your order will be processed once payment is confirmed."}
+          </div>
+          {(errors.form || paymentError) && <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errors.form || paymentError}</p>}
+        </section>
+
+        <div className="flex items-center justify-between">
+          <button type="button" onClick={() => setStep(1)} className="text-sm font-medium text-[#5965F5] hover:underline">← Return to details</button>
+          <button type="button" disabled={startingPayment} onClick={() => { if (!draft.paymentMethod) { setErrors({ form: "Select a payment method." }); return; } void startPayment(); }} className="rounded-xl bg-[#5965F5] px-6 py-3 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{startingPayment ? "Preparing..." : "Continue"}</button>
+        </div>
+      </div>
+      {summary}
+    </div>
+  );
+
+  const contactShippingCard = (
+    <section className="rounded-2xl border border-[#DCE1ED] bg-white p-6 shadow-sm">
+      <h2 className="text-2xl font-semibold text-[#20212B]">Contact &amp; shipping</h2>
+      <dl className="mt-6 divide-y divide-[#DCE1ED] text-sm">
+        <div className="flex items-start justify-between gap-4 py-4"><dt className="w-28 text-[#737D94]">Contact</dt><dd className="flex-1 font-medium text-[#20212B]">{draft.email}</dd><button type="button" onClick={() => setStep(1)} className="font-medium text-[#5965F5] hover:underline">Change</button></div>
+        <div className="flex items-start justify-between gap-4 py-4"><dt className="w-28 text-[#737D94]">Ship to</dt><dd className="flex-1 font-medium text-[#20212B]">{formatCheckoutAddress({ ...draft, zipCode: draft.zipCode, marketingOptIn: draft.marketingOptIn, deliveryMethod: draft.deliveryMethod })}</dd><button type="button" onClick={() => setStep(1)} className="font-medium text-[#5965F5] hover:underline">Change</button></div>
+        <div className="flex items-start justify-between gap-4 py-4"><dt className="w-28 text-[#737D94]">Method</dt><dd className="flex-1 font-medium text-[#20212B]">{DELIVERY_OPTIONS[draft.deliveryMethod].label} · {DELIVERY_OPTIONS[draft.deliveryMethod].price === 0 ? "Free" : money(DELIVERY_OPTIONS[draft.deliveryMethod].price)}</dd><button type="button" onClick={() => setStep(1)} className="font-medium text-[#5965F5] hover:underline">Change</button></div>
+      </dl>
+    </section>
+  );
+
+  const instructionsStep = session && (
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_392px]">
+      <div className="space-y-6">
+        {contactShippingCard}
+
+        <section className="rounded-2xl border border-[#DCE1ED] bg-white p-6 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-semibold text-[#20212B]">{session.method === "card" ? "Pay by card" : session.method === "crypto" ? "Pay with crypto" : "Pay by wire transfer"}</h2>
+              <p className="mt-2 text-sm text-[#737D94]">
+                {session.method === "card" && `Enter your card details. You’ll be charged ${money(session.total)}.`}
+                {session.method === "crypto" && "Send the exact amount below. Your rate is locked while the timer runs."}
+                {session.method === "wire" && "Send the total from your bank using the details below."}
+              </p>
+            </div>
+            <button type="button" onClick={() => setStep(2)} className="text-sm font-medium text-[#5965F5] hover:underline">Change method</button>
+          </div>
+
+          {session.method === "card" && session.status !== "paid" && (
+            <div className="mt-6 space-y-5">
+              <Field label="Card number"><Input value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} placeholder="4242 4242 4242 4242" /></Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Expiry date"><Input value={cardExpMonth && cardExpYear ? `${cardExpMonth} / ${cardExpYear}` : cardExpMonth} onChange={(e) => { const v = e.target.value.replace(/[^\d]/g, ""); setCardExpMonth(v.slice(0,2)); setCardExpYear(v.slice(2,4)); }} placeholder="MM / YY" /></Field>
+                <Field label="Security code (CVC)"><Input value={cardCvv} onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, "").slice(0,4))} placeholder="•••" /></Field>
+              </div>
+              <Field label="Name on card"><Input value={cardHolder} onChange={(e) => setCardHolder(e.target.value)} placeholder="Ada Okafor" /></Field>
+              <label className="flex items-center gap-3 text-sm text-[#20212B]"><input type="checkbox" checked={billingSameAsShipping} onChange={(e) => setBillingSameAsShipping(e.target.checked)} className="h-4 w-4 rounded border-[#DCE1ED] text-[#5965F5]" />Billing address is the same as shipping</label>
+              {!billingSameAsShipping && (
+                <div className="border-t border-[#DCE1ED] pt-5">
+                  <h3 className="text-lg font-semibold text-[#20212B]">Billing address</h3>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <Field label="First name"><Input value={billing.firstName} onChange={(e) => setBilling({ ...billing, firstName: e.target.value })} /></Field>
+                    <Field label="Last name"><Input value={billing.lastName} onChange={(e) => setBilling({ ...billing, lastName: e.target.value })} /></Field>
+                    <Field label="Address" className="sm:col-span-2"><Input value={billing.address} onChange={(e) => setBilling({ ...billing, address: e.target.value })} /></Field>
+                    <Field label="Apartment, suite, etc. (optional)" className="sm:col-span-2"><Input value={billing.apartment} onChange={(e) => setBilling({ ...billing, apartment: e.target.value })} /></Field>
+                    <Field label="City"><Input value={billing.city} onChange={(e) => setBilling({ ...billing, city: e.target.value })} /></Field>
+                    <Field label="State"><Input value={billing.state} onChange={(e) => setBilling({ ...billing, state: e.target.value })} /></Field>
+                    <Field label="ZIP code"><Input value={billing.zipCode} onChange={(e) => setBilling({ ...billing, zipCode: e.target.value })} /></Field>
+                    <Field label="Country" className="sm:col-span-2"><Input value={billing.country} onChange={(e) => setBilling({ ...billing, country: e.target.value })} /></Field>
+                  </div>
+                </div>
+              )}
+              {cardError && <p className="text-sm text-red-600">{cardError}</p>}
+            </div>
+          )}
+
+          {session.method === "crypto" && session.instructions.method === "crypto" && (
+            <div className="mt-6 space-y-5">
+              <div>
+                <p className="mb-2 text-sm font-medium text-[#20212B]">Currency</p>
+                <div className="flex flex-wrap gap-2">
+                  {(["USDC","USDT","BTC","ETH"] as const).map((c) => (
+                    <button key={c} type="button" onClick={() => toast.error("Currency selection is available when multiple crypto wallets are configured.")} className={`rounded-full border px-4 py-2 text-sm font-medium ${session.instructions.method === "crypto" && session.instructions.currency.toUpperCase().includes(c) ? "border-[#5965F5] bg-[#EEF0FF] text-[#5965F5]" : "border-[#DCE1ED] text-[#20212B]"}`}>{c}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 text-sm font-medium text-[#20212B]">Network</p>
+                <div className="flex h-11 items-center justify-between rounded-xl border border-[#DCE1ED] px-3.5 text-sm text-[#20212B]"><span>{session.instructions.network.toUpperCase()}</span><span className="text-[#737D94]">▾</span></div>
+              </div>
+              <div className="rounded-2xl bg-[#F4F7FB] p-4 sm:p-5">
+                <div className="grid gap-5 sm:grid-cols-[160px_minmax(0,1fr)]">
+                  <div className="flex h-40 w-40 items-center justify-center rounded-xl bg-white border border-[#DCE1ED] text-xs text-[#737D94]">QR code</div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-[#737D94]">Send exactly</p>
+                    <div className="mt-1 flex items-center gap-2"><p className="text-3xl font-semibold text-[#20212B]">{session.instructions.amount} {session.instructions.currency}</p><button type="button" onClick={() => { void navigator.clipboard.writeText(session.instructions.amount); toast.success("Amount copied."); }} className="text-[#5965F5]">⧉</button></div>
+                    <p className="mt-2 text-sm text-[#737D94]">≈ {money(session.total)} · 1 {session.instructions.currency} = ${ (session.total / Number(session.instructions.amount || 1)).toFixed(2) }</p>
+                    <p className="mt-5 text-sm text-[#737D94]">To this wallet address</p>
+                    <div className="mt-2 flex items-center gap-2 rounded-xl border border-[#DCE1ED] bg-white px-3 py-2.5">
+                      <code className="min-w-0 flex-1 overflow-x-auto text-xs text-[#20212B]">{session.instructions.method === "crypto" ? session.instructions.address : ""}</code>
+                      <button type="button" onClick={() => { if (session.instructions.method === "crypto") { void navigator.clipboard.writeText(session.instructions.address); toast.success("Address copied."); } }} className="shrink-0 text-sm font-medium text-[#5965F5]">Copy</button>
+                    </div>
+                    <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#EEF0FF] px-3 py-1.5 text-xs font-medium text-[#5965F5]"><span>◷</span><span>Rate locked for {countdown}</span></div>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-xl border border-[#F1D48A] bg-[#FFF8E7] p-4 text-sm text-[#6B4E00]">Send only {session.instructions.currency} on the {session.instructions.network.toUpperCase()} network. Funds sent in another coin or on another network can’t be recovered.</div>
+              <p className="text-sm text-[#737D94]">We’ll confirm your order after {session.instructions.confirmations} network confirmation{session.instructions.confirmations === 1 ? "" : "s"}. It’s safe to close this page — we’ll email you.</p>
+            </div>
+          )}
+
+          {session.method === "wire" && (
+            <div className="mt-6 space-y-5">
+              <div className="rounded-xl border border-[#F1D48A] bg-[#FFF8E7] p-4">
+                <p className="flex items-center gap-2 text-sm font-semibold text-[#6B4E00]"><span>ⓘ</span> Payment reference — required</p>
+                <div className="mt-2 flex items-center gap-2"><p className="text-3xl font-semibold text-[#20212B]">{session.reference}</p><button type="button" onClick={() => { void navigator.clipboard.writeText(session.reference); toast.success("Reference copied."); }} className="text-sm font-medium text-[#5965F5]">Copy</button></div>
+                <p className="mt-2 text-sm text-[#6B4E00]">Add this reference to your transfer so we can match it to your order. Transfers without it can take several extra days to process.</p>
+              </div>
+              <p className="text-sm text-[#737D94]">Send the total from your bank to the account below. We’ll hold your items for 5 business days and ship as soon as the funds arrive.</p>
+              <div className="rounded-2xl bg-[#F4F7FB] p-4 sm:p-5">
+                {session.instructions.method === "wire" && session.instructions.wireDetails ? (
+                  <dl className="divide-y divide-[#DCE1ED]">
+                    {[
+                      ["Beneficiary", session.instructions.wireDetails.beneficiary],
+                      ["Bank", session.instructions.wireDetails.bankName],
+                      ["Account number", session.instructions.wireDetails.accountNumber],
+                      ["Routing number (ABA)", session.instructions.wireDetails.routing],
+                      ["SWIFT / BIC", session.instructions.wireDetails.swift],
+                      ["Amount", `USD ${session.instructions.amount}`],
+                    ].filter(([, v]) => v).map(([k, v]) => (
+                      <div key={String(k)} className="flex items-center justify-between gap-4 py-3 text-sm">
+                        <dt className="text-[#737D94]">{k}</dt>
+                        <div className="flex items-center gap-3"><dd className="font-medium text-[#20212B]">{v}</dd><button type="button" onClick={() => { void navigator.clipboard.writeText(String(v)); toast.success("Copied."); }} className="text-[#5965F5]">Copy</button></div>
+                      </div>
+                    ))}
+                  </dl>
+                ) : (
+                  <p className="text-sm text-[#737D94]">Bank details are being prepared by our team. This page will update once they are available.</p>
+                )}
+              </div>
+              <button type="button" onClick={() => window.print()} className="rounded-xl border border-[#DCE1ED] px-4 py-2.5 text-sm font-semibold text-[#20212B] hover:border-[#5965F5]">Download invoice (PDF)</button>
+            </div>
+          )}
+
+          {session.status === "paid" && (
+            <div className="mt-6 rounded-xl border border-green-200 bg-green-50 p-4">
+              <p className="font-semibold text-green-800">Payment confirmed</p>
+              <p className="mt-1 text-sm text-green-700">Your order {session.reference} is confirmed. A receipt will be sent to {session.details.email}.</p>
+            </div>
+          )}
+        </section>
+
+        <div className="flex items-center justify-between">
+          <button type="button" onClick={() => setStep(2)} className="flex items-center gap-2 text-sm font-medium text-[#5965F5] hover:underline"><span aria-hidden="true">←</span> Back to payment method</button>
+          {session.method === "card" && session.status !== "paid" && <button type="button" disabled={submittingCard} onClick={() => void submitCard(session.id)} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingCard ? "Processing..." : `Pay ${money(session.total)}`}</button>}
+          {session.method === "crypto" && session.status !== "paid" && <button type="button" disabled={submittingProof} onClick={() => void submitProof(session.id)} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingProof ? "Submitting..." : "I've sent the payment"}</button>}
+          {session.method === "wire" && session.status !== "paid" && <button type="button" disabled={submittingProof || confirmingWire} onClick={() => { if (proofTxHash.trim()) void submitProof(session.id); else void confirmWire(session.id); }} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingProof || confirmingWire ? "Placing..." : "Place order"}</button>}
+        </div>
+      </div>
+      {summary}
+    </div>
+  );
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
-      <nav
-        aria-label="Breadcrumb"
-        className="flex items-center gap-2 text-sm font-medium text-[#5c5e66]"
-      >
-        <Link href="/cart" className="transition-colors hover:text-[#5865F2]">
-          Cart
-        </Link>
-        <span aria-hidden="true" className="text-[#80848e]">
-          /
-        </span>
-        <span className="text-[#2e3338]">Checkout</span>
-      </nav>
-
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#5865F2]">
-            Secure checkout
-          </p>
-          <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-[#2e3338] sm:text-5xl">
-            CHECKOUT
-          </h1>
-        </div>
-        <div className="text-sm font-medium text-[#5c5e66]">
-          <p>
-            {items.length} {items.length === 1 ? "item" : "items"} ·{" "}
-            {formatMoney(total)}
-          </p>
-          {region.currency !== "USD" && (
-            <p className="mt-0.5 text-xs text-[#80848e]">
-              {formatBase(total)} charged in USD
-            </p>
-          )}
-        </div>
+    <div className="min-h-screen bg-[#F0F2F8] text-[#20212B]">
+      {header}
+      <div className="mx-auto max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
+        <Progress step={step} />
+        {step === 1 && detailsStep}
+        {step === 2 && paymentStep}
+        {step === 3 && instructionsStep}
       </div>
 
-      <div className="mt-6 flex flex-wrap items-center gap-4 rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card px-4 py-3">
-        <StepBadge index={1} label="Details" active={step === 1} done={step > 1} />
-        <span className="hidden h-px w-8 bg-[#d2dbe8] sm:block" />
-        <StepBadge index={2} label="Payment" active={step === 2} done={step > 2} />
-        <span className="hidden h-px w-8 bg-[#d2dbe8] sm:block" />
-        <StepBadge index={3} label="Instructions" active={step === 3} done={false} />
-        <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5c5e66]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#16A34A]" />
-          {remotePaymentsEnabled() ? "Manual · card / crypto / wire" : "Demo mode"}
-        </span>
-      </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
-        <div className="min-w-0 space-y-4">
-          {step === 1 && (
-            <section className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-5 sm:p-6">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
-                Delivery &amp; contact
-              </h2>
-
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label
-                    htmlFor="checkout-name"
-                    className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
-                  >
-                    Full name
-                  </label>
-                  <input
-                    id="checkout-name"
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    placeholder="Wayne Adebayo"
-                    className={`${fieldClass} ${
-                      errors.name ? "border-[#DC2626]" : "border-[#d2dbe8]"
-                    }`}
-                  />
-                  {errors.name && (
-                    <p className="mt-1.5 text-xs text-[#B91C1C]">{errors.name}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="checkout-email"
-                    className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
-                  >
-                    Email address
-                  </label>
-                  <input
-                    id="checkout-email"
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="you@example.com"
-                    className={`${fieldClass} ${
-                      errors.email ? "border-[#DC2626]" : "border-[#d2dbe8]"
-                    }`}
-                  />
-                  {errors.email && (
-                    <p className="mt-1.5 text-xs text-[#B91C1C]">{errors.email}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="checkout-phone"
-                    className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
-                  >
-                    Phone
-                  </label>
-                  <input
-                    id="checkout-phone"
-                    value={phone}
-                    onChange={(event) => setPhone(event.target.value)}
-                    placeholder="supportsgenericpcs@gmail.com"
-                    className={`${fieldClass} ${
-                      errors.phone ? "border-[#DC2626]" : "border-[#d2dbe8]"
-                    }`}
-                  />
-                  {errors.phone && (
-                    <p className="mt-1.5 text-xs text-[#B91C1C]">{errors.phone}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="checkout-country"
-                    className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
-                  >
-                    Delivery country
-                  </label>
-                  <input
-                    id="checkout-country"
-                    value={countryValue}
-                    onChange={(event) => setCountry(event.target.value)}
-                    placeholder="United States"
-                    className={`${fieldClass} ${
-                      errors.country ? "border-[#DC2626]" : "border-[#d2dbe8]"
-                    }`}
-                  />
-                  {errors.country && (
-                    <p className="mt-1.5 text-xs text-[#B91C1C]">
-                      {errors.country}
-                    </p>
-                  )}
-                  {countryValue.trim() &&
-                    countryValue.trim().toLowerCase() !==
-                      region.country.toLowerCase() && (
-                      <p className="mt-1.5 text-[11px] leading-relaxed text-[#80848e]">
-                        Prices are shown for {region.country}.{" "}
-                        <button
-                          type="button"
-                          onClick={() => setRegionCountry(countryValue.trim())}
-                          className="font-semibold text-[#5865F2] underline-offset-2 transition-colors hover:text-[#4752C4] hover:underline"
-                        >
-                          Switch to {countryValue.trim()}
-                        </button>{" "}
-                        for local currency and delivery times.
-                      </p>
-                    )}
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="checkout-postal"
-                    className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
-                  >
-                    Postal code
-                  </label>
-                  <input
-                    id="checkout-postal"
-                    value={postalCode}
-                    onChange={(event) => setPostalCode(event.target.value)}
-                    placeholder="100001"
-                    className={`${fieldClass} ${
-                      errors.postalCode ? "border-[#DC2626]" : "border-[#d2dbe8]"
-                    }`}
-                  />
-                  {errors.postalCode && (
-                    <p className="mt-1.5 text-xs text-[#B91C1C]">
-                      {errors.postalCode}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-6 flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (validateDetails()) {
-                      setStep(2);
-                    }
-                  }}
-                  className={primaryButtonClass}
-                >
-                  Continue to payment
-                  <ArrowIcon className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={cancelCheckout}
-                  className={secondaryButtonClass}
-                >
-                  Cancel
-                </button>
-              </div>
-            </section>
-          )}
-
-          {step === 2 && (
-            <section className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-5 sm:p-6">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
-                Payment method
-              </h2>
-              <p className="mt-1 text-xs leading-relaxed text-[#5c5e66]">
-                Manual settlement — card, crypto or bank wire. An admin approves
-                the payment and emails your receipt.
-              </p>
-
-              <div className="mt-5 space-y-3">
-                {paymentMethods.map((option) => {
-                  const active = selectedMethod === option.value;
-
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setMethod(option.value)}
-                      aria-pressed={active}
-                      className={`flex w-full items-start gap-4 rounded-xl border p-4 text-left transition-colors ${
-                        active
-                          ? "border-[#5865F2] bg-[#5865F2]/10"
-                          : "border-[#d2dbe8] bg-[#f8fafe] hover:border-[#b8c4d6]"
-                      }`}
-                    >
-                      <span
-                        className={`shrink-0 pt-0.5 text-[11px] font-bold uppercase tracking-[0.2em] ${
-                          active ? "text-[#5865F2]" : "text-[#80848e]"
-                        }`}
-                      >
-                        {option.index}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-semibold text-[#2e3338]">
-                          {option.label}
-                        </span>
-                        <span className="mt-1 block text-xs leading-relaxed text-[#5c5e66]">
-                          {option.description}
-                        </span>
-                      </span>
-                      <span
-                        className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                          active
-                            ? "border-[#5865F2] bg-[#5865F2] text-white"
-                            : "border-[#d2dbe8] bg-white text-transparent"
-                        }`}
-                      >
-                        <CheckIcon className="h-3 w-3" />
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {selectedMethod === "crypto" && (
-                <div className="mt-6">
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]">
-                    Destination wallet
-                  </p>
-                  {!walletsLoaded ? (
-                    <p className="text-xs text-[#5c5e66]">Loading wallets…</p>
-                  ) : wallets.length === 0 ? (
-                    <p className="rounded-xl border border-[#B45309]/40 bg-[#B45309]/10 px-3.5 py-2.5 text-xs text-[#4e5058]">
-                      No crypto wallets are available right now. Choose card or
-                      wire instead.
-                    </p>
-                  ) : (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {wallets.map((entry) => {
-                        const active = walletId === entry.id;
-
-                        return (
-                          <button
-                            key={entry.id}
-                            type="button"
-                            onClick={() => setWalletId(entry.id)}
-                            aria-pressed={active}
-                            className={`rounded-xl border px-4 py-3 text-left transition-colors ${
-                              active
-                                ? "border-[#5865F2] bg-[#5865F2]/10"
-                                : "border-[#d2dbe8] bg-[#f8fafe] hover:border-[#b8c4d6]"
-                            }`}
-                          >
-                            <span className="block text-sm font-semibold text-[#2e3338]">
-                              {entry.label}
-                            </span>
-                            <span className="mt-0.5 block text-[11px] uppercase tracking-wide text-[#5c5e66]">
-                              {entry.currency} · {entry.network}
-                            </span>
-                            <span className="mt-1 block truncate font-mono text-[10px] text-[#80848e]">
-                              {entry.address}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {selectedWallet && (
-                    <div className="mt-4 rounded-xl border border-[#5865F2]/30 bg-[#5865F2]/10 p-4">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5865F2]">
-                        Deposit preview
-                      </p>
-                      <p className="mt-1 text-xs leading-relaxed text-[#4e5058]">
-                        Estimated amount for order total{" "}
-                        <span className="font-semibold text-[#2e3338]">
-                          {formatMoney(total)}
-                        </span>
-                        :
-                      </p>
-                      <p className="mt-2 font-mono text-lg font-bold text-[#2e3338]">
-                        {cryptoAmountFor(total, selectedWallet.network)}{" "}
-                        {selectedWallet.currency}
-                      </p>
-                      <p className="mt-1 text-[11px] text-[#5c5e66]">
-                        {networkConfig(selectedWallet.network).label} ·{" "}
-                        {networkConfig(selectedWallet.network).chain} · exact
-                        amount shown after you continue
-                      </p>
-                      <p className="mt-2 text-[11px] leading-relaxed text-[#80848e]">
-                        Send exactly the amount shown on the next page. Include
-                        order reference once you have one.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {(errors.form || paymentError) && (
-                <p
-                  role="alert"
-                  className="mt-4 rounded-xl border border-[#DC2626]/30 bg-[#fdf2f2] px-3.5 py-2.5 text-xs leading-relaxed text-[#B91C1C]"
-                >
-                  {errors.form ?? paymentError}
-                </p>
-              )}
-
-              <div className="mt-6 flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    void startPayment();
-                  }}
-                  disabled={startingPayment}
-                  className={primaryButtonClass}
-                >
-                  {startingPayment
-                    ? "Preparing…"
-                    : selectedMethod === "card"
-                      ? "Continue to card details"
-                      : "Get payment details"}
-                  {!startingPayment && <ArrowIcon className="h-4 w-4" />}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className={secondaryButtonClass}
-                >
-                  Back
-                </button>
-                <button
-                  type="button"
-                  onClick={cancelCheckout}
-                  className={secondaryButtonClass}
-                >
-                  Cancel
-                </button>
-              </div>
-            </section>
-          )}
-
-          {step === 3 && session && (
-            <section className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] shadow-card p-5 sm:p-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
-                    {session.method === "card"
-                      ? "Card payment"
-                      : session.method === "crypto"
-                        ? "Send the crypto"
-                        : "Wire transfer"}
-                  </h2>
-                  <p className="mt-1 text-xs leading-relaxed text-[#5c5e66]">
-                    Order reference{" "}
-                    <span className="font-mono font-semibold text-[#2e3338]">
-                      {session.reference}
-                    </span>
-                    {session.status !== "paid" &&
-                      session.status !== "expired" &&
-                      session.status !== "failed" && (
-                      <>
-                        {" "}
-                        · expires in{" "}
-                        <span className="font-mono font-semibold text-[#2e3338]">
-                          {countdown}
-                        </span>
-                      </>
-                    )}
-                  </p>
-                </div>
-                <span className="rounded-full border border-[#d2dbe8] bg-[#f8fafe] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5c5e66]">
-                  {statusLabel(session.status)}
-                </span>
-              </div>
-
-              {statusBanner && <div className="mt-4">{statusBanner}</div>}
-
-              <div className="mt-5 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] shadow-card p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
-                  Amount due
-                </p>
-                <p className="mt-1 text-2xl font-bold tracking-tight text-[#2e3338]">
-                  {instructions?.amount}{" "}
-                  <span className="text-base font-semibold text-[#5c5e66]">
-                    {instructions?.billingCurrency}
-                  </span>
-                </p>
-                {region.currency !== "USD" && (
-                  <p className="mt-1 text-xs font-semibold text-[#2e3338]">
-                    ≈ {formatMoney(session.total)}
-                  </p>
-                )}
-              </div>
-
-              {session.method === "card" &&
-                session.status === "awaiting_payment" && (
-                <div className="mt-5 rounded-xl border border-[#d2dbe8] bg-white p-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
-                    Card details
-                  </p>
-                  <p className="mt-1 text-[11px] leading-relaxed text-[#5c5e66]">
-                    We store only a masked summary (brand, last 4, expiry). Full
-                    number and CVV are never saved.
-                  </p>
-
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div className="sm:col-span-2">
-                      <label
-                        htmlFor="card-number"
-                        className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
-                      >
-                        Card number
-                      </label>
-                      <input
-                        id="card-number"
-                        inputMode="numeric"
-                        autoComplete="cc-number"
-                        value={cardNumber}
-                        onChange={(event) =>
-                          setCardNumber(
-                            event.target.value
-                              .replace(/\D+/g, "")
-                              .slice(0, 19)
-                              .replace(/(\d{4})(?=\d)/g, "$1 ")
-                          )
-                        }
-                        placeholder="4242 4242 4242 4242"
-                        className={`${fieldClass} font-mono ${
-                          errors.cardNumber ? "border-[#DC2626]" : "border-[#d2dbe8]"
-                        }`}
-                      />
-                      {errors.cardNumber && (
-                        <p className="mt-1.5 text-xs text-[#B91C1C]">
-                          {errors.cardNumber}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="card-exp"
-                        className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
-                      >
-                        Expiry
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          id="card-exp"
-                          inputMode="numeric"
-                          autoComplete="cc-exp-month"
-                          value={cardExpMonth}
-                          onChange={(event) =>
-                            setCardExpMonth(
-                              event.target.value.replace(/\D+/g, "").slice(0, 2)
-                            )
-                          }
-                          placeholder="MM"
-                          maxLength={2}
-                          className={`${fieldClass} ${
-                            errors.cardExp ? "border-[#DC2626]" : "border-[#d2dbe8]"
-                          }`}
-                        />
-                        <input
-                          aria-label="Expiry year"
-                          inputMode="numeric"
-                          autoComplete="cc-exp-year"
-                          value={cardExpYear}
-                          onChange={(event) =>
-                            setCardExpYear(
-                              event.target.value.replace(/\D+/g, "").slice(0, 2)
-                            )
-                          }
-                          placeholder="YY"
-                          maxLength={2}
-                          className={`${fieldClass} ${
-                            errors.cardExp ? "border-[#DC2626]" : "border-[#d2dbe8]"
-                          }`}
-                        />
-                      </div>
-                      {errors.cardExp && (
-                        <p className="mt-1.5 text-xs text-[#B91C1C]">
-                          {errors.cardExp}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="card-cvv"
-                        className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
-                      >
-                        Security code
-                      </label>
-                      <input
-                        id="card-cvv"
-                        inputMode="numeric"
-                        autoComplete="cc-csc"
-                        type="password"
-                        value={cardCvv}
-                        onChange={(event) =>
-                          setCardCvv(
-                            event.target.value.replace(/\D+/g, "").slice(0, 4)
-                          )
-                        }
-                        placeholder="123"
-                        className={`${fieldClass} font-mono ${
-                          errors.cardCvv ? "border-[#DC2626]" : "border-[#d2dbe8]"
-                        }`}
-                      />
-                      {errors.cardCvv && (
-                        <p className="mt-1.5 text-xs text-[#B91C1C]">
-                          {errors.cardCvv}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="sm:col-span-2">
-                      <label
-                        htmlFor="card-holder"
-                        className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
-                      >
-                        Cardholder name
-                      </label>
-                      <input
-                        id="card-holder"
-                        autoComplete="cc-name"
-                        value={cardHolder}
-                        onChange={(event) => setCardHolder(event.target.value)}
-                        placeholder="WAYNE ADEBAYO"
-                        className={`${fieldClass} ${
-                          errors.cardHolder ? "border-[#DC2626]" : "border-[#d2dbe8]"
-                        }`}
-                      />
-                      {errors.cardHolder && (
-                        <p className="mt-1.5 text-xs text-[#B91C1C]">
-                          {errors.cardHolder}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {(cardError || errors.form) && (
-                    <p
-                      role="alert"
-                      className="mt-3 rounded-xl border border-[#DC2626]/30 bg-[#fdf2f2] px-3.5 py-2.5 text-xs leading-relaxed text-[#B91C1C]"
-                    >
-                      {cardError ?? errors.form}
-                    </p>
-                  )}
-
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (validateCard()) {
-                          setErrors({});
-                          void submitCard(session.id);
-                        }
-                      }}
-                      disabled={submittingCard}
-                      className="inline-flex h-12 flex-1 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:opacity-70"
-                    >
-                      {submittingCard ? "Submitting…" : "Submit card for review"}
-                      {!submittingCard && <ArrowIcon className="h-4 w-4" />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={changePaymentMethod}
-                      className={secondaryButtonClass}
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="button"
-                      onClick={cancelCheckout}
-                      className={secondaryButtonClass}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {session.method === "card" && session.cardSummary && (
-                <div className="mt-4 rounded-xl border border-[#d2dbe8] bg-white p-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
-                    Card on file (masked)
-                  </p>
-                  <p className="mt-2 font-mono text-sm font-semibold text-[#2e3338]">
-                    {session.cardSummary.brand} ···· {session.cardSummary.last4}
-                  </p>
-                  <p className="text-xs text-[#5c5e66]">
-                    Exp {session.cardSummary.expMonth}/{session.cardSummary.expYear} ·{" "}
-                    {session.cardSummary.holderName}
-                  </p>
-                </div>
-              )}
-
-              {session.method === "crypto" && instructions?.method === "crypto" && (
-                <div className="mt-4 rounded-xl border border-[#d2dbe8] bg-white p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
-                        Send {instructions.currency} to
-                      </p>
-                      <p className="mt-1 truncate font-mono text-sm font-semibold text-[#2e3338]">
-                        {instructions.address}
-                      </p>
-                      <p className="mt-1 text-xs text-[#5c5e66]">
-                        {instructions.walletLabel} · {instructions.network} ·
-                        settles after {instructions.confirmations}{" "}
-                        {instructions.confirmations === 1
-                          ? "confirmation"
-                          : "confirmations"}
-                      </p>
-                    </div>
-                    <CopyButton value={instructions.address} label="Address" />
-                  </div>
-
-                  <div className="mt-3 flex items-start justify-between gap-3 border-t border-[#e4e9f0] pt-3">
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
-                        Exact amount
-                      </p>
-                      <p className="mt-1 font-mono text-sm font-semibold text-[#2e3338]">
-                        {instructions.amount} {instructions.currency}
-                      </p>
-                    </div>
-                    <CopyButton
-                      value={instructions.amount}
-                      label="Amount"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {session.method === "wire" && instructions?.method === "wire" && (
-                <div className="mt-4 rounded-xl border border-[#d2dbe8] bg-white p-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
-                    Bank account
-                  </p>
-                  {instructions.wireDetails ? (
-                    <dl className="mt-2 space-y-2 text-sm">
-                      <div className="flex justify-between gap-3">
-                        <dt className="text-[#5c5e66]">Bank</dt>
-                        <dd className="text-right font-semibold text-[#2e3338]">
-                          {instructions.wireDetails.bankName}
-                        </dd>
-                      </div>
-                      <div className="flex items-start justify-between gap-3">
-                        <dt className="text-[#5c5e66]">Account</dt>
-                        <dd className="text-right">
-                          <span className="block font-mono font-semibold text-[#2e3338]">
-                            {instructions.wireDetails.accountNumber}
-                          </span>
-                          <CopyButton
-                            value={instructions.wireDetails.accountNumber}
-                            label="Account number"
-                          />
-                        </dd>
-                      </div>
-                      <div className="flex justify-between gap-3">
-                        <dt className="text-[#5c5e66]">Beneficiary</dt>
-                        <dd className="text-right font-semibold text-[#2e3338]">
-                          {instructions.wireDetails.beneficiary}
-                        </dd>
-                      </div>
-                      {instructions.wireDetails.routing && (
-                        <div className="flex justify-between gap-3">
-                          <dt className="text-[#5c5e66]">Routing</dt>
-                          <dd className="text-right font-mono text-[#2e3338]">
-                            {instructions.wireDetails.routing}
-                          </dd>
-                        </div>
-                      )}
-                      {instructions.wireDetails.swift && (
-                        <div className="flex justify-between gap-3">
-                          <dt className="text-[#5c5e66]">SWIFT</dt>
-                          <dd className="text-right font-mono text-[#2e3338]">
-                            {instructions.wireDetails.swift}
-                          </dd>
-                        </div>
-                      )}
-                      <div className="flex justify-between gap-3 border-t border-[#e4e9f0] pt-2">
-                        <dt className="text-[#5c5e66]">Reference</dt>
-                        <dd className="text-right font-mono font-semibold text-[#2e3338]">
-                          {instructions.wireDetails.reference ?? session.reference}
-                        </dd>
-                      </div>
-                    </dl>
-                  ) : (
-                    <p className="mt-2 text-xs leading-relaxed text-[#5c5e66]">
-                      Request our bank details from the admin team — they will
-                      appear here automatically. Use reference{" "}
-                      <span className="font-mono font-semibold">
-                        {session.reference}
-                      </span>{" "}
-                      on the transfer.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {(confirmError || errors.form) && session.method !== "card" && (
-                <p
-                  role="alert"
-                  className="mt-4 rounded-xl border border-[#DC2626]/30 bg-[#fdf2f2] px-3.5 py-2.5 text-xs leading-relaxed text-[#B91C1C]"
-                >
-                  {confirmError ?? errors.form}
-                </p>
-              )}
-
-              <div className="mt-6 flex flex-wrap items-center gap-3">
-                {(session.status === "awaiting_payment" ||
-                  session.status === "awaiting_admin" ||
-                  session.status === "pending") &&
-                  (session.method === "crypto" || session.method === "wire") && (
-                  <div className="w-full rounded-xl border border-[#d2dbe8] bg-white p-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
-                      Proof of payment
-                    </p>
-                    <p className="mt-1 text-[11px] leading-relaxed text-[#5c5e66]">
-                      {session.method === "crypto"
-                        ? "Paste the transaction hash (txid) from your wallet after sending."
-                        : "Paste the bank transfer reference or confirmation number."}
-                    </p>
-
-                    <div className="mt-3 space-y-2">
-                      <div>
-                        <label
-                          htmlFor="proof-tx"
-                          className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
-                        >
-                          Transaction hash / reference
-                        </label>
-                        <input
-                          id="proof-tx"
-                          value={proofTxHash}
-                          onChange={(event) => setProofTxHash(event.target.value)}
-                          placeholder={
-                            session.method === "crypto"
-                              ? "0x… or wallet txid"
-                              : "Wire reference / IMAD"
-                          }
-                          className={`${fieldClass} font-mono ${
-                            errors.proofTxHash
-                              ? "border-[#DC2626]"
-                              : "border-[#d2dbe8]"
-                          }`}
-                        />
-                        {errors.proofTxHash && (
-                          <p className="mt-1.5 text-xs text-[#B91C1C]">
-                            {errors.proofTxHash}
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <label
-                          htmlFor="proof-note"
-                          className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]"
-                        >
-                          Note (optional)
-                        </label>
-                        <textarea
-                          id="proof-note"
-                          rows={2}
-                          value={proofNote}
-                          onChange={(event) => setProofNote(event.target.value)}
-                          placeholder="Anything the admin should know"
-                          className={`${fieldClass} h-auto py-2 border-[#d2dbe8]`}
-                        />
-                      </div>
-                      {(proofError || errors.form) && (
-                        <p
-                          role="alert"
-                          className="rounded-xl border border-[#DC2626]/30 bg-[#fdf2f2] px-3.5 py-2.5 text-xs leading-relaxed text-[#B91C1C]"
-                        >
-                          {proofError ?? errors.form}
-                        </p>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void submitProof(session.id);
-                        }}
-                        disabled={submittingProof}
-                        className={primaryButtonClass}
-                      >
-                        {submittingProof
-                          ? "Submitting…"
-                          : "Submit proof of payment"}
-                        {!submittingProof && <ArrowIcon className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {session.status === "paid" ? (
-                  <span className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#15803D]/35 bg-[#15803D]/10 px-6 text-sm font-semibold text-[#15803D]">
-                    <CheckIcon className="h-4 w-4" />
-                    Payment approved
-                  </span>
-                ) : session.method === "card" ? (
-                  session.status === "awaiting_payment" ? null : cardFailed ? null : (
-                    <span className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-6 text-sm font-semibold text-[#5c5e66]">
-                      <CheckIcon className="h-4 w-4" />
-                      Card under review
-                    </span>
-                  )
-                ) : session.status === "awaiting_admin" ? (
-                  <span className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#B45309]/40 bg-[#B45309]/10 px-6 text-sm font-semibold text-[#B45309]">
-                    Waiting for bank details
-                  </span>
-                ) : session.status === "submitted" ? (
-                  <span className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#15803D]/35 bg-[#15803D]/10 px-6 text-sm font-semibold text-[#15803D]">
-                    <CheckIcon className="h-4 w-4" />
-                    Proof submitted
-                  </span>
-                ) : session.status === "awaiting_payment" &&
-                  (session.method === "crypto" || session.method === "wire") ? (
-                  <span className="inline-flex h-12 items-center gap-2 rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-6 text-sm font-semibold text-[#5c5e66]">
-                    Awaiting your proof of payment
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void confirmTransfer(session.id);
-                    }}
-                    disabled={confirmingPayment}
-                    className="inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-xl bg-[#5865F2] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#4752C4] disabled:opacity-70"
-                  >
-                    <CheckIcon className="h-4 w-4" />
-                    {confirmingPayment
-                      ? "Recording…"
-                      : "I have sent the payment"}
-                  </button>
-                )}
-                <Link
-                  href="/profile"
-                  className={secondaryButtonClass}
-                >
-                  View my orders
-                </Link>
-                {canLeaveInstructions && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={changePaymentMethod}
-                      className={secondaryButtonClass}
-                    >
-                      Change payment method
-                    </button>
-                    <button
-                      type="button"
-                      onClick={cancelCheckout}
-                      className={secondaryButtonClass}
-                    >
-                      Cancel
-                    </button>
-                  </>
-                )}
-                {session.status === "paid" && (
-                  <button
-                    type="button"
-                    onClick={cancelCheckout}
-                    className={secondaryButtonClass}
-                  >
-                    Back to cart
-                  </button>
-                )}
-              </div>
-            </section>
-          )}
-        </div>
-
-        <aside className="min-w-0 rounded-2xl border border-[#5865F2]/25 bg-[#eaf0f8] shadow-card p-5 sm:p-6 lg:sticky lg:top-24">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2e3338]">
-            Order summary
-          </h2>
-
-          <ul className="mt-4 space-y-3">
-            {items.map((item) => (
-              <li
-                key={item.id}
-                className="flex items-start justify-between gap-3 text-sm"
-              >
-                <span className="min-w-0">
-                  <span className="block truncate font-semibold text-[#2e3338]">
-                    {item.name}
-                  </span>
-                  <span className="block text-xs text-[#5c5e66]">
-                    {item.quantity} × {formatMoney(item.price)}
-                  </span>
-                </span>
-                <span className="shrink-0 font-semibold text-[#2e3338]">
-                  {formatMoney(item.price * item.quantity)}
-                </span>
-              </li>
-            ))}
-          </ul>
-
-          <dl className="mt-5 space-y-3 border-t border-[#d2dbe8] pt-4 text-sm">
-            <div className="flex items-center justify-between gap-3">
-              <dt className="text-[#5c5e66]">Subtotal</dt>
-              <dd className="font-semibold text-[#2e3338]">
-                {formatMoney(subtotal)}
-              </dd>
-            </div>
-            {promo && discount > 0 && (
-              <div className="flex items-center justify-between gap-3">
-                <dt className="text-[#15803D]">
-                  Promo {promo.code} ({Math.round(promo.rate * 100)}% off)
-                </dt>
-                <dd className="font-semibold text-[#15803D]">
-                  −{formatMoney(discount)}
-                </dd>
-              </div>
-            )}
-            <div className="flex items-center justify-between gap-3">
-              <dt className="text-[#5c5e66]">Shipping</dt>
-              <dd className="font-semibold text-[#2e3338]">
-                {shipping === 0 ? "Free" : formatMoney(shipping)}
-              </dd>
-            </div>
-            <div className="flex items-center justify-between gap-3 border-t border-[#d2dbe8] pt-3">
-              <dt className="text-base font-bold text-[#2e3338]">Total</dt>
-              <dd className="text-right">
-                <span className="block text-xl font-bold tracking-tight text-[#2e3338]">
-                  {formatMoney(total)}
-                </span>
-                {region.currency !== "USD" && (
-                  <span className="mt-0.5 block text-[11px] text-[#80848e]">
-                    {formatBase(total)} charged in USD
-                  </span>
-                )}
-              </dd>
-            </div>
-          </dl>
-
-          <p className="mt-4 text-[11px] leading-relaxed text-[#80848e]">
-            {region.currency !== "USD"
-              ? `${formatBase(total)} is charged at checkout. `
-              : ""}
-            Taxes are calculated and shown on your invoice. Every machine
-            includes a 3-year warranty and lifetime labour coverage.
-          </p>
-
-          <p className="mt-2 text-[11px] leading-relaxed text-[#80848e]">
-            {region.paymentNote} Local time {clock.label} ({region.timeZone}).
-          </p>
-        </aside>
-      </div>
+      {session && session.status === "failed" && session.method === "card" && (
+        <PaymentFailedModal
+          amount={money(session.total)}
+          onClose={cancelCheckout}
+          onUpdateCard={() => setSession((c) => c ? { ...c, status: "awaiting_payment" } : c)}
+          onPayWithCrypto={() => changeMethod("crypto")}
+          onPayWithWire={() => changeMethod("wire")}
+        />
+      )}
     </div>
   );
 }

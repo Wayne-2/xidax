@@ -579,21 +579,22 @@ export async function attachOrderToUser(
 
   if (!user) return;
 
+  const s = <T>(v: T | undefined | null): T | null => (v === undefined ? null : v);
   await env.DB.prepare(
     `INSERT OR REPLACE INTO user_orders
        (id, user_id, reference, title, detail, total, currency, status, method, created_at)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`
   )
     .bind(
-      order.id,
-      user.id,
-      order.reference,
-      order.lines.map((line) => line.name).join(", "),
-      order.lines.map((line) => `${line.name} x${line.quantity}`).join(" · "),
-      order.total,
-      order.currency,
-      order.status,
-      order.method,
+      s(order.id),
+      s(user.id),
+      s(order.reference),
+      s(order.lines.map((line) => line.name).join(", ")),
+      s(order.lines.map((line) => `${line.name} x${line.quantity}`).join(" · ")),
+      s(order.total),
+      s(order.currency),
+      s(order.status),
+      s(order.method),
       new Date().toISOString()
     )
     .run();

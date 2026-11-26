@@ -32,13 +32,34 @@ function readNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function customerName(details: CheckoutSession["details"]) {
+  const explicit = `${details.firstName ?? ""} ${details.lastName ?? ""}`.trim();
+  return explicit || String(details.name ?? "").trim() || "Customer";
+}
+
+function postalCode(details: CheckoutSession["details"]) {
+  return String(details.zipCode ?? details.postalCode ?? "").trim();
+}
+
 function isValidRequest(payload: CheckoutRequest) {
+  const details = payload?.details;
+  const hasLegacy = Boolean(details?.name && (details?.postalCode || details?.zipCode));
+  const hasNew = Boolean(
+    details?.firstName &&
+      details?.lastName &&
+      details?.address &&
+      details?.city &&
+      details?.state &&
+      (details?.zipCode || details?.postalCode) &&
+      details?.country &&
+      details?.phone
+  );
   return Boolean(
     payload &&
       Array.isArray(payload.lines) &&
       payload.lines.length > 0 &&
-      payload.details &&
-      payload.details.email &&
+      details?.email &&
+      (hasLegacy || hasNew) &&
       payload.method &&
       PAYMENT_METHODS.has(payload.method) &&
       readNumber(payload.total) > 0
@@ -99,6 +120,7 @@ async function persistOrder(env: Env, session: CheckoutSession) {
   const wireDetails =
     instructions.method === "wire" ? (instructions.wireDetails ?? null) : null;
 
+  const safe = <T>(v: T | undefined | null): T | null => (v === undefined ? null : v);
   await env.DB.prepare(
     `INSERT OR REPLACE INTO orders
        (id, reference, checkout_id, email, name, phone, country, postal_code,
@@ -110,25 +132,25 @@ async function persistOrder(env: Env, session: CheckoutSession) {
       session.id,
       session.reference,
       session.id,
-      session.details.email,
-      session.details.name,
-      session.details.phone,
-      session.details.country,
-      session.details.postalCode,
+      session.details.email ?? null,
+      customerName(session.details),
+      session.details.phone ?? null,
+      session.details.country ?? null,
+      postalCode(session.details) || null,
       session.method,
       instructions.method === "crypto" ? instructions.network : null,
-      session.subtotal,
-      session.shipping,
-      session.discount,
-      session.total,
-      session.currency,
-      session.promoCode ?? null,
+      session.subtotal ?? 0,
+      session.shipping ?? 0,
+      session.discount ?? 0,
+      session.total ?? 0,
+      session.currency ?? "USD",
+      session.promoCode ?? session.discountCode ?? null,
       session.status,
       session.createdAt,
       session.cardSummary ? JSON.stringify(session.cardSummary) : null,
-      walletId,
+      walletId ?? null,
       wireDetails ? JSON.stringify(wireDetails) : null,
-      session.expiresAt,
+      session.expiresAt ?? null,
       session.paymentProof ? JSON.stringify(session.paymentProof) : null
     )
     .run();
@@ -140,11 +162,11 @@ async function persistOrder(env: Env, session: CheckoutSession) {
        VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
     ).bind(
       session.id,
-      line.id,
-      line.name,
-      line.kind,
-      line.price,
-      line.quantity
+      line.id ?? null,
+      line.name ?? null,
+      line.kind ?? null,
+      line.price ?? 0,
+      line.quantity ?? 1
     )
   );
 
@@ -176,7 +198,7 @@ async function syncSessionStatus(env: Env, session: CheckoutSession) {
         SET status = ?1, data = ?2, expires_at = ?3
       WHERE id = ?4`
   )
-    .bind(session.status, JSON.stringify(session), session.expiresAt, session.id)
+    .bind(session.status, JSON.stringify(session), session.expiresAt ?? null, session.id)
     .run();
 
   await env.DB.prepare(
@@ -430,7 +452,7 @@ export async function confirmPaymentSent(
     reference: updated.reference,
     amount: updated.total,
     currency: updated.currency,
-    customerName: updated.details.name,
+    customerName: customerName(updated.details),
     customerEmail: updated.details.email,
     detail:
       updated.method === "crypto"
@@ -537,7 +559,7 @@ export async function submitPaymentProof(
     reference: updated.reference,
     amount: updated.total,
     currency: updated.currency,
-    customerName: updated.details.name,
+    customerName: customerName(updated.details),
     customerEmail: updated.details.email,
     detail:
       updated.method === "crypto"
@@ -589,16 +611,19 @@ export async function createCheckout(
     return { ok: false, status: 400, error: priced.error };
   }
 
+  const requestedDiscountCode = String(payload.discountCode ?? payload.promoCode ?? "").trim();
   let promoCode = "";
   let discount = 0;
+  let discountCode: string | undefined;
 
-  if (typeof payload.promoCode === "string" && payload.promoCode.trim()) {
+  if (requestedDiscountCode) {
     const token = readToken(request);
     const lineIds = priced.lines.map((line) => line.id);
-    const productPromo = await lookupPromo(env, payload.promoCode, lineIds);
+    const productPromo = await lookupPromo(env, requestedDiscountCode, lineIds);
 
     if (productPromo) {
       promoCode = productPromo.code;
+      discountCode = productPromo.code;
 
       let productDiscount = 0;
 
@@ -617,10 +642,11 @@ export async function createCheckout(
       try {
         const { auth } = await ensureInitialized(env);
         const uid = (await auth.verifyIdToken(token, true)).uid;
-        const promo = await getUserPromoByCode(env, uid, payload.promoCode);
+        const promo = await getUserPromoByCode(env, uid, requestedDiscountCode);
 
         if (promo) {
           promoCode = promo.code;
+          discountCode = promo.code;
           discount = roundMoney((priced.subtotal * promo.discount) / 100);
         }
       } catch {
@@ -630,9 +656,10 @@ export async function createCheckout(
   }
 
   const discountedSubtotal = roundMoney(Math.max(0, priced.subtotal - discount));
-  const shipping =
-    discountedSubtotal >= 99 || discountedSubtotal === 0 ? 0 : priced.shipping;
-  const total = roundMoney(discountedSubtotal + shipping);
+  const deliveryMethod = payload.details.deliveryMethod === "express" ? "express" : "standard";
+  const shipping = deliveryMethod === "express" ? 18 : 0;
+  const tax = roundMoney(discountedSubtotal * 0.08);
+  const total = roundMoney(discountedSubtotal + shipping + tax);
 
   const reference = randomReference();
   const now = Date.now();
@@ -694,10 +721,12 @@ export async function createCheckout(
     method,
     createdAt,
     expiresAt,
-    subtotal: roundMoney(discountedSubtotal + discount),
+    subtotal: roundMoney(priced.subtotal),
     shipping,
+    tax,
     discount,
     promoCode: promoCode || undefined,
+    discountCode,
     total,
     currency: billingCurrency,
     lines: priced.lines.map((line) => ({
@@ -707,12 +736,17 @@ export async function createCheckout(
       price: line.price,
       quantity: line.quantity,
     })),
-    details: payload.details,
+    details: {
+      ...payload.details,
+      deliveryMethod,
+      marketingOptIn: Boolean(payload.details.marketingOptIn),
+    },
     instructions,
     cardSummary: null,
     walletId: wallet?.id ?? null,
     wireDetails: null,
     receiptSentAt: null,
+    paymentProof: null,
   };
 
   await persistOrder(env, session);
@@ -735,7 +769,7 @@ export async function createCheckout(
         apiKey: env.RESEND_API_KEY,
         to: session.details.email,
         reference: session.reference,
-        customerName: session.details.name,
+        customerName: customerName(session.details),
         amount: instructions.amount,
         currency: instructions.billingCurrency,
       }).catch((error) => {
@@ -749,7 +783,7 @@ export async function createCheckout(
       reference: session.reference,
       amount: session.total,
       currency: session.currency,
-      customerName: session.details.name,
+      customerName: customerName(session.details),
       customerEmail: session.details.email,
       detail: "Bank details requested — forward your account to the customer.",
     } satisfies AdminPaymentAlertInput);
@@ -834,7 +868,7 @@ export async function applyWireDetails(
       apiKey: env.RESEND_API_KEY,
       to: customerAndSupportRecipients(current.details.email),
       reference: current.reference,
-      customerName: current.details.name,
+      customerName: customerName(current.details),
       amount: current.instructions.amount,
       currency: current.instructions.billingCurrency,
       wireDetails,
@@ -849,7 +883,7 @@ export async function applyWireDetails(
     reference: current.reference,
     amount: current.total,
     currency: current.currency,
-    customerName: current.details.name,
+    customerName: customerName(current.details),
     customerEmail: current.details.email,
     detail: "Bank details forwarded to the customer. Await proof of payment.",
   } satisfies AdminPaymentAlertInput);
@@ -931,7 +965,7 @@ export async function markSessionPaid(
       apiKey: env.RESEND_API_KEY,
       to: updated.details.email,
       reference: updated.reference,
-      customerName: updated.details.name,
+      customerName: customerName(updated.details),
       lines: receiptLines,
       subtotal: updated.subtotal,
       shipping: updated.shipping,

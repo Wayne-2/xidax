@@ -81,12 +81,24 @@ export type CheckoutLine = {
   quantity: number;
 };
 
+export type DeliveryMethod = "standard" | "express";
+
 export type CheckoutDetails = {
-  name: string;
   email: string;
-  phone: string;
+  marketingOptIn: boolean;
+  firstName: string;
+  lastName: string;
+  address: string;
+  apartment?: string;
+  city: string;
+  state: string;
+  zipCode: string;
   country: string;
-  postalCode: string;
+  phone: string;
+  deliveryMethod: DeliveryMethod;
+  /** Legacy compatibility for older sessions/orders. */
+  name?: string;
+  postalCode?: string;
 };
 
 export type CardInstructions = {
@@ -127,9 +139,12 @@ export type CheckoutRequest = {
   walletId?: string;
   subtotal: number;
   shipping: number;
+  tax: number;
+  discount: number;
   total: number;
   currency: string;
   promoCode?: string;
+  discountCode?: string;
 };
 
 export type CheckoutSession = {
@@ -141,8 +156,10 @@ export type CheckoutSession = {
   expiresAt: string;
   subtotal: number;
   shipping: number;
+  tax: number;
   discount: number;
   promoCode?: string;
+  discountCode?: string;
   total: number;
   currency: string;
   lines: CheckoutLine[];
@@ -174,30 +191,71 @@ export const paymentMethods: {
   value: PaymentMethod;
   label: string;
   description: string;
+  badge?: string;
   index: string;
 }[] = [
   {
-    value: "card",
-    label: "Card",
-    description:
-      "Card checkout is a placeholder — submitting always fails, then you can pay with crypto or wire.",
+    value: "crypto",
+    label: "Crypto",
+    description: "USDC, USDT, BTC, ETH.",
+    badge: "Faster",
     index: "01",
   },
   {
-    value: "crypto",
-    label: "Crypto",
-    description:
-      "Pay with BTC, ETH, USDT, SOL, BNB and more. Deposit preview shows the exact amount.",
+    value: "card",
+    label: "Card",
+    description: "Visa, Mastercard, Amex.",
     index: "02",
   },
   {
     value: "wire",
     label: "Wire transfer",
-    description:
-      "Request our bank details, transfer, then confirm. Builds release once the transfer clears.",
+    description: "Ships after funds arrive.",
     index: "03",
   },
 ];
+
+export const DELIVERY_OPTIONS = {
+  standard: { id: "standard", label: "Standard delivery", description: "3–5 business days", days: [3, 5] as const, price: 0 },
+  express: { id: "express", label: "Express delivery", description: "1–2 business days", days: [1, 2] as const, price: 18 },
+} as const;
+
+export function estimateDeliveryDate(days: number, from = new Date()) {
+  const date = new Date(from);
+  let added = 0;
+  while (added < days) {
+    date.setDate(date.getDate() + 1);
+    const day = date.getDay();
+    if (day !== 0 && day !== 6) added += 1;
+  }
+  return date;
+}
+
+export function formatDeliveryWindow(method: DeliveryMethod, from = new Date()) {
+  const option = DELIVERY_OPTIONS[method];
+  const start = estimateDeliveryDate(option.days[0], from);
+  const end = estimateDeliveryDate(option.days[1], from);
+  const sameMonth = start.getMonth() === end.getMonth();
+  const startLabel = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const endLabel = end.toLocaleDateString("en-US", sameMonth ? { day: "numeric" } : { month: "short", day: "numeric" });
+  return `${startLabel}–${endLabel}`;
+}
+
+export function getCheckoutCustomerName(details: CheckoutDetails) {
+  const explicit = `${details.firstName ?? ""} ${details.lastName ?? ""}`.trim();
+  if (explicit) return explicit;
+  return (details.name ?? "").trim();
+}
+
+export function getCheckoutPostalCode(details: CheckoutDetails) {
+  return (details.zipCode ?? details.postalCode ?? "").trim();
+}
+
+export function formatCheckoutAddress(details: CheckoutDetails) {
+  const line1 = [details.address, details.apartment].filter(Boolean).join(", ");
+  const line2 = [details.city, details.state, getCheckoutPostalCode(details)].filter(Boolean).join(", ");
+  return [line1, line2, details.country].filter(Boolean).join(", ");
+}
 
 export const cryptoNetworks: {
   value: CryptoNetwork;

@@ -56,12 +56,24 @@ export type CheckoutLine = {
   quantity: number;
 };
 
+export type DeliveryMethod = "standard" | "express";
+
 export type CheckoutDetails = {
-  name: string;
   email: string;
-  phone: string;
+  marketingOptIn?: boolean;
+  firstName: string;
+  lastName: string;
+  address: string;
+  apartment?: string;
+  city: string;
+  state: string;
+  zipCode: string;
   country: string;
-  postalCode: string;
+  phone: string;
+  deliveryMethod: DeliveryMethod;
+  /** Legacy compatibility for older sessions/orders. */
+  name?: string;
+  postalCode?: string;
 };
 
 export type CryptoWallet = {
@@ -113,9 +125,12 @@ export type CheckoutRequest = {
   walletId?: string;
   subtotal: number;
   shipping: number;
+  tax: number;
+  discount: number;
   total: number;
   currency: string;
   promoCode?: string;
+  discountCode?: string;
 };
 
 export type CheckoutSession = {
@@ -127,8 +142,10 @@ export type CheckoutSession = {
   expiresAt: string;
   subtotal: number;
   shipping: number;
+  tax: number;
   discount: number;
   promoCode?: string;
+  discountCode?: string;
   total: number;
   currency: string;
   lines: CheckoutLine[];
