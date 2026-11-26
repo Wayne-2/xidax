@@ -7,6 +7,7 @@ import {
   deleteAdminWallet,
   fetchAdminWallets,
   updateAdminWallet,
+  uploadProductImage,
   type AdminWallet,
 } from "@/lib/admin-api";
 
@@ -31,6 +32,7 @@ type Draft = {
   network: string;
   currency: string;
   address: string;
+  qrCodeUrl: string;
   active: boolean;
 };
 
@@ -39,6 +41,7 @@ const emptyDraft: Draft = {
   network: "usdt_trc20",
   currency: "USDT",
   address: "",
+  qrCodeUrl: "",
   active: true,
 };
 
@@ -51,6 +54,7 @@ export default function AdminWallets({ embedded = false }: { embedded?: boolean 
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [uploadingQr, setUploadingQr] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,6 +83,7 @@ export default function AdminWallets({ embedded = false }: { embedded?: boolean 
       network: wallet.network,
       currency: wallet.currency,
       address: wallet.address,
+      qrCodeUrl: wallet.qrCodeUrl ?? "",
       active: wallet.active,
     });
   }
@@ -114,6 +119,7 @@ export default function AdminWallets({ embedded = false }: { embedded?: boolean 
           network: draft.network,
           currency,
           address,
+          qrCodeUrl: draft.qrCodeUrl.trim() || null,
           active: draft.active,
         });
         toast.success("Wallet updated.");
@@ -123,6 +129,7 @@ export default function AdminWallets({ embedded = false }: { embedded?: boolean 
           network: draft.network,
           currency,
           address,
+          qrCodeUrl: draft.qrCodeUrl.trim() || null,
           active: draft.active,
         });
         toast.success("Wallet created.");
@@ -221,27 +228,34 @@ export default function AdminWallets({ embedded = false }: { embedded?: boolean 
                   key={wallet.id}
                   className="flex flex-wrap items-start justify-between gap-3 p-4"
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold text-[#2e3338]">
-                        {wallet.label}
+                  <div className="flex min-w-0 flex-1 gap-3">
+                    {wallet.qrCodeUrl ? (
+                      <img src={wallet.qrCodeUrl} alt={`${wallet.label} QR`} className="h-14 w-14 shrink-0 rounded-lg border border-[#dce3ee] bg-white object-contain p-1" />
+                    ) : (
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-[#d2dbe8] bg-[#f8fafe] text-[10px] text-[#80848e]">No QR</div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-[#2e3338]">
+                          {wallet.label}
+                        </p>
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                            wallet.active
+                              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
+                              : "border-slate-500/30 bg-slate-500/10 text-slate-600"
+                          }`}
+                        >
+                          {wallet.active ? "Active" : "Hidden"}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-[#5c5e66]">
+                        {wallet.currency} · {wallet.network}
                       </p>
-                      <span
-                        className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                          wallet.active
-                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
-                            : "border-slate-500/30 bg-slate-500/10 text-slate-600"
-                        }`}
-                      >
-                        {wallet.active ? "Active" : "Hidden"}
-                      </span>
+                      <p className="mt-1 truncate font-mono text-[11px] text-[#80848e]">
+                        {wallet.address}
+                      </p>
                     </div>
-                    <p className="mt-1 text-xs text-[#5c5e66]">
-                      {wallet.currency} · {wallet.network}
-                    </p>
-                    <p className="mt-1 truncate font-mono text-[11px] text-[#80848e]">
-                      {wallet.address}
-                    </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -367,6 +381,39 @@ export default function AdminWallets({ embedded = false }: { embedded?: boolean 
                 placeholder="Paste the receiving address"
                 className={`${fieldClass} font-mono text-xs`}
               />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]">
+                QR code image
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                disabled={uploadingQr || saving}
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  setUploadingQr(true);
+                  try {
+                    const result = await uploadProductImage(file);
+                    setDraft((current) => ({ ...current, qrCodeUrl: result.url }));
+                    toast.success("QR code uploaded.");
+                  } catch (err) {
+                    toast.error((err as { error?: string }).error ?? "Could not upload QR code.");
+                  } finally {
+                    setUploadingQr(false);
+                    event.target.value = "";
+                  }
+                }}
+                className="block w-full text-sm text-[#5c5e66] file:mr-3 file:rounded-lg file:border-0 file:bg-[#5865F2]/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-[#5865F2]"
+              />
+              {draft.qrCodeUrl && (
+                <div className="mt-2 flex items-center gap-3">
+                  <img src={draft.qrCodeUrl} alt="QR preview" className="h-20 w-20 rounded-lg border border-[#dce3ee] bg-white object-contain p-1" />
+                  <button type="button" onClick={() => setDraft((c) => ({ ...c, qrCodeUrl: "" }))} className="text-xs font-semibold text-[#B91C1C] hover:underline">Remove QR</button>
+                </div>
+              )}
             </div>
 
             <label className="flex items-center gap-2 text-sm text-[#2e3338]">

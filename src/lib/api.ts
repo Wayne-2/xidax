@@ -324,6 +324,16 @@ export async function notifyWirePending(id: string): Promise<{ ok: boolean }> {
   return request<{ ok: boolean }>(`/api/checkout/${encodeURIComponent(id)}/wire-notify`, { method: "POST" });
 }
 
+export async function sendCheckoutOtp(email: string): Promise<{ ok: boolean }> {
+  if (!API_BASE) return { ok: true };
+  return request<{ ok: boolean }>("/api/checkout/send-otp", { method: "POST", body: JSON.stringify({ email }) });
+}
+
+export async function verifyCheckoutOtp(email: string, otp: string): Promise<{ ok: boolean }> {
+  if (!API_BASE) return { ok: true };
+  return request<{ ok: boolean }>("/api/checkout/verify-otp", { method: "POST", body: JSON.stringify({ email, otp }) });
+}
+
 export async function updateCheckoutWallet(
   id: string,
   walletId: string

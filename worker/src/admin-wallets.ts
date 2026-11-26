@@ -5,6 +5,7 @@ export type WalletInput = {
   network: string;
   currency: string;
   address: string;
+  qrCodeUrl?: string | null;
   active?: boolean;
 };
 
@@ -14,6 +15,7 @@ export type WalletRow = {
   network: CryptoNetwork;
   currency: string;
   address: string;
+  qrCodeUrl: string | null;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -26,6 +28,7 @@ export function normalize(
   const network = String(input.network ?? "").trim().toLowerCase();
   const currency = String(input.currency ?? "").trim().toUpperCase();
   const address = String(input.address ?? "").trim();
+  const qrCodeUrl = typeof input.qrCodeUrl === "string" ? input.qrCodeUrl.trim() : "";
 
   if (!label || label.length > 80) {
     return { ok: false, error: "Label is required (max 80 characters)." };
@@ -45,6 +48,9 @@ export function normalize(
   if (!address || address.length > 200) {
     return { ok: false, error: "Wallet address is required." };
   }
+  if (qrCodeUrl.length > 500) {
+    return { ok: false, error: "QR code URL is too long." };
+  }
 
   return {
     ok: true,
@@ -53,6 +59,7 @@ export function normalize(
       network,
       currency,
       address,
+      qrCodeUrl: qrCodeUrl || null,
       active: input.active !== false,
     },
   };
@@ -64,6 +71,7 @@ function mapRow(row: {
   network: string;
   currency: string;
   address: string;
+  qr_code_url: string | null;
   active: number;
   created_at: string;
   updated_at: string;
@@ -74,6 +82,7 @@ function mapRow(row: {
     network: row.network as CryptoNetwork,
     currency: row.currency,
     address: row.address,
+    qrCodeUrl: row.qr_code_url ?? null,
     active: row.active === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -86,7 +95,7 @@ export async function listWallets(
   activeOnly = false
 ): Promise<WalletRow[]> {
   const rows = await env.DB.prepare(
-    `SELECT id, label, network, currency, address, active, created_at, updated_at
+    `SELECT id, label, network, currency, address, qr_code_url, active, created_at, updated_at
        FROM crypto_wallets
       ${activeOnly ? "WHERE active = 1" : ""}
       ORDER BY created_at DESC`
@@ -96,6 +105,7 @@ export async function listWallets(
     network: string;
     currency: string;
     address: string;
+    qr_code_url: string | null;
     active: number;
     created_at: string;
     updated_at: string;
@@ -106,7 +116,7 @@ export async function listWallets(
 
 export async function getWallet(env: Env, id: string): Promise<WalletRow | null> {
   const row = await env.DB.prepare(
-    `SELECT id, label, network, currency, address, active, created_at, updated_at
+    `SELECT id, label, network, currency, address, qr_code_url, active, created_at, updated_at
        FROM crypto_wallets WHERE id = ?1`
   )
     .bind(id)
@@ -116,6 +126,7 @@ export async function getWallet(env: Env, id: string): Promise<WalletRow | null>
       network: string;
       currency: string;
       address: string;
+      qr_code_url: string | null;
       active: number;
       created_at: string;
       updated_at: string;
@@ -136,8 +147,8 @@ export async function createWallet(
   const value = validated.value;
 
   await env.DB.prepare(
-    `INSERT INTO crypto_wallets (id, label, network, currency, address, active, created_at, updated_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`
+    `INSERT INTO crypto_wallets (id, label, network, currency, address, qr_code_url, active, created_at, updated_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
   )
     .bind(
       id,
@@ -145,6 +156,7 @@ export async function createWallet(
       value.network,
       value.currency,
       value.address,
+      value.qrCodeUrl,
       value.active ? 1 : 0,
       now,
       now
@@ -169,6 +181,7 @@ export async function updateWallet(
     network: input.network ?? existing.network,
     currency: input.currency ?? existing.currency,
     address: input.address ?? existing.address,
+    qrCodeUrl: input.qrCodeUrl ?? existing.qrCodeUrl,
     active: input.active ?? existing.active,
   });
   if (!validated.ok) return { ok: false, error: validated.error };
@@ -178,14 +191,15 @@ export async function updateWallet(
 
   await env.DB.prepare(
     `UPDATE crypto_wallets
-        SET label = ?1, network = ?2, currency = ?3, address = ?4, active = ?5, updated_at = ?6
-      WHERE id = ?7`
+        SET label = ?1, network = ?2, currency = ?3, address = ?4, qr_code_url = ?5, active = ?6, updated_at = ?7
+      WHERE id = ?8`
   )
     .bind(
       value.label,
       value.network,
       value.currency,
       value.address,
+      value.qrCodeUrl,
       value.active ? 1 : 0,
       now,
       id

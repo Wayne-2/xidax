@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
 import { CheckIcon } from "@/components/BuildIcons";
 import PaymentFailedModal from "@/components/PaymentFailedModal";
 import { useAccount } from "@/components/AccountProvider";
@@ -18,9 +17,11 @@ import {
   fetchWallets,
   getCheckoutSession,
   notifyWirePending,
+  sendCheckoutOtp,
   submitCardDetails,
   submitPaymentProof,
   updateCheckoutWallet,
+  verifyCheckoutOtp,
 } from "@/lib/api";
 import {
   DELIVERY_OPTIONS,
@@ -147,6 +148,13 @@ export default function CheckoutFlow() {
   const toast = useToast();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [otpStep, setOtpStep] = useState(false);
+  const [checkoutOtpVerified, setCheckoutOtpVerified] = useState(false);
+  const [otpDigits, setOtpDigits] = useState<string[]>(Array(6).fill(""));
+  const [otpError, setOtpError] = useState("");
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpCooldown, setOtpCooldown] = useState(0);
   const [draft, setDraft] = useState<Draft>(defaultDraft);
   const [draftReady, setDraftReady] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -241,6 +249,12 @@ export default function CheckoutFlow() {
   }, [session]);
 
   useEffect(() => {
+    if (otpCooldown <= 0) return;
+    const t = window.setInterval(() => setOtpCooldown((v) => Math.max(0, v - 1)), 1000);
+    return () => window.clearInterval(t);
+  }, [otpCooldown]);
+
+  useEffect(() => {
     if (!session || ["paid", "expired", "failed"].includes(session.status)) return;
     let cancelled = false;
     const timer = window.setInterval(async () => {
@@ -270,6 +284,7 @@ export default function CheckoutFlow() {
   function setField<K extends keyof Draft>(key: K, value: Draft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
     setErrors((current) => { const next = { ...current }; delete next[key]; return next; });
+    if (key === "email") setCheckoutOtpVerified(false);
   }
 
   function validateDetails() {
@@ -286,6 +301,41 @@ export default function CheckoutFlow() {
     if (!draft.phone.trim()) next.phone = "Phone is required.";
     setErrors(next);
     return Object.keys(next).length === 0;
+  }
+
+  async function requestCheckoutOtp() {
+    setOtpSending(true);
+    setOtpError("");
+    try {
+      await sendCheckoutOtp(draft.email.trim().toLowerCase());
+      setOtpDigits(Array(6).fill(""));
+      setOtpCooldown(60);
+      setOtpStep(true);
+      toast.success("Verification code sent to your email.");
+    } catch (e) {
+      setOtpError(e instanceof Error ? e.message : "Could not send verification code.");
+    } finally {
+      setOtpSending(false);
+    }
+  }
+
+  async function verifyCheckoutOtpCode(code?: string) {
+    const otp = (code ?? otpDigits.join("")).trim();
+    if (!/^\d{6}$/.test(otp) || otpVerifying) return;
+    setOtpVerifying(true);
+    setOtpError("");
+    try {
+      await verifyCheckoutOtp(draft.email.trim().toLowerCase(), otp);
+      setCheckoutOtpVerified(true);
+      setOtpStep(false);
+      setStep(2);
+      toast.success("Email verified.");
+    } catch (e) {
+      setOtpError(e instanceof Error ? e.message : "Could not verify code.");
+      setOtpDigits(Array(6).fill(""));
+    } finally {
+      setOtpVerifying(false);
+    }
   }
 
   function applyDiscountCode() {
@@ -398,6 +448,8 @@ export default function CheckoutFlow() {
           <button type="button" onClick={applyDiscountCode} className="h-11 rounded-xl border border-[#DCE1ED] px-4 text-sm font-semibold text-[#20212B] hover:border-[#5965F5]">Apply</button>
         </div>
         {appliedDiscount && <p className="mt-2 text-xs text-green-700">Applied {appliedDiscount.code}</p>}
+        <p className="mt-3 text-base text-[#5c5e66]">Generic Pc&apos;s come with a keyboard and a mouse</p>
+        <p className="mt-1 text-base text-[#5c5e66]">Free shipping: Est. Delivery in 3-5 business days</p>
       </div>
 
       <dl className="mt-5 space-y-2 border-t border-[#DCE1ED] pt-4 text-sm">
@@ -485,7 +537,36 @@ export default function CheckoutFlow() {
 
         <div className="flex items-center justify-between">
           <Link href="/cart" className="text-sm font-medium text-[#5965F5] hover:underline">← Return to cart</Link>
-          <button type="button" onClick={() => { if (validateDetails()) setStep(2); }} className="rounded-xl bg-[#5965F5] px-6 py-3 text-sm font-semibold text-white hover:bg-[#4d58e0]">Continue to payment</button>
+          <button type="button" disabled={otpSending} onClick={() => { if (!validateDetails()) return; if (checkoutOtpVerified) { setStep(2); return; } void requestCheckoutOtp(); }} className="rounded-xl bg-[#5965F5] px-6 py-3 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{otpSending ? "Sending code..." : "Continue to payment"}</button>
+        </div>
+      </div>
+      {summary}
+    </div>
+  );
+
+  const otpVerificationStep = (
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="space-y-6">
+        <section className="rounded-2xl border border-[#DCE1ED] bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-[#20212B]">Verify your email</h2>
+          <p className="mt-1 text-sm text-[#737D94]">Enter the 6-digit code we sent to <span className="font-medium text-[#20212B]">{draft.email}</span> to continue to payment.</p>
+          <div className="mt-5 grid grid-cols-6 gap-2" role="group" aria-label="Checkout verification code">
+            {otpDigits.map((digit, index) => (
+              <input key={index} type="text" inputMode="numeric" maxLength={1} value={digit} onChange={(e) => {
+                const v = e.target.value.replace(/\D/g, "").slice(-1);
+                const next = [...otpDigits]; next[index] = v; setOtpDigits(next); setOtpError("");
+                const code = next.join(""); if (code.length === 6 && !next.includes("")) void verifyCheckoutOtpCode(code);
+              }} className={`h-12 w-full rounded-xl border bg-[#f8fafe] text-center text-lg font-bold text-[#20212B] outline-none focus:border-[#5965F5] ${otpError ? "border-red-400" : "border-[#DCE1ED]"}`} />
+            ))}
+          </div>
+          {otpError && <p className="mt-3 text-sm text-red-600">{otpError}</p>}
+          <div className="mt-4 flex items-center justify-between text-sm">
+            <button type="button" onClick={() => setOtpStep(false)} className="font-medium text-[#5965F5] hover:underline">← Back to details</button>
+            <button type="button" disabled={otpCooldown > 0 || otpSending} onClick={() => void requestCheckoutOtp()} className="font-medium text-[#5965F5] disabled:opacity-50">{otpCooldown > 0 ? `Resend in ${otpCooldown}s` : otpSending ? "Sending..." : "Resend code"}</button>
+          </div>
+        </section>
+        <div className="flex items-center justify-end">
+          <button type="button" disabled={otpVerifying || otpDigits.join("").length !== 6} onClick={() => void verifyCheckoutOtpCode()} className="rounded-xl bg-[#5965F5] px-6 py-3 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{otpVerifying ? "Verifying..." : "Verify and continue"}</button>
         </div>
       </div>
       {summary}
@@ -617,7 +698,7 @@ export default function CheckoutFlow() {
                   {wallets.map((w) => {
                     const selected = w.id === (session.instructions.method === "crypto" ? session.instructions.walletId : walletId);
                     const cfg = cryptoNetworks.find((n) => n.value === w.network);
-                    return <button key={w.id} type="button" onClick={() => { if (!session || session.instructions.method !== "crypto") return; setWalletId(w.id); const rate = cfg?.rate ?? 1; const dec = cfg?.decimals ?? 2; setSession({ ...session, walletId: w.id, instructions: { ...session.instructions, walletId: w.id, walletLabel: w.label, network: w.network, currency: w.currency, address: w.address, amount: (session.total / rate).toFixed(dec), confirmations: cfg?.confirmations ?? 1 } }); void updateCheckoutWallet(session.id, w.id).then((r) => setSession(r.session)).catch((e) => toast.error(e instanceof Error ? e.message : "Could not update wallet.")); }} className={`rounded-full border px-4 py-2 text-sm font-medium ${selected ? "border-[#5965F5] bg-[#EEF0FF] text-[#5965F5]" : "border-[#DCE1ED] text-[#20212B]"}`}>{w.currency}</button>;
+                    return <button key={w.id} type="button" onClick={() => { if (!session || session.instructions.method !== "crypto") return; setWalletId(w.id); const rate = cfg?.rate ?? 1; const dec = cfg?.decimals ?? 2; setSession({ ...session, walletId: w.id, instructions: { ...session.instructions, walletId: w.id, walletLabel: w.label, network: w.network, currency: w.currency, address: w.address, qrCodeUrl: w.qrCodeUrl ?? null, amount: (session.total / rate).toFixed(dec), confirmations: cfg?.confirmations ?? 1 } }); void updateCheckoutWallet(session.id, w.id).then((r) => setSession(r.session)).catch((e) => toast.error(e instanceof Error ? e.message : "Could not update wallet.")); }} className={`rounded-full border px-4 py-2 text-sm font-medium ${selected ? "border-[#5965F5] bg-[#EEF0FF] text-[#5965F5]" : "border-[#DCE1ED] text-[#20212B]"}`}>{w.currency}</button>;
                   })}
                 </div>
               </div>
@@ -627,9 +708,11 @@ export default function CheckoutFlow() {
               </div>
               <div className="rounded-2xl bg-[#F4F7FB] p-4 sm:p-5">
                 <div className="grid gap-5 sm:grid-cols-[160px_minmax(0,1fr)]">
-                  <div className="flex h-40 w-40 items-center justify-center rounded-xl bg-white border border-[#DCE1ED] p-2">
-                    {session.instructions.method === "crypto" && (
-                      <QRCodeSVG value={session.instructions.address} size={144} bgColor="#FFFFFF" fgColor="#20212B" level="M" includeMargin={false} />
+                  <div className="flex h-40 w-40 items-center justify-center overflow-hidden rounded-xl bg-white border border-[#DCE1ED] p-2">
+                    {session.instructions.method === "crypto" && session.instructions.qrCodeUrl ? (
+                      <img src={session.instructions.qrCodeUrl} alt={`${session.instructions.currency} payment QR code`} className="h-full w-full object-contain" />
+                    ) : (
+                      <span className="px-2 text-center text-xs text-[#737D94]">QR code unavailable</span>
                     )}
                   </div>
                   <div className="min-w-0">
@@ -762,9 +845,7 @@ export default function CheckoutFlow() {
       {header}
       <div className="mx-auto max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
         <Progress step={step} />
-        {step === 1 && detailsStep}
-        {step === 2 && paymentStep}
-        {step === 3 && instructionsStep}
+        {otpStep ? otpVerificationStep : step === 1 ? detailsStep : step === 2 ? paymentStep : instructionsStep}
       </div>
 
       {session && session.status === "failed" && session.method === "card" && (

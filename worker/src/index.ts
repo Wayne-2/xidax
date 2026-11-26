@@ -19,9 +19,12 @@ import {
   listActiveWallets,
   markSessionPaid,
   submitCardPayment,
+  isCheckoutOtpVerified,
   notifyWirePending,
+  sendCheckoutOtp,
   submitPaymentProof,
   updateCheckoutWallet,
+  verifyCheckoutOtp,
 } from "./checkout";
 import {
   type CheckoutRequest,
@@ -706,11 +709,13 @@ const worker = {
 
         // Resolve the signed-in user (if any) from the session token.
         let userId: string | null = null;
+        let userEmail: string | null = null;
         const sessionToken = readToken(request);
 
         if (sessionToken) {
           const user = await findUserByToken(env, sessionToken);
           userId = user?.id ?? null;
+          userEmail = user?.email ?? null;
         }
 
         if (request.method === "GET" && path === "/api/cart") {
@@ -722,7 +727,7 @@ const worker = {
           const body = await readJson(request);
           if (!body) return jsonWithCors({ error: "Invalid request." }, request, env, 400);
 
-          const result = await addToCart(env, cartId, body.item ?? body, userId);
+          const result = await addToCart(env, cartId, body.item ?? body, userId, userEmail);
           if ("error" in result) {
             return jsonWithCors({ error: result.error }, request, env, 400);
           }
@@ -1668,11 +1673,33 @@ const worker = {
         return json({ wallets });
       }
 
+      if (request.method === "POST" && path === "/api/checkout/send-otp") {
+        const body = await readJson(request);
+        const email = typeof body?.email === "string" ? body.email : "";
+        const result = await sendCheckoutOtp(env, email);
+        if (!result.ok) return json({ error: result.error }, result.status);
+        return json({ ok: true });
+      }
+
+      if (request.method === "POST" && path === "/api/checkout/verify-otp") {
+        const body = await readJson(request);
+        const email = typeof body?.email === "string" ? body.email : "";
+        const otp = typeof body?.otp === "string" ? body.otp : "";
+        const result = await verifyCheckoutOtp(env, email, otp);
+        if (!result.ok) return json({ error: result.error }, result.status);
+        return json({ ok: true });
+      }
+
       if (request.method === "POST" && path === "/api/checkout") {
         const payload = (await request.json().catch(() => null)) as CheckoutRequest | null;
 
         if (!payload) {
           return json({ error: "Invalid checkout request." }, 400);
+        }
+
+        const email = typeof payload.details?.email === "string" ? payload.details.email : "";
+        if (!(await isCheckoutOtpVerified(env, email))) {
+          return json({ error: "Email verification required before checkout.", code: "checkout_otp_required" }, 403);
         }
 
         const result = await createCheckout(env, request, payload);

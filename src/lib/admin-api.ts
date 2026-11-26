@@ -153,6 +153,7 @@ export type AdminWalletInput = {
   network: CryptoNetwork | string;
   currency: string;
   address: string;
+  qrCodeUrl?: string | null;
   active?: boolean;
 };
 
@@ -538,6 +539,7 @@ export type AdminWallet = {
   network: CryptoNetwork;
   currency: string;
   address: string;
+  qrCodeUrl: string | null;
   active: boolean;
   createdAt: string;
   updatedAt: string;

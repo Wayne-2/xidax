@@ -715,6 +715,7 @@ export async function createCheckout(
       network: wallet.network,
       currency: wallet.currency,
       address: wallet.address,
+      qrCodeUrl: wallet.qrCodeUrl ?? null,
       amount: cryptoAmount(total, wallet.network),
       billingCurrency,
       confirmations: cryptoNetworks[wallet.network].confirmations,
@@ -815,6 +816,57 @@ export async function getSessionById(
 }
 
 /** Admin sets wire bank details for an order; status moves to awaiting_payment. */
+function checkoutOtpKey(email: string) { return `checkout-otp:${email.trim().toLowerCase()}`; }
+function randomOtp() { return String(Math.floor(100000 + Math.random() * 900000)); }
+async function hashCheckoutOtp(email: string, otp: string) {
+  const data = new TextEncoder().encode(`${email.toLowerCase()}:${otp}:${(globalThis as any).OTP_SALT || "checkout"}`);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf)).map((b)=>b.toString(16).padStart(2,"0")).join("");
+}
+
+export async function sendCheckoutOtp(env: Env, emailRaw: string): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const email = String(emailRaw || "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, status: 400, error: "Enter a valid email address." };
+  if (!env.RESEND_API_KEY) return { ok: false, status: 500, error: "Email service not configured." };
+  const key = checkoutOtpKey(email);
+  const existing = await env.SESSIONS.get(key, "json") as { lastSentAt?: number } | null;
+  const now = Date.now();
+  if (existing?.lastSentAt && now - existing.lastSentAt < 60_000) return { ok: false, status: 429, error: "Please wait before requesting another code." };
+  const otp = randomOtp();
+  const hash = await hashCheckoutOtp(email, otp);
+  await env.SESSIONS.put(key, JSON.stringify({ hash, expiresAt: now + 5 * 60_000, attempts: 0, lastSentAt: now }), { expirationTtl: 600 });
+  const { sendVerificationEmail } = await import("./email");
+  const sent = await sendVerificationEmail({ apiKey: env.RESEND_API_KEY, to: email, otp });
+  if (!sent.ok) return { ok: false, status: 502, error: "Could not send verification email." };
+  return { ok: true };
+}
+
+export async function verifyCheckoutOtp(env: Env, emailRaw: string, otpRaw: string): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const email = String(emailRaw || "").trim().toLowerCase();
+  const otp = String(otpRaw || "").trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, status: 400, error: "Enter a valid email address." };
+  if (!/^\d{6}$/.test(otp)) return { ok: false, status: 400, error: "Enter the 6-digit code." };
+  const key = checkoutOtpKey(email);
+  const rec = await env.SESSIONS.get(key, "json") as { hash: string; expiresAt: number; attempts: number } | null;
+  if (!rec) return { ok: false, status: 400, error: "Code expired or not found. Request a new one." };
+  if (Date.now() > rec.expiresAt) { await env.SESSIONS.delete(key); return { ok: false, status: 400, error: "Code expired. Request a new one." }; }
+  if (rec.attempts >= 5) { await env.SESSIONS.delete(key); return { ok: false, status: 400, error: "Too many attempts. Request a new code." }; }
+  const hash = await hashCheckoutOtp(email, otp);
+  if (hash !== rec.hash) {
+    await env.SESSIONS.put(key, JSON.stringify({ ...rec, attempts: rec.attempts + 1 }), { expirationTtl: 600 });
+    return { ok: false, status: 400, error: "Incorrect code." };
+  }
+  await env.SESSIONS.delete(key);
+  await env.SESSIONS.put(`checkout-otp-ok:${email}`, "1", { expirationTtl: 60 * 60 });
+  return { ok: true };
+}
+
+export async function isCheckoutOtpVerified(env: Env, emailRaw: string): Promise<boolean> {
+  const email = String(emailRaw || "").trim().toLowerCase();
+  if (!email) return false;
+  return (await env.SESSIONS.get(`checkout-otp-ok:${email}`)) === "1";
+}
+
 export async function notifyWirePending(
   env: Env,
   orderId: string

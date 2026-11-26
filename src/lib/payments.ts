@@ -68,6 +68,7 @@ export type CryptoWallet = {
   network: CryptoNetwork;
   currency: string;
   address: string;
+  qrCodeUrl?: string | null;
   active: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -115,6 +116,7 @@ export type CryptoInstructions = {
   network: CryptoNetwork;
   currency: string;
   address: string;
+  qrCodeUrl?: string | null;
   amount: string;
   billingCurrency: string;
   confirmations: number;

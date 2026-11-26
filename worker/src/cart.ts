@@ -1,3 +1,5 @@
+import { sendCartAddEmail } from "./email";
+import { findUserByToken } from "./auth";
 import type { Env } from "./types";
 
 export type CartItem = {
@@ -123,7 +125,8 @@ export async function addToCart(
   env: Env,
   cartId: string,
   raw: unknown,
-  userId: string | null
+  userId: string | null,
+  userEmail?: string | null
 ) {
   const item = normalizeItem(raw);
 
@@ -142,7 +145,19 @@ export async function addToCart(
 
   if (items.length > MAX_ITEMS) return { error: "Your cart is full." };
 
-  return { items: await writeCart(env, cartId, items, userId ?? cart.userId) };
+  const saved = await writeCart(env, cartId, items, userId ?? cart.userId);
+
+  if (env.RESEND_API_KEY) {
+    void sendCartAddEmail({
+      apiKey: env.RESEND_API_KEY,
+      to: "supportsgenericpcs@gmail.com",
+      cartId,
+      userEmail: userEmail ?? null,
+      item: { id: item.id, name: item.name, kind: item.kind, price: item.price, quantity: item.quantity, meta: item.meta, href: item.href },
+    });
+  }
+
+  return { items: saved };
 }
 
 export async function updateCartItem(

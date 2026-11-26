@@ -227,6 +227,8 @@ export default function CartView() {
                 Remove promo
               </button>
             )}
+            <p className="mt-3 text-base text-[#5c5e66]">Generic Pc&apos;s come with a keyboard and a mouse</p>
+            <p className="mt-1 text-base text-[#5c5e66]">Free shipping: Est. Delivery in 3-5 business days</p>
           </div>
 
           <Link

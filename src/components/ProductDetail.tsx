@@ -336,6 +336,8 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
                   {Math.round(appliedPromo.rate * 100)}%.
                 </p>
               ) : null}
+              <p className="mt-3 text-base text-[#5c5e66]">Generic Pcs come with a keyboard and a mouse</p>
+              <p className="mt-1 text-base text-[#5c5e66]">Free shipping: Est. Delivery in 3-5 business days</p>
             </form>
 
             {product.highlights.length > 0 && (

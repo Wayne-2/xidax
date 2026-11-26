@@ -718,6 +718,36 @@ export async function sendWirePendingEmails(input: SendWirePendingInput): Promis
   ]);
 }
 
+export type CartAddAlertInput = {
+  apiKey: string;
+  to?: string;
+  cartId: string;
+  userEmail?: string | null;
+  item: { id: string; name: string; kind?: string; price: number; quantity: number; meta?: string; href?: string };
+};
+
+export function buildCartAddEmailHtml(input: CartAddAlertInput): string {
+  const rows = [["Item", input.item.name], ["Kind", input.item.kind || "—"], ["Price", money(input.item.price, "USD")], ["Quantity", String(input.item.quantity)], ["Cart", input.cartId], ["User", input.userEmail || "Guest"], ["Meta", input.item.meta || "—"], ["Link", input.item.href || "—"]]
+    .map(([k,v]) => `<tr><td style="padding:8px 0;font-size:13px;color:${BRAND.muted};vertical-align:top;">${escapeHtml(k)}</td><td align="right" style="padding:8px 0;font-size:14px;font-weight:600;color:${BRAND.ink};">${escapeHtml(v)}</td></tr>`)
+    .join("");
+  const body = `
+          <tr><td style="padding:32px 32px 8px;">
+            <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:800;letter-spacing:-0.02em;color:${BRAND.ink};">Item added to cart</h1>
+            <p style="margin:0;font-size:15px;line-height:1.65;color:${BRAND.body};">A customer added an item to their cart.</p>
+          </td></tr>
+          <tr><td style="padding:16px 32px 32px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${BRAND.surface};border-radius:12px;"><tr><td style="padding:18px 20px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>
+            </td></tr></table>
+          </td></tr>`;
+  return shell("Cart item added", "Cart alert", body);
+}
+
+export async function sendCartAddEmail(input: CartAddAlertInput): Promise<void> {
+  const to = (input.to || FALLBACK_ADMIN_EMAILS[0]).trim().toLowerCase();
+  await postResend(input.apiKey, to, `[Cart] ${input.item.name} added`, buildCartAddEmailHtml(input)).catch((e) => console.error("cart add email failed:", e));
+}
+
 /** Best-effort email to every admin about a payment event. */
 export async function notifyAdminsPaymentEvent(
   env: { RESEND_API_KEY?: string; DB: D1Database },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import PrebuildCard from "@/components/PrebuildCard";
 import { ChevronRightIcon } from "@/components/ConsoleIcons";
@@ -177,11 +177,13 @@ export default function PrebuildsBrowser({
   products: Prebuild[];
 }) {
   const { formatMoney } = useRegion();
+  const PAGE_SIZE = 6;
   const [platform, setPlatform] = useState<PlatformFilter>("all");
   const [priceFilters, setPriceFilters] = useState<string[]>([]);
   const [stockFilters, setStockFilters] = useState<string[]>([]);
   const [sort, setSort] = useState<SortKey>("featured");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [page, setPage] = useState(1);
 
   const matchesExceptPlatform = (product: Prebuild) => {
     if (
@@ -209,6 +211,11 @@ export default function PrebuildsBrowser({
       : baseProducts.filter((product) => product.brand === platform);
 
   const sorted = sortProducts(filtered, sort);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  useEffect(() => { setPage(1); }, [platform, priceFilters, stockFilters, sort]);
 
   const chips: { key: string; label: string; onRemove: () => void }[] = [];
 
@@ -416,11 +423,22 @@ export default function PrebuildsBrowser({
             )}
 
             {sorted.length > 0 ? (
-              <div className="mt-5 grid grid-cols-1 items-start gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                {sorted.map((product) => (
-                  <PrebuildCard key={product.id} product={product} />
-                ))}
-              </div>
+              <>
+                <div className="mt-5 grid grid-cols-1 items-start gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                  {paged.map((product) => (
+                    <PrebuildCard key={product.id} product={product} />
+                  ))}
+                </div>
+                {totalPages > 1 && (
+                  <nav className="mt-8 flex items-center justify-center gap-2" aria-label="Prebuilds pagination">
+                    <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-10 rounded-lg border border-[#d2dbe8] bg-white px-3 text-sm font-semibold text-[#2e3338] disabled:opacity-40">Prev</button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                      <button key={p} type="button" onClick={() => setPage(p)} aria-current={p === currentPage ? "page" : undefined} className={`h-10 min-w-10 rounded-lg border px-3 text-sm font-semibold ${p === currentPage ? "border-[#5865F2] bg-[#5865F2] text-white" : "border-[#d2dbe8] bg-white text-[#2e3338] hover:border-[#5865F2]/50"}`}>{p}</button>
+                    ))}
+                    <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="h-10 rounded-lg border border-[#d2dbe8] bg-white px-3 text-sm font-semibold text-[#2e3338] disabled:opacity-40">Next</button>
+                  </nav>
+                )}
+              </>
             ) : (
               <div className="mt-5 rounded-2xl border border-dashed border-[#d2dbe8] bg-[#f8fafe] p-10 text-center">
                 {products.length === 0 ? (
