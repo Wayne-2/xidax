@@ -278,6 +278,8 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
             <p className={`mt-2 text-xs font-semibold ${product.stock === "in-stock" ? "text-[#15803D]" : "text-[#B45309]"}`}>
               {product.stock === "in-stock" ? "In stock — ready to ship" : "Built to order"}
             </p>
+            <p className="mt-2 text-base text-[#5c5e66]">Generic Pcs come with a keyboard and a mouse</p>
+            <p className="mt-1 text-base text-[#5c5e66]">Free shipping: Est. Delivery in 3-5 business days</p>
 
             <div className="mt-6 flex gap-2">
               <div className="inline-flex h-11 items-center rounded-xl border border-[#d2dbe8] bg-white">
@@ -343,8 +345,21 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
                   {Math.round(appliedPromo.rate * 100)}%.
                 </p>
               ) : null}
-              <p className="mt-3 text-base text-[#5c5e66]">Generic Pcs come with a keyboard and a mouse</p>
-              <p className="mt-1 text-base text-[#5c5e66]">Free shipping: Est. Delivery in 3-5 business days</p>
+              {kind === "prebuilds" && (
+                <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-[#d2dbe8] bg-[#f0f4fa] p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-[#2e3338]">
+                      The graphics card will be shipped uninstalled
+                    </p>
+                    <p className="mt-1 text-sm text-[#5c5e66]">
+                      The graphics card ships outside the case so you can install it in your own build.
+                    </p>
+                  </div>
+                  <Link href={`/install?product=${product.id}`} className="shrink-0 text-sm font-semibold text-[#5865F2] transition-colors hover:text-[#4752C4]">
+                    Installation guide
+                  </Link>
+                </div>
+              )}
             </form>
 
             {product.highlights.length > 0 && (
@@ -369,21 +384,7 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
           <section className="mt-12 rounded-2xl border border-[#dce3ee] bg-white p-6 shadow-card sm:p-8">
             <h2 className="text-xl font-bold text-[#2e3338]">Specifications</h2>
 
-            {kind === "prebuilds" && (
-              <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-[#d2dbe8] bg-[#f0f4fa] p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-bold text-[#2e3338]">
-                    The graphics card will be shipped uninstalled
-                  </p>
-                  <p className="mt-1 text-sm text-[#5c5e66]">
-                    The graphics card ships outside the case so you can install it in your own build.
-                  </p>
-                </div>
-                <Link href={`/install?product=${product.id}`} className="shrink-0 text-sm font-semibold text-[#5865F2] transition-colors hover:text-[#4752C4]">
-                  Installation guide
-                </Link>
-              </div>
-            )}
+
 
             <dl className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2">
               {product.specs.map((spec, index) => (
