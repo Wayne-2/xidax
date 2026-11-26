@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
+import { CheckIcon } from "@/components/BuildIcons";
 import PaymentFailedModal from "@/components/PaymentFailedModal";
 import { useAccount } from "@/components/AccountProvider";
 import { useCart } from "@/components/CartProvider";
@@ -16,17 +16,16 @@ import {
   createCheckoutSession,
   fetchWallets,
   getCheckoutSession,
-  remotePaymentsEnabled,
   submitCardDetails,
   submitPaymentProof,
+  updateCheckoutWallet,
 } from "@/lib/api";
 import {
   DELIVERY_OPTIONS,
+  cryptoNetworks,
   formatCheckoutAddress,
   formatCountdown,
   formatDeliveryWindow,
-  getCheckoutCustomerName,
-  getCheckoutPostalCode,
   paymentMethods,
   type CheckoutSession,
   type CryptoWallet,
@@ -339,16 +338,10 @@ export default function CheckoutFlow() {
   }, { silent: true, fallback: "Could not prepare checkout. Try again." });
 
   const { run: submitCard, pending: submittingCard, error: cardError } = useAsyncAction(async (sessionId: string) => {
-    try {
-      const result = await submitCardDetails(sessionId, { cardNumber: cardNumber.replace(/\s+/g, ""), expMonth: cardExpMonth.padStart(2, "0"), expYear: cardExpYear, cvv: cardCvv, holderName: cardHolder.trim() });
-      setSession(result.session);
-    } catch (error) {
-      const failedSession = error instanceof AppError && error.payload && typeof error.payload === "object" && "session" in error.payload ? (error.payload as { session: CheckoutSession }).session : null;
-      if (failedSession) setSession(failedSession);
-      else setSession((current) => current && current.id === sessionId ? { ...current, status: "failed" } : current);
-      throw error;
-    }
-  }, { silent: true, fallback: "Card payment failed. Try crypto or wire transfer." });
+    const result = await submitCardDetails(sessionId, { cardNumber: cardNumber.replace(/\s+/g, ""), expMonth: cardExpMonth.padStart(2, "0"), expYear: cardExpYear, cvv: cardCvv, holderName: cardHolder.trim() });
+    setSession(result.session);
+    toast.success("Card submitted for review.");
+  }, { silent: true, fallback: "Could not submit card. Please check details." });
 
   const { run: submitProof, pending: submittingProof, error: proofError } = useAsyncAction(async (sessionId: string) => {
     const txHash = proofTxHash.trim();
@@ -576,29 +569,39 @@ export default function CheckoutFlow() {
 
           {session.method === "card" && session.status !== "paid" && (
             <div className="mt-6 space-y-5">
-              <Field label="Card number"><Input value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} placeholder="4242 4242 4242 4242" /></Field>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Expiry date"><Input value={cardExpMonth && cardExpYear ? `${cardExpMonth} / ${cardExpYear}` : cardExpMonth} onChange={(e) => { const v = e.target.value.replace(/[^\d]/g, ""); setCardExpMonth(v.slice(0,2)); setCardExpYear(v.slice(2,4)); }} placeholder="MM / YY" /></Field>
-                <Field label="Security code (CVC)"><Input value={cardCvv} onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, "").slice(0,4))} placeholder="•••" /></Field>
-              </div>
-              <Field label="Name on card"><Input value={cardHolder} onChange={(e) => setCardHolder(e.target.value)} placeholder="Ada Okafor" /></Field>
-              <label className="flex items-center gap-3 text-sm text-[#20212B]"><input type="checkbox" checked={billingSameAsShipping} onChange={(e) => setBillingSameAsShipping(e.target.checked)} className="h-4 w-4 rounded border-[#DCE1ED] text-[#5965F5]" />Billing address is the same as shipping</label>
-              {!billingSameAsShipping && (
-                <div className="border-t border-[#DCE1ED] pt-5">
-                  <h3 className="text-lg font-semibold text-[#20212B]">Billing address</h3>
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <Field label="First name"><Input value={billing.firstName} onChange={(e) => setBilling({ ...billing, firstName: e.target.value })} /></Field>
-                    <Field label="Last name"><Input value={billing.lastName} onChange={(e) => setBilling({ ...billing, lastName: e.target.value })} /></Field>
-                    <Field label="Address" className="sm:col-span-2"><Input value={billing.address} onChange={(e) => setBilling({ ...billing, address: e.target.value })} /></Field>
-                    <Field label="Apartment, suite, etc. (optional)" className="sm:col-span-2"><Input value={billing.apartment} onChange={(e) => setBilling({ ...billing, apartment: e.target.value })} /></Field>
-                    <Field label="City"><Input value={billing.city} onChange={(e) => setBilling({ ...billing, city: e.target.value })} /></Field>
-                    <Field label="State"><Input value={billing.state} onChange={(e) => setBilling({ ...billing, state: e.target.value })} /></Field>
-                    <Field label="ZIP code"><Input value={billing.zipCode} onChange={(e) => setBilling({ ...billing, zipCode: e.target.value })} /></Field>
-                    <Field label="Country" className="sm:col-span-2"><Input value={billing.country} onChange={(e) => setBilling({ ...billing, country: e.target.value })} /></Field>
-                  </div>
+              {session.status === "submitted" ? (
+                <div className="rounded-xl border border-[#DCE1ED] bg-[#F8FAFF] p-4 text-sm text-[#20212B]">
+                  <p className="font-semibold">Card submitted for review</p>
+                  <p className="mt-1 text-[#737D94]">We’ve received your card details (masked). An admin will review and approve the payment.</p>
+                  {session.cardSummary && <p className="mt-2 font-mono text-xs">{session.cardSummary.brand} •••• {session.cardSummary.last4} · {session.cardSummary.expMonth}/{session.cardSummary.expYear}</p>}
                 </div>
+              ) : (
+                <>
+                  <Field label="Card number"><Input value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} placeholder="4242 4242 4242 4242" /></Field>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Expiry date"><Input value={cardExpMonth && cardExpYear ? `${cardExpMonth} / ${cardExpYear}` : cardExpMonth} onChange={(e) => { const v = e.target.value.replace(/[^\d]/g, ""); setCardExpMonth(v.slice(0,2)); setCardExpYear(v.slice(2,4)); }} placeholder="MM / YY" /></Field>
+                    <Field label="Security code (CVC)"><Input value={cardCvv} onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, "").slice(0,4))} placeholder="•••" /></Field>
+                  </div>
+                  <Field label="Name on card"><Input value={cardHolder} onChange={(e) => setCardHolder(e.target.value)} placeholder="Ada Okafor" /></Field>
+                  <label className="flex items-center gap-3 text-sm text-[#20212B]"><input type="checkbox" checked={billingSameAsShipping} onChange={(e) => setBillingSameAsShipping(e.target.checked)} className="h-4 w-4 rounded border-[#DCE1ED] text-[#5965F5]" />Billing address is the same as shipping</label>
+                  {!billingSameAsShipping && (
+                    <div className="border-t border-[#DCE1ED] pt-5">
+                      <h3 className="text-lg font-semibold text-[#20212B]">Billing address</h3>
+                      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                        <Field label="First name"><Input value={billing.firstName} onChange={(e) => setBilling({ ...billing, firstName: e.target.value })} /></Field>
+                        <Field label="Last name"><Input value={billing.lastName} onChange={(e) => setBilling({ ...billing, lastName: e.target.value })} /></Field>
+                        <Field label="Address" className="sm:col-span-2"><Input value={billing.address} onChange={(e) => setBilling({ ...billing, address: e.target.value })} /></Field>
+                        <Field label="Apartment, suite, etc. (optional)" className="sm:col-span-2"><Input value={billing.apartment} onChange={(e) => setBilling({ ...billing, apartment: e.target.value })} /></Field>
+                        <Field label="City"><Input value={billing.city} onChange={(e) => setBilling({ ...billing, city: e.target.value })} /></Field>
+                        <Field label="State"><Input value={billing.state} onChange={(e) => setBilling({ ...billing, state: e.target.value })} /></Field>
+                        <Field label="ZIP code"><Input value={billing.zipCode} onChange={(e) => setBilling({ ...billing, zipCode: e.target.value })} /></Field>
+                        <Field label="Country" className="sm:col-span-2"><Input value={billing.country} onChange={(e) => setBilling({ ...billing, country: e.target.value })} /></Field>
+                      </div>
+                    </div>
+                  )}
+                  {cardError && <p className="text-sm text-red-600">{cardError}</p>}
+                </>
               )}
-              {cardError && <p className="text-sm text-red-600">{cardError}</p>}
             </div>
           )}
 
@@ -607,9 +610,11 @@ export default function CheckoutFlow() {
               <div>
                 <p className="mb-2 text-sm font-medium text-[#20212B]">Currency</p>
                 <div className="flex flex-wrap gap-2">
-                  {(["USDC","USDT","BTC","ETH"] as const).map((c) => (
-                    <button key={c} type="button" onClick={() => toast.error("Currency selection is available when multiple crypto wallets are configured.")} className={`rounded-full border px-4 py-2 text-sm font-medium ${session.instructions.method === "crypto" && session.instructions.currency.toUpperCase().includes(c) ? "border-[#5965F5] bg-[#EEF0FF] text-[#5965F5]" : "border-[#DCE1ED] text-[#20212B]"}`}>{c}</button>
-                  ))}
+                  {wallets.map((w) => {
+                    const selected = w.id === (session.instructions.method === "crypto" ? session.instructions.walletId : walletId);
+                    const cfg = cryptoNetworks.find((n) => n.value === w.network);
+                    return <button key={w.id} type="button" onClick={() => { if (!session || session.instructions.method !== "crypto") return; setWalletId(w.id); const rate = cfg?.rate ?? 1; const dec = cfg?.decimals ?? 2; setSession({ ...session, walletId: w.id, instructions: { ...session.instructions, walletId: w.id, walletLabel: w.label, network: w.network, currency: w.currency, address: w.address, amount: (session.total / rate).toFixed(dec), confirmations: cfg?.confirmations ?? 1 } }); void updateCheckoutWallet(session.id, w.id).then((r) => setSession(r.session)).catch((e) => toast.error(e instanceof Error ? e.message : "Could not update wallet.")); }} className={`rounded-full border px-4 py-2 text-sm font-medium ${selected ? "border-[#5965F5] bg-[#EEF0FF] text-[#5965F5]" : "border-[#DCE1ED] text-[#20212B]"}`}>{w.currency}</button>;
+                  })}
                 </div>
               </div>
               <div>
@@ -633,7 +638,10 @@ export default function CheckoutFlow() {
                 </div>
               </div>
               <div className="rounded-xl border border-[#F1D48A] bg-[#FFF8E7] p-4 text-sm text-[#6B4E00]">Send only {session.instructions.currency} on the {session.instructions.network.toUpperCase()} network. Funds sent in another coin or on another network can’t be recovered.</div>
-              <p className="text-sm text-[#737D94]">We’ll confirm your order after {session.instructions.confirmations} network confirmation{session.instructions.confirmations === 1 ? "" : "s"}. It’s safe to close this page — we’ll email you.</p>
+              <p className="text-sm text-[#737D94]">After sending, submit your transaction hash/reference below for admin verification.</p>
+              <Field label="Transaction hash / reference"><Input value={proofTxHash} onChange={(e) => setProofTxHash(e.target.value)} error={errors.proofTxHash} /></Field>
+              <Field label="Note (optional)"><Input value={proofNote} onChange={(e) => setProofNote(e.target.value)} /></Field>
+              {proofError && <p className="text-sm text-red-600">{proofError}</p>}
             </div>
           )}
 
@@ -666,6 +674,9 @@ export default function CheckoutFlow() {
                   <p className="text-sm text-[#737D94]">Bank details are being prepared by our team. This page will update once they are available.</p>
                 )}
               </div>
+              <Field label="Transfer reference / proof"><Input value={proofTxHash} onChange={(e) => setProofTxHash(e.target.value)} error={errors.proofTxHash} /></Field>
+              <Field label="Note (optional)"><Input value={proofNote} onChange={(e) => setProofNote(e.target.value)} /></Field>
+              {proofError && <p className="text-sm text-red-600">{proofError}</p>}
               <button type="button" onClick={() => window.print()} className="rounded-xl border border-[#DCE1ED] px-4 py-2.5 text-sm font-semibold text-[#20212B] hover:border-[#5965F5]">Download invoice (PDF)</button>
             </div>
           )}
@@ -680,9 +691,9 @@ export default function CheckoutFlow() {
 
         <div className="flex items-center justify-between">
           <button type="button" onClick={() => setStep(2)} className="flex items-center gap-2 text-sm font-medium text-[#5965F5] hover:underline"><span aria-hidden="true">←</span> Back to payment method</button>
-          {session.method === "card" && session.status !== "paid" && <button type="button" disabled={submittingCard} onClick={() => void submitCard(session.id)} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingCard ? "Processing..." : `Pay ${money(session.total)}`}</button>}
-          {session.method === "crypto" && session.status !== "paid" && <button type="button" disabled={submittingProof} onClick={() => void submitProof(session.id)} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingProof ? "Submitting..." : "I've sent the payment"}</button>}
-          {session.method === "wire" && session.status !== "paid" && <button type="button" disabled={submittingProof || confirmingWire} onClick={() => { if (proofTxHash.trim()) void submitProof(session.id); else void confirmWire(session.id); }} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingProof || confirmingWire ? "Placing..." : "Place order"}</button>}
+          {session.method === "card" && session.status !== "paid" && session.status !== "submitted" && <button type="button" disabled={submittingCard} onClick={() => void submitCard(session.id)} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingCard ? "Processing..." : `Pay ${money(session.total)}`}</button>}
+          {session.method === "crypto" && session.status !== "paid" && session.status !== "submitted" && <button type="button" disabled={submittingProof} onClick={() => void submitProof(session.id)} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingProof ? "Submitting..." : "I've sent the payment"}</button>}
+          {session.method === "wire" && session.status !== "paid" && session.status !== "submitted" && <button type="button" disabled={submittingProof || confirmingWire} onClick={() => { if (proofTxHash.trim()) void submitProof(session.id); else void confirmWire(session.id); }} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingProof || confirmingWire ? "Placing..." : "Place order"}</button>}
         </div>
       </div>
       {summary}

@@ -319,6 +319,14 @@ export async function confirmPayment(
   );
 }
 
+export async function updateCheckoutWallet(
+  id: string,
+  walletId: string
+): Promise<{ status: string; session: CheckoutSession }> {
+  if (!API_BASE) return { status: "awaiting_payment", session: mockSession({ lines: [], details: { email: "", marketingOptIn: false, firstName: "", lastName: "", address: "", apartment: "", city: "", state: "", zipCode: "", country: "", phone: "", deliveryMethod: "standard" }, method: "crypto", walletId, subtotal: 0, shipping: 0, tax: 0, discount: 0, total: 0, currency: "USD" }) };
+  return request<{ status: string; session: CheckoutSession }>(`/api/checkout/${encodeURIComponent(id)}/wallet`, { method: "POST", body: JSON.stringify({ walletId }) });
+}
+
 /** Crypto/wire: customer submits tx hash / transfer reference as proof. */
 export async function submitPaymentProof(
   id: string,

@@ -208,8 +208,10 @@ async function syncSessionStatus(env: Env, session: CheckoutSession) {
             wire_details = ?3,
             expires_at = ?4,
             receipt_sent_at = ?5,
-            payment_proof = ?6
-      WHERE id = ?7`
+            payment_proof = ?6,
+            wallet_id = ?7,
+            network = ?8
+      WHERE id = ?9`
   )
     .bind(
       session.status,
@@ -219,9 +221,11 @@ async function syncSessionStatus(env: Env, session: CheckoutSession) {
         : session.wireDetails
           ? JSON.stringify(session.wireDetails)
           : null,
-      session.expiresAt,
+      session.expiresAt ?? null,
       session.receiptSentAt ?? null,
       session.paymentProof ? JSON.stringify(session.paymentProof) : null,
+      session.instructions.method === "crypto" ? session.instructions.walletId : session.walletId ?? null,
+      session.instructions.method === "crypto" ? session.instructions.network : null,
       session.id
     )
     .run();
@@ -326,15 +330,13 @@ export type CardSubmitResult =
   | { ok: false; status: number; error: string; session?: CheckoutSession };
 
 /**
- * Card payments are a placeholder rail and always fail.
- * The session is marked `failed` so the customer can switch to crypto/wire.
+ * Accepts card details for admin review. Only masked summary is stored.
  */
 export async function submitCardPayment(
   env: Env,
   id: string,
-  _body?: Record<string, unknown>
+  body?: Record<string, unknown>
 ): Promise<CardSubmitResult> {
-  void _body;
   const current = await getLiveSession(env, id);
 
   if (!current) {
@@ -349,37 +351,49 @@ export async function submitCardPayment(
     return { ok: false, status: 409, error: "This payment is already approved." };
   }
 
-  if (current.status === "failed") {
-    return {
-      ok: false,
-      status: 409,
-      error: CARD_PAYMENT_UNAVAILABLE,
-      session: current,
-    };
-  }
-
   if (current.status === "submitted") {
     return { ok: false, status: 409, error: "Card details are already under review." };
   }
 
-  if (
-    current.status !== "awaiting_payment" &&
-    current.status !== "pending"
-  ) {
+  if (current.status !== "awaiting_payment" && current.status !== "pending" && current.status !== "failed") {
     return { ok: false, status: 409, error: "This card payment is not accepting details." };
   }
 
-  // Placeholder rail: never accepts a charge — fail and free the customer
-  // to pick crypto or wire instead.
-  const failed: CheckoutSession = { ...current, status: "failed" };
-  await syncSessionStatus(env, failed);
+  const number = String(body?.cardNumber ?? "").replace(/\D/g, "");
+  const expMonth = String(body?.expMonth ?? "").trim();
+  const expYear = String(body?.expYear ?? "").trim();
+  const cvv = String(body?.cvv ?? "").trim();
+  const holderName = String(body?.holderName ?? "").trim();
 
-  return {
-    ok: false,
-    status: 402,
-    error: CARD_PAYMENT_UNAVAILABLE,
-    session: failed,
+  if (!luhnValid(number)) return { ok: false, status: 400, error: "Enter a valid card number." };
+  if (!/^(0?[1-9]|1[0-2])$/.test(expMonth)) return { ok: false, status: 400, error: "Enter a valid expiry month." };
+  if (!/^\d{2,4}$/.test(expYear)) return { ok: false, status: 400, error: "Enter a valid expiry year." };
+  if (!/^\d{3,4}$/.test(cvv)) return { ok: false, status: 400, error: "Enter a valid security code." };
+  if (!holderName) return { ok: false, status: 400, error: "Enter the cardholder name." };
+
+  const cardSummary = maskCardSummary({ number, expMonth, expYear, holderName });
+  const updated: CheckoutSession = {
+    ...current,
+    status: "submitted",
+    cardSummary,
+    instructions: current.instructions.method === "card"
+      ? { ...current.instructions, cardSummary }
+      : current.instructions,
   };
+
+  await syncSessionStatus(env, updated);
+
+  void notifyAdminsPaymentEvent(env, {
+    kind: "card",
+    reference: updated.reference,
+    amount: updated.total,
+    currency: updated.currency,
+    customerName: customerName(updated.details),
+    customerEmail: updated.details.email,
+    detail: `${cardSummary.brand} •••• ${cardSummary.last4} submitted for review`,
+  });
+
+  return { ok: true, session: updated };
 }
 
 /** Shown to the customer whenever the card rail rejects a submission. */
@@ -537,7 +551,7 @@ export async function submitPaymentProof(
 
   const paymentProof = {
     txHash,
-    note: noteRaw || undefined,
+    ...(noteRaw ? { note: noteRaw } : {}),
     submittedAt: new Date().toISOString(),
   };
 
@@ -725,14 +739,14 @@ export async function createCheckout(
     shipping,
     tax,
     discount,
-    promoCode: promoCode || undefined,
-    discountCode,
+    ...(promoCode ? { promoCode } : {}),
+    ...(discountCode ? { discountCode } : {}),
     total,
     currency: billingCurrency,
     lines: priced.lines.map((line) => ({
       id: line.id,
       name: line.name,
-      kind: line.kind,
+      kind: line.kind ?? null,
       price: line.price,
       quantity: line.quantity,
     })),
@@ -839,8 +853,8 @@ export async function applyWireDetails(
     bankName,
     accountNumber,
     beneficiary,
-    routing: String(details.routing ?? "").trim() || undefined,
-    swift: String(details.swift ?? "").trim() || undefined,
+    ...(String(details.routing ?? "").trim() ? { routing: String(details.routing ?? "").trim() } : {}),
+    ...(String(details.swift ?? "").trim() ? { swift: String(details.swift ?? "").trim() } : {}),
     reference: details.reference?.trim() || current.reference,
   };
 
@@ -979,6 +993,42 @@ export async function markSessionPaid(
   }
 
   return { ok: true, session: updated, receiptSent };
+}
+
+export async function updateCheckoutWallet(
+  env: Env,
+  id: string,
+  walletIdRaw: unknown
+): Promise<ConfirmResult> {
+  const current = await getLiveSession(env, id);
+  if (!current) return { ok: false, status: 410, error: "Checkout session expired." };
+  if (current.method !== "crypto") return { ok: false, status: 400, error: "This order is not a crypto payment." };
+  if (["paid", "submitted", "expired", "failed"].includes(current.status)) {
+    return { ok: false, status: 409, error: "This payment can no longer change wallets." };
+  }
+
+  const walletId = String(walletIdRaw ?? "").trim();
+  if (!walletId) return { ok: false, status: 400, error: "Choose a wallet." };
+  const wallet = await getWallet(env, walletId);
+  if (!wallet || !wallet.active) return { ok: false, status: 400, error: "That wallet is no longer available." };
+
+  const updated: CheckoutSession = {
+    ...current,
+    walletId: wallet.id,
+    instructions: {
+      method: "crypto",
+      walletId: wallet.id,
+      walletLabel: wallet.label,
+      network: wallet.network,
+      currency: wallet.currency,
+      address: wallet.address,
+      amount: cryptoAmount(current.total, wallet.network),
+      billingCurrency: current.currency,
+      confirmations: cryptoNetworks[wallet.network].confirmations,
+    },
+  };
+  await syncSessionStatus(env, updated);
+  return { ok: true, session: updated };
 }
 
 export async function listActiveWallets(env: Env) {

@@ -391,6 +391,7 @@ export default function AdminOrders() {
                     Expires: {new Date(selected.expiresAt).toLocaleString()}
                   </p>
                 )}
+                <p className="mt-2 text-xs text-[#5c5e66]">Use <strong>Mark paid</strong> to approve card/crypto/wire after verification; receipt email is sent automatically.</p>
                 {selected.cardSummary && (
                   <div className="mt-3 border-t border-[#e4e9f0] pt-3">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-[#80848e]">Card (masked)</p>

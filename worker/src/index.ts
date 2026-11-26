@@ -17,8 +17,10 @@ import {
   expireStaleSessions,
   getSessionById,
   listActiveWallets,
+  markSessionPaid,
   submitCardPayment,
   submitPaymentProof,
+  updateCheckoutWallet,
 } from "./checkout";
 import {
   type CheckoutRequest,
@@ -1740,6 +1742,18 @@ const worker = {
           return json({ error: result.error }, result.status);
         }
 
+        return json({ status: result.session.status, session: result.session });
+      }
+
+      const walletMatch = path.match(/^\/api\/checkout\/([^/]+)\/wallet$/);
+
+      if (request.method === "POST" && walletMatch) {
+        const body = (await request.json().catch(() => null)) as
+          | Record<string, unknown>
+          | null;
+        if (!body) return json({ error: "Invalid request." }, 400);
+        const result = await updateCheckoutWallet(env, walletMatch[1], body.walletId);
+        if (!result.ok) return json({ error: result.error }, result.status);
         return json({ status: result.session.status, session: result.session });
       }
 
