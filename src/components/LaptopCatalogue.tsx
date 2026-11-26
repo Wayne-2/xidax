@@ -11,6 +11,7 @@ import {
   GamepadIcon,
   PaletteIcon,
 } from "@/components/LaptopIcons";
+import { useAccount } from "@/components/AccountProvider";
 import { useCart } from "@/components/CartProvider";
 import { useRegion } from "@/components/RegionProvider";
 import { cartItemFromLaptop, type CartItem } from "@/data/cart";
@@ -225,6 +226,7 @@ export default function LaptopCatalogue({
   const { formatMoney } = useRegion();
   const { items: cartItems, add: addToCart, remove: removeFromCart } =
     useCart();
+  const { token } = useAccount();
   const [toast, setToast] = useState<{ id: number; message: string } | null>(
     null
   );
@@ -261,16 +263,12 @@ export default function LaptopCatalogue({
 
     if (isAdded) {
       removeFromCart(item.id);
+      setToast((current) => ({ id: (current?.id ?? 0) + 1, message: `${laptop.name} removed from cart` }));
     } else {
+      if (!token) { const next = `${window.location.pathname}${window.location.search}`; window.location.assign(`/login?next=${encodeURIComponent(next)}`); return; }
       addToCart(item);
+      setToast((current) => ({ id: (current?.id ?? 0) + 1, message: `${laptop.name} added to cart` }));
     }
-
-    setToast((current) => ({
-      id: (current?.id ?? 0) + 1,
-      message: isAdded
-        ? `${laptop.name} removed from cart`
-        : `${laptop.name} added to cart`,
-    }));
 
     if (toastTimer.current) {
       clearTimeout(toastTimer.current);

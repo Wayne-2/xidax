@@ -1,13 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAccount } from "@/components/AccountProvider";
 import { useCart } from "@/components/CartProvider";
 import { useRegion } from "@/components/RegionProvider";
 import { useToast } from "@/components/ToastProvider";
 import { CheckIcon } from "@/components/BuildIcons";
 
 export default function CartView() {
+  const { token, ready: accountReady } = useAccount();
+  const router = useRouter();
   const {
     items,
     count,
@@ -20,6 +24,9 @@ export default function CartView() {
     applyPromo,
     clearPromo,
   } = useCart();
+
+  useEffect(() => { if (accountReady && !token) router.replace("/login?next=%2Fcart"); }, [accountReady, token, router]);
+  if (!accountReady || !token) return null;
 
   const { formatMoney } = useRegion();
   const toast = useToast();

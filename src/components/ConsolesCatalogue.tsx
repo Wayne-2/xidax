@@ -7,6 +7,7 @@ import {
   CartIcon,
 } from "@/components/ConsoleIcons";
 import { CheckIcon } from "@/components/BuildIcons";
+import { useAccount } from "@/components/AccountProvider";
 import { useCart } from "@/components/CartProvider";
 import { cartItemFromConsole } from "@/data/cart";
 import type { Console, ConsoleCategory } from "@/data/consoles";
@@ -32,6 +33,7 @@ export default function ConsolesCatalogue({
 }: ConsolesCatalogueProps) {
   const { items: cartItems, add: addToCart, remove: removeFromCart } =
     useCart();
+  const { token } = useAccount();
   const { formatMoney } = useRegion();
   const featuredCategory =
     categories.find((entry) => entry.id === featured.category) ?? categories[0];
@@ -65,16 +67,12 @@ export default function ConsolesCatalogue({
 
     if (isAdded) {
       removeFromCart(item.id);
+      setToast((current) => ({ id: (current?.id ?? 0) + 1, message: `${product.name} removed from cart` }));
     } else {
+      if (!token) { const next = `${window.location.pathname}${window.location.search}`; window.location.assign(`/login?next=${encodeURIComponent(next)}`); return; }
       addToCart(item);
+      setToast((current) => ({ id: (current?.id ?? 0) + 1, message: `${product.name} added to cart` }));
     }
-
-    setToast((current) => ({
-      id: (current?.id ?? 0) + 1,
-      message: isAdded
-        ? `${product.name} removed from cart`
-        : `${product.name} added to cart`,
-    }));
 
     if (toastTimer.current) {
       clearTimeout(toastTimer.current);

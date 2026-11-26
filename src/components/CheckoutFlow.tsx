@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { CheckIcon } from "@/components/BuildIcons";
 import PaymentFailedModal from "@/components/PaymentFailedModal";
 import { useAccount } from "@/components/AccountProvider";
@@ -146,8 +146,6 @@ export default function CheckoutFlow() {
   const { items, subtotal, promo, ready } = useCart();
   const { region, setCountry: setRegionCountry } = useRegion();
   const toast = useToast();
-  const [autoOtpSent, setAutoOtpSent] = useState(false);
-  const draftRef = useRef<Draft>(defaultDraft);
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [otpStep, setOtpStep] = useState(false);
@@ -183,29 +181,14 @@ export default function CheckoutFlow() {
       setDraft({ ...loaded, country: loaded.country || user?.country || region.country, email: loaded.email || user?.email || "" });
       setDiscountInput(loaded.discountCode || "");
       setDraftReady(true);
-      try {
-        const params = new URLSearchParams(window.location.search);
-        if (params.get("verify") === "1") setOtpStep(true);
-      } catch {}
+      // Always start at Details. OTP is requested on Continue to payment.
     }, 0);
     return () => window.clearTimeout(timer);
   }, [region.country, user?.country, user?.email]);
 
-  useEffect(() => { draftRef.current = draft; if (draftReady) saveDraft(draft); }, [draft, draftReady]);
+  useEffect(() => { if (draftReady) saveDraft(draft); }, [draft, draftReady]);
 
-  useEffect(() => {
-    if (!draftReady || restoring || session || checkoutOtpVerified || autoOtpSent) return;
-    try {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("verify") !== "1") return;
-      setOtpStep(true);
-      const email = draftRef.current.email.trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setOtpStep(false); setStep(1); return; }
-      setAutoOtpSent(true);
-      void requestCheckoutOtp(email);
-    } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftReady, restoring, session, checkoutOtpVerified, autoOtpSent]);
+
 
   useEffect(() => {
     if (ready && items.length === 0 && !session && !restoring) router.replace("/cart");
@@ -359,7 +342,7 @@ export default function CheckoutFlow() {
       setCheckoutOtpVerified(true);
       setOtpStep(false);
       setStep(1);
-      toast.success("Email verified. Continue with your details.");
+      toast.success("Email verified.");
     } catch (e) {
       setOtpError(e instanceof Error ? e.message : "Could not verify code.");
       setOtpDigits(Array(6).fill(""));
@@ -576,7 +559,7 @@ export default function CheckoutFlow() {
       <div className="space-y-6">
         <section className="rounded-2xl border border-[#DCE1ED] bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-[#20212B]">Verify your email</h2>
-          <p className="mt-1 text-sm text-[#737D94]">Enter the 6-digit code we sent to <span className="font-medium text-[#20212B]">{draft.email || "your email"}</span> to continue to checkout.</p>
+          <p className="mt-1 text-sm text-[#737D94]">We sent a 6-digit code to <span className="font-medium text-[#20212B]">{draft.email || "your email"}</span>. Verify it to continue to payment.</p>
           {!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim()) && (
             <div className="mt-4">
               <label className="mb-1.5 block text-sm font-medium text-[#20212B]">Email for verification</label>
@@ -600,7 +583,7 @@ export default function CheckoutFlow() {
           </div>
         </section>
         <div className="flex items-center justify-end">
-          <button type="button" disabled={otpVerifying || otpDigits.join("").length !== 6 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())} onClick={() => void verifyCheckoutOtpCode()} className="rounded-xl bg-[#5965F5] px-6 py-3 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{otpVerifying ? "Verifying..." : "Verify and continue"}</button>
+          <button type="button" disabled={otpVerifying || otpDigits.join("").length !== 6 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())} onClick={() => void verifyCheckoutOtpCode()} className="rounded-xl bg-[#5965F5] px-6 py-3 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{otpVerifying ? "Verifying..." : "Verify email"}</button>
         </div>
       </div>
       {summary}
@@ -877,7 +860,7 @@ export default function CheckoutFlow() {
   return (
     <div className="min-h-screen bg-[#F0F2F8] text-[#20212B]">
       <div className="mx-auto max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
-        <Progress step={step} />
+        <Progress step={otpStep ? 1 : step} />
         {otpStep ? otpVerificationStep : step === 1 ? detailsStep : step === 2 ? paymentStep : instructionsStep}
       </div>
 

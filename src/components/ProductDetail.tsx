@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useAccount } from "@/components/AccountProvider";
 import { useCart } from "@/components/CartProvider";
 import { useRegion } from "@/components/RegionProvider";
 import { useToast } from "@/components/ToastProvider";
@@ -62,6 +63,7 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
   const id = params?.id ?? "";
   const { formatMoney } = useRegion();
   const { add, items } = useCart();
+  const { token } = useAccount();
   const toast = useToast();
   const [product, setProduct] = useState<DetailProduct | null>(null);
   const [loading, setLoading] = useState(true);
@@ -188,6 +190,11 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
   }
 
   function handleAddToCart() {
+    if (!token) {
+      const next = `${window.location.pathname}${window.location.search}`;
+      window.location.assign(`/login?next=${encodeURIComponent(next)}`);
+      return;
+    }
     add({
       ...cartItem,
       quantity: safeQuantity,

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { SlidersIcon } from "@/components/ConsoleIcons";
 import ExpandableContent from "@/components/ExpandableContent";
 import SpecList from "@/components/SpecList";
+import { useAccount } from "@/components/AccountProvider";
 import { useCart } from "@/components/CartProvider";
 import { useRegion } from "@/components/RegionProvider";
 import { cartItemFromPrebuild } from "@/data/cart";
@@ -10,6 +11,7 @@ import type { Prebuild } from "@/data/prebuilds";
 export default function PrebuildCard({ product }: { product: Prebuild }) {
   const { formatMoney } = useRegion();
   const { items, add, remove } = useCart();
+  const { token } = useAccount();
   const inCart = items.some((entry) => entry.productId === product.id);
 
   function toggleCart() {
@@ -17,9 +19,14 @@ export default function PrebuildCard({ product }: { product: Prebuild }) {
 
     if (inCart) {
       remove(item.id);
-    } else {
-      add(item);
+      return;
     }
+    if (!token) {
+      const next = `${window.location.pathname}${window.location.search}`;
+      window.location.assign(`/login?next=${encodeURIComponent(next)}`);
+      return;
+    }
+    add(item);
   }
   const discount = Math.round(
     (1 - product.price / product.originalPrice) * 100

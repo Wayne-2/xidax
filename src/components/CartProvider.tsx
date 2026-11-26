@@ -51,17 +51,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!accountReady) return;
 
-    let cancelled = false;
+    if (!token) {
+      setItems([]);
+      window.localStorage.removeItem(CACHE_KEY);
+      setReady(true);
+      return;
+    }
 
-    // Render the cached cart immediately so a refresh never looks empty.
-    const cacheTimer = window.setTimeout(() => {
-      try {
-        const cached = window.localStorage.getItem(CACHE_KEY);
-        if (cached && !cancelled) setItems(JSON.parse(cached) as CartItem[]);
-      } catch {
-        // Ignore malformed cache.
-      }
-    }, 0);
+    let cancelled = false;
 
     fetchCart(token)
       .then((result) => {
@@ -71,7 +68,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
       })
       .catch(() => {
-        // Keep the cached items on failure instead of clearing the cart.
+        // Keep current items on transient failure.
       })
       .finally(() => {
         if (!cancelled) setReady(true);
@@ -79,7 +76,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       cancelled = true;
-      window.clearTimeout(cacheTimer);
     };
   }, [accountReady, token]);
 
@@ -148,13 +144,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const add = useCallback(
     (item: CartItem) => {
+      if (!token) {
+        if (typeof window !== "undefined") {
+          const next = `${window.location.pathname}${window.location.search}`;
+          window.location.assign(`/login?next=${encodeURIComponent(next)}`);
+        }
+        return;
+      }
       addToCartRemote(item, token)
         .then((result) => sync(result.items))
         .catch(() => {
-          // Offline fallback: update locally so the UI still responds.
+          // Keep local UI responsive if request fails.
           setItems((current) => {
             const existing = current.find((entry) => entry.id === item.id);
-            return existing
+            const nextItems = existing
               ? current.map((entry) =>
                   entry.id === item.id
                     ? {
@@ -164,6 +167,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                     : entry
                 )
               : [...current, { ...item, quantity: Math.max(1, item.quantity) }];
+            window.localStorage.setItem(CACHE_KEY, JSON.stringify(nextItems));
+            return nextItems;
           });
         });
     },
