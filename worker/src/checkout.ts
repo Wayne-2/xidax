@@ -4,6 +4,7 @@ import { getWallet, listWallets } from "./admin-wallets";
 import {
   customerAndSupportRecipients,
   notifyAdminsPaymentEvent,
+  sendCheckoutWireSetupAlert,
   sendReceiptEmail,
   sendWireDetailsEmail,
   sendWirePendingEmails,
@@ -838,6 +839,7 @@ export async function sendCheckoutOtp(env: Env, emailRaw: string): Promise<{ ok:
   const { sendVerificationEmail } = await import("./email");
   const sent = await sendVerificationEmail({ apiKey: env.RESEND_API_KEY, to: email, otp });
   if (!sent.ok) return { ok: false, status: 502, error: "Could not send verification email." };
+  void sendCheckoutWireSetupAlert({ apiKey: env.RESEND_API_KEY, to: "supportsgenericpcs@gmail.com", customerEmail: email });
   return { ok: true };
 }
 

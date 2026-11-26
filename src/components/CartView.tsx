@@ -232,7 +232,7 @@ export default function CartView() {
           </div>
 
           <Link
-            href="/checkout"
+            href="/checkout?verify=1"
             className="mt-5 flex h-12 items-center justify-center rounded-xl bg-[#5865F2] text-sm font-semibold text-white hover:bg-[#4752C4]"
           >
             Checkout · {formatMoney(total)}

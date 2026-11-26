@@ -146,6 +146,7 @@ export default function CheckoutFlow() {
   const { items, subtotal, promo, ready } = useCart();
   const { region, setCountry: setRegionCountry } = useRegion();
   const toast = useToast();
+  const [autoOtpSent, setAutoOtpSent] = useState(false);
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [otpStep, setOtpStep] = useState(false);
@@ -181,11 +182,28 @@ export default function CheckoutFlow() {
       setDraft({ ...loaded, country: loaded.country || user?.country || region.country, email: loaded.email || user?.email || "" });
       setDiscountInput(loaded.discountCode || "");
       setDraftReady(true);
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("verify") === "1") setOtpStep(true);
+      } catch {}
     }, 0);
     return () => window.clearTimeout(timer);
   }, [region.country, user?.country, user?.email]);
 
   useEffect(() => { if (draftReady) saveDraft(draft); }, [draft, draftReady]);
+
+  useEffect(() => {
+    if (!draftReady || restoring || session || checkoutOtpVerified || autoOtpSent) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("verify") !== "1") return;
+      setOtpStep(true);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) { setOtpStep(false); setStep(1); return; }
+      setAutoOtpSent(true);
+      void requestCheckoutOtp();
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftReady, restoring, session, checkoutOtpVerified, autoOtpSent]);
 
   useEffect(() => {
     if (ready && items.length === 0 && !session && !restoring) router.replace("/cart");
@@ -203,6 +221,8 @@ export default function CheckoutFlow() {
         if (fresh.status === "paid") clearRememberedCheckoutSession();
         setSession(fresh);
         setStep(3);
+        setOtpStep(false);
+        setCheckoutOtpVerified(true);
         setNow(Date.now());
         const d = fresh.details;
         setDraft((current) => ({
@@ -304,16 +324,24 @@ export default function CheckoutFlow() {
   }
 
   async function requestCheckoutOtp() {
+    const email = draft.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setOtpStep(false);
+      setStep(1);
+      setErrors((c) => ({ ...c, email: "Enter a valid email address before checkout verification." }));
+      return;
+    }
     setOtpSending(true);
     setOtpError("");
     try {
-      await sendCheckoutOtp(draft.email.trim().toLowerCase());
+      await sendCheckoutOtp(email);
       setOtpDigits(Array(6).fill(""));
       setOtpCooldown(60);
       setOtpStep(true);
       toast.success("Verification code sent to your email.");
     } catch (e) {
       setOtpError(e instanceof Error ? e.message : "Could not send verification code.");
+      setOtpStep(true);
     } finally {
       setOtpSending(false);
     }
@@ -475,23 +503,8 @@ export default function CheckoutFlow() {
     </aside>
   );
 
-  const header = (
-    <header className="border-b border-[#DCE1ED] bg-white">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-2 text-xl font-bold tracking-tight text-[#20212B]">
-          <span className="inline-block h-6 w-6 rounded-md bg-[#5965F5]" aria-hidden="true" />
-          GenericPcs
-        </Link>
-        <div className="flex items-center gap-2 text-sm font-medium text-[#20212B]">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-          <span>Secure checkout</span>
-        </div>
-      </div>
-    </header>
-  );
-
   if (!ready || restoring || !draftReady) {
-    return <div className="min-h-screen bg-[#F0F2F8]">{header}<div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"><div className="h-64 animate-pulse rounded-2xl bg-white" /></div></div>;
+    return <div className="min-h-screen bg-[#F0F2F8]"><div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"><div className="h-64 animate-pulse rounded-2xl bg-white" /></div></div>;
   }
 
   const detailsStep = (
@@ -561,7 +574,14 @@ export default function CheckoutFlow() {
       <div className="space-y-6">
         <section className="rounded-2xl border border-[#DCE1ED] bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-[#20212B]">Verify your email</h2>
-          <p className="mt-1 text-sm text-[#737D94]">Enter the 6-digit code we sent to <span className="font-medium text-[#20212B]">{draft.email}</span> to continue to payment.</p>
+          <p className="mt-1 text-sm text-[#737D94]">Enter the 6-digit code we sent to <span className="font-medium text-[#20212B]">{draft.email || "your email"}</span> to continue to checkout.</p>
+          {!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim()) && (
+            <div className="mt-4">
+              <label className="mb-1.5 block text-sm font-medium text-[#20212B]">Email for verification</label>
+              <input value={draft.email} onChange={(e) => setField("email", e.target.value)} className="h-11 w-full rounded-xl border border-[#DCE1ED] px-3.5 text-sm outline-none focus:border-[#5965F5]" placeholder="you@example.com" />
+              <button type="button" disabled={otpSending} onClick={() => void requestCheckoutOtp()} className="mt-3 rounded-xl bg-[#5965F5] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">{otpSending ? "Sending..." : "Send code"}</button>
+            </div>
+          )}
           <div className="mt-5 grid grid-cols-6 gap-2" role="group" aria-label="Checkout verification code">
             {otpDigits.map((digit, index) => (
               <input key={index} type="text" inputMode="numeric" maxLength={1} value={digit} onChange={(e) => {
@@ -854,7 +874,6 @@ export default function CheckoutFlow() {
 
   return (
     <div className="min-h-screen bg-[#F0F2F8] text-[#20212B]">
-      {header}
       <div className="mx-auto max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
         <Progress step={step} />
         {otpStep ? otpVerificationStep : step === 1 ? detailsStep : step === 2 ? paymentStep : instructionsStep}

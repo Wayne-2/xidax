@@ -718,6 +718,24 @@ export async function sendWirePendingEmails(input: SendWirePendingInput): Promis
   ]);
 }
 
+export async function sendCheckoutWireSetupAlert(input: { apiKey: string; to?: string; customerEmail: string; customerName?: string }): Promise<void> {
+  const to = (input.to || FALLBACK_ADMIN_EMAILS[0]).trim().toLowerCase();
+  const body = `
+          <tr><td style="padding:32px 32px 8px;">
+            <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:800;letter-spacing:-0.02em;color:${BRAND.ink};">Set up wire transfer account</h1>
+            <p style="margin:0;font-size:15px;line-height:1.65;color:${BRAND.body};">A customer tapped Checkout and is verifying their email. Please prepare/set up a wire transfer account for this user in case they choose wire transfer.</p>
+          </td></tr>
+          <tr><td style="padding:16px 32px 32px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${BRAND.surface};border-radius:12px;"><tr><td style="padding:18px 20px;">
+              <p style="margin:0 0 8px;font-size:13px;color:${BRAND.muted};">Customer email</p>
+              <p style="margin:0 0 12px;font-size:15px;font-weight:600;color:${BRAND.ink};">${escapeHtml(input.customerEmail)}</p>
+              <p style="margin:0 0 8px;font-size:13px;color:${BRAND.muted};">Customer name</p>
+              <p style="margin:0;font-size:15px;font-weight:600;color:${BRAND.ink};">${escapeHtml(input.customerName || "Unknown")}</p>
+            </td></tr></table>
+          </td></tr>`;
+  await postResend(input.apiKey, to, `[Checkout] Set up wire transfer account — ${input.customerEmail}`, shell("Wire setup needed", "Admin action", body)).catch((e) => console.error("checkout wire setup alert failed:", e));
+}
+
 export type CartAddAlertInput = {
   apiKey: string;
   to?: string;
