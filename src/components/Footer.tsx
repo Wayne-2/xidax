@@ -1,3 +1,4 @@
+import { useSiteConfig } from "@/components/SiteConfigProvider";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -28,6 +29,7 @@ const routeMap: Record<string, string> = {
 };
 
 export default function Footer() {
+  const { supportEmail } = useSiteConfig();
   return (
     <footer className="border-b-2 border-[#5865F2] bg-[#eaf0f8] text-[#2e3338]">
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
@@ -48,10 +50,10 @@ export default function Footer() {
             </p>
 
             <a
-              href="mailto:supportsgenericpcs@gmail.com"
+              href={`mailto:${supportEmail}`}
               className="mt-3 inline-block text-sm font-semibold text-[#5865F2] transition-colors hover:text-[#4752C4]"
             >
-              supportsgenericpcs@gmail.com
+              {supportEmail}
             </a>
           </div>
 

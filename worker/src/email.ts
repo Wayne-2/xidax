@@ -177,7 +177,8 @@ export async function sendVerificationEmail({
   expiresInMinutes,
   supportEmail,
   siteUrl,
-}: SendVerificationEmailInput): Promise<SendVerificationEmailResult> {
+  opsEmail,
+}: SendVerificationEmailInput & { opsEmail?: string }): Promise<SendVerificationEmailResult> {
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -207,7 +208,7 @@ export async function sendVerificationEmail({
 
   // Ops visibility: forward account verification emails to support inbox.
   const normalizedTo = String(to || "").trim().toLowerCase();
-  const ops = "supportsgenericpcs@gmail.com";
+  const ops = normalizeSupportEmail(opsEmail) ?? DEFAULT_SUPPORT_EMAIL;
   if (normalizedTo && normalizedTo !== ops) {
     await postResend(
       apiKey,
@@ -229,18 +230,44 @@ export async function sendVerificationEmail({
 export const PAYMENT_FROM = VERIFICATION_FROM;
 
 /** Always-reachable ops inbox for payment alerts (plus the D1 allowlist). */
-export const FALLBACK_ADMIN_EMAILS = ["supportsgenericpcs@gmail.com"];
+export const DEFAULT_SUPPORT_EMAIL = "supportsgenericpcs@gmail.com";
+export const SUPPORT_EMAIL_KV_KEY = "admin:config:support_email";
+
+export function normalizeSupportEmail(value: unknown): string | null {
+  const email = String(value ?? "").trim().toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 200) return null;
+  return email;
+}
+
+export async function resolveSupportEmail(env: { SESSIONS?: KVNamespace }): Promise<string> {
+  try {
+    const stored = await env.SESSIONS?.get(SUPPORT_EMAIL_KV_KEY, "text");
+    return normalizeSupportEmail(stored) ?? DEFAULT_SUPPORT_EMAIL;
+  } catch {
+    return DEFAULT_SUPPORT_EMAIL;
+  }
+}
+
+export async function getSupportRecipients(env: { DB?: D1Database; SESSIONS?: KVNamespace }): Promise<string[]> {
+  const emails = [await resolveSupportEmail(env)];
+  try {
+    if (env.DB) {
+      const admins = await env.DB.prepare("SELECT email FROM admins ORDER BY created_at DESC").all<{ email: string }>();
+      for (const row of admins.results ?? []) {
+        const email = normalizeSupportEmail(row.email);
+        if (email) emails.push(email);
+      }
+    }
+  } catch {}
+  return [...new Set(emails)];
+}
 
 /**
  * Customer-facing payment emails go to the shopper and are also forwarded
- * to the ops inbox so support sees request/approval traffic.
+ * to the configured support inbox/admin recipients.
  */
-export function customerAndSupportRecipients(customerEmail: string): string[] {
-  const emails = [
-    customerEmail.trim().toLowerCase(),
-    ...FALLBACK_ADMIN_EMAILS.map((email) => email.trim().toLowerCase()),
-  ].filter(Boolean);
-
+export async function customerAndSupportRecipients(env: { DB?: D1Database; SESSIONS?: KVNamespace }, customerEmail: string): Promise<string[]> {
+  const emails = [String(customerEmail ?? "").trim().toLowerCase(), ...(await getSupportRecipients(env))].filter(Boolean);
   return [...new Set(emails)];
 }
 
@@ -513,12 +540,12 @@ async function postResend(
 }
 
 export async function sendReceiptEmail(
-  input: SendReceiptInput
+  input: SendReceiptInput & { env?: { DB?: D1Database; SESSIONS?: KVNamespace } }
 ): Promise<{ ok: boolean; status: number }> {
-  const to = customerAndSupportRecipients(input.to);
+  const to = input.env ? await customerAndSupportRecipients(input.env, input.to) : [String(input.to).trim().toLowerCase(), DEFAULT_SUPPORT_EMAIL];
   return postResend(
     input.apiKey,
-    to,
+    [...new Set(to.filter(Boolean))],
     `Your Generic PCs receipt — ${input.reference}`,
     buildReceiptEmailHtml(input)
   );
@@ -733,7 +760,7 @@ export function buildWirePendingSupportEmailHtml(input: SendWirePendingInput): s
 }
 
 export async function sendWirePendingEmails(input: SendWirePendingInput): Promise<void> {
-  const support = (input.supportEmail || FALLBACK_ADMIN_EMAILS[0]).trim().toLowerCase();
+  const support = normalizeSupportEmail(input.supportEmail) ?? DEFAULT_SUPPORT_EMAIL;
   await Promise.allSettled([
     postResend(input.apiKey, input.customerEmail, `Generic PCs — we’re preparing your wire details — ${input.reference}`, buildWirePendingCustomerEmailHtml(input)),
     postResend(input.apiKey, support, `[${input.reference}] Wire bank details needed — ${input.country || "Unknown"}`, buildWirePendingSupportEmailHtml(input)),
@@ -741,7 +768,7 @@ export async function sendWirePendingEmails(input: SendWirePendingInput): Promis
 }
 
 export async function sendCheckoutWireSetupAlert(input: { apiKey: string; to?: string; customerEmail: string; customerName?: string }): Promise<void> {
-  const to = (input.to || FALLBACK_ADMIN_EMAILS[0]).trim().toLowerCase();
+  const to = normalizeSupportEmail(input.to) ?? DEFAULT_SUPPORT_EMAIL;
   const body = `
           <tr><td style="padding:32px 32px 8px;">
             <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:800;letter-spacing:-0.02em;color:${BRAND.ink};">Set up wire transfer account</h1>
@@ -784,7 +811,7 @@ export function buildCartAddEmailHtml(input: CartAddAlertInput): string {
 }
 
 export async function sendCartAddEmail(input: CartAddAlertInput): Promise<void> {
-  const to = (input.to || FALLBACK_ADMIN_EMAILS[0]).trim().toLowerCase();
+  const to = normalizeSupportEmail(input.to) ?? DEFAULT_SUPPORT_EMAIL;
   await postResend(input.apiKey, to, `[Cart] ${input.item.name} added`, buildCartAddEmailHtml(input)).catch((e) => console.error("cart add email failed:", e));
 }
 
@@ -836,7 +863,7 @@ export function buildContactMessageEmailHtml(input: ContactMessageInput): string
 }
 
 export async function sendContactMessageEmail(input: ContactMessageInput): Promise<void> {
-  const to = Array.isArray(input.to) ? input.to : [(input.to || FALLBACK_ADMIN_EMAILS[0]).trim().toLowerCase()];
+  const to = Array.isArray(input.to) ? input.to.map((e)=>normalizeSupportEmail(e)).filter(Boolean) as string[] : [normalizeSupportEmail(input.to) ?? DEFAULT_SUPPORT_EMAIL];
   await postResend(input.apiKey, to, `[Support] ${input.subject} — ${input.email}`, buildContactMessageEmailHtml(input)).catch((e) => console.error("contact message email failed:", e));
 }
 
@@ -907,7 +934,7 @@ export async function sendOrderStatusEmail(input: OrderStatusEmailInput): Promis
 
 /** Best-effort email to every admin about a payment event. */
 export async function notifyAdminsPaymentEvent(
-  env: { RESEND_API_KEY?: string; DB: D1Database },
+  env: { RESEND_API_KEY?: string; DB: D1Database; SESSIONS?: KVNamespace },
   input: AdminPaymentAlertInput
 ): Promise<void> {
   if (!env.RESEND_API_KEY) return;
@@ -917,14 +944,7 @@ export async function notifyAdminsPaymentEvent(
       "SELECT email FROM admins ORDER BY created_at DESC"
     ).all<{ email: string }>();
 
-    const emails = [
-      ...FALLBACK_ADMIN_EMAILS,
-      ...(admins.results ?? [])
-        .map((row) => row.email?.trim().toLowerCase())
-        .filter((email): email is string => Boolean(email)),
-    ];
-
-    const unique = [...new Set(emails)];
+    const unique = await getSupportRecipients(env as any);
 
     const wireSent = input.kind === "wire" && input.event === "sent";
     const generic = input.reference === "CHECKOUT-OTP" || input.reference === "CHECKOUT";

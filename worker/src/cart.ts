@@ -148,9 +148,10 @@ export async function addToCart(
   const saved = await writeCart(env, cartId, items, userId ?? cart.userId);
 
   if (env.RESEND_API_KEY) {
+    const { resolveSupportEmail } = await import("./email");
     void sendCartAddEmail({
       apiKey: env.RESEND_API_KEY,
-      to: "supportsgenericpcs@gmail.com",
+      to: await resolveSupportEmail(env),
       cartId,
       userEmail: userEmail ?? null,
       item: { id: item.id, name: item.name, kind: item.kind, price: item.price, quantity: item.quantity, meta: item.meta, href: item.href },

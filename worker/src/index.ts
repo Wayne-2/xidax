@@ -44,6 +44,7 @@ import {
   updateBankAccount,
 } from "./admin-bank-accounts";
 import { corsHeaders, isOriginAllowed } from "./cors";
+import { getSupportEmail, setSupportEmail } from "./admin-config";
 import { runConfigCheck } from "./config-check";
 import { parseFirebaseConfig } from "./auth";
 import { adminGuard } from "./admin-auth";
@@ -269,10 +270,12 @@ async function handleSendOTP(request: Request, env: Env) {
       return jsonWithCors({ error: "Email service is not configured." }, request, env, 500);
     }
 
+    const supportEmail = await getSupportEmail(env);
     const emailResponse = await sendVerificationEmail({
       apiKey: resendApiKey,
       to: email,
       otp,
+      opsEmail: supportEmail,
     });
 
     if (!emailResponse.ok) {
@@ -430,10 +433,12 @@ async function handleResendOTP(request: Request, env: Env) {
       return jsonWithCors({ error: "Email service is not configured." }, request, env, 500);
     }
 
+    const supportEmail = await getSupportEmail(env);
     const emailResponse = await sendVerificationEmail({
       apiKey: resendApiKey,
       to: email,
       otp,
+      opsEmail: supportEmail,
     });
 
     if (!emailResponse.ok) {
@@ -908,6 +913,11 @@ const worker = {
 
       /* ---------------- Admin API ---------------- */
 
+      if (request.method === "GET" && path === "/api/site-config") {
+        const supportEmail = await getSupportEmail(env);
+        return jsonWithCors({ supportEmail }, request, env);
+      }
+
       if (path.startsWith("/api/admin/")) {
         const guard = await adminGuard(request, env, jsonWithCors);
 
@@ -1360,6 +1370,18 @@ const worker = {
 
         /* ---- Products ---- */
 
+        if (request.method === "GET" && path === "/api/admin/config") {
+          const supportEmail = await getSupportEmail(env);
+          return jsonWithCors({ supportEmail }, request, env);
+        }
+
+        if (request.method === "PATCH" && path === "/api/admin/config") {
+          const body = await readJson(request);
+          const result = await setSupportEmail(env, body?.supportEmail);
+          if (!result.ok) return jsonWithCors({ error: result.error }, request, env, 400);
+          return jsonWithCors({ supportEmail: result.email }, request, env);
+        }
+
         if (request.method === "POST" && path === "/api/admin/promo-code") {
           return jsonWithCors({ code: generateUserPromoCode() }, request, env);
         }
@@ -1714,9 +1736,18 @@ const worker = {
           return json({ error: "Email verification required before checkout.", code: "checkout_otp_required" }, 403);
         }
 
+        if (env.RESEND_API_KEY) {
+          const { notifyAdminsPaymentEvent } = await import("./email");
+          void notifyAdminsPaymentEvent(env, { kind: (payload.method === "crypto" ? "crypto" : payload.method === "wire" ? "wire" : "card"), event: "requested", reference: "CHECKOUT", amount: Number(payload.total || 0), currency: String(payload.currency || "USD"), customerName: String(payload.details?.firstName || "") + " " + String(payload.details?.lastName || ""), customerEmail: email || authedUser.email || "", detail: `Checkout submit attempted (${String(payload.method || "unknown")}).` });
+        }
+
         const result = await createCheckout(env, request, payload);
 
         if (!result.ok) {
+          if (env.RESEND_API_KEY) {
+            const supportEmail = await getSupportEmail(env);
+            void sendContactMessageEmail({ apiKey: env.RESEND_API_KEY, to: supportEmail, name: authedUser.name || "Checkout user", email: authedUser.email || email, subject: `Checkout failed: ${result.error}`, message: `Checkout create failed for ${authedUser.email || email}.\nError: ${result.error}\nMethod: ${String(payload.method ?? "")}\nTotal: ${String(payload.total ?? "")} ${String(payload.currency ?? "")}`, country: String(payload.details?.country ?? "") || null }).catch(() => undefined);
+          }
           return json({ error: result.error }, result.status);
         }
 
@@ -1836,7 +1867,8 @@ const worker = {
           `INSERT INTO messages (id, name, email, subject, message, country, created_at) VALUES (?1,?2,?3,?4,?5,?6,?7)`
         ).bind(id, name.slice(0,120), email.slice(0,200), subject.slice(0,200), message.slice(0,5000), country.slice(0,80) || null, new Date().toISOString()).run();
         if (env.RESEND_API_KEY) {
-          void sendContactMessageEmail({ apiKey: env.RESEND_API_KEY, name: name.slice(0,120), email: email.slice(0,200), subject: subject.slice(0,200), message: message.slice(0,5000), country: country.slice(0,80) || null });
+          const supportEmail = await getSupportEmail(env);
+          void sendContactMessageEmail({ apiKey: env.RESEND_API_KEY, to: supportEmail, name: name.slice(0,120), email: email.slice(0,200), subject: subject.slice(0,200), message: message.slice(0,5000), country: country.slice(0,80) || null });
         }
         return json({ ok: true, id }, 201);
       }

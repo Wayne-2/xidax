@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  FALLBACK_ADMIN_EMAILS,
+  DEFAULT_SUPPORT_EMAIL,
   VERIFICATION_FROM,
   VERIFICATION_SUBJECT,
   buildAdminPaymentAlertHtml,
@@ -81,11 +81,11 @@ describe("wire details email", () => {
   });
 
   it("always includes the ops admin inbox for payment alerts", () => {
-    expect(FALLBACK_ADMIN_EMAILS).toContain("supportsgenericpcs@gmail.com");
+    expect(DEFAULT_SUPPORT_EMAIL).toBe("supportsgenericpcs@gmail.com");
   });
 
-  it("forwards customer emails to the shopper and the ops inbox", () => {
-    const recipients = customerAndSupportRecipients("Customer@Example.com");
+  it("forwards customer emails to the shopper and the ops inbox", async () => {
+    const recipients = await customerAndSupportRecipients({ SESSIONS: { get: async () => null } as any, DB: { prepare: () => ({ all: async () => ({ results: [] }) }) } as any }, "Customer@Example.com");
     expect(recipients).toContain("customer@example.com");
     expect(recipients).toContain("supportsgenericpcs@gmail.com");
     expect(new Set(recipients).size).toBe(recipients.length);

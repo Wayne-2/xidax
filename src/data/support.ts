@@ -16,7 +16,9 @@ export type SupportDay = {
   hours: string;
 };
 
-export const supportEmail = "supportsgenericpcs@gmail.com";
+export const defaultSupportEmail = "supportsgenericpcs@gmail.com";
+export let supportEmail = defaultSupportEmail;
+export function setSupportEmail(email: string) { if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) supportEmail = email; }
 export const ownersEmail = "owners@genericpcs.com";
 
 export const supportChannels: SupportChannel[] = [

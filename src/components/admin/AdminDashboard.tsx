@@ -11,6 +11,7 @@ import AdminOrders from "@/components/admin/AdminOrders";
 import AdminPayments from "@/components/admin/AdminPayments";
 import AdminProducts from "@/components/admin/AdminProducts";
 import AdminCatalog from "@/components/admin/AdminCatalog";
+import AdminSettings from "@/components/admin/AdminSettings";
 import AdminUsers from "@/components/admin/AdminUsers";
 
 type Tab =
@@ -21,7 +22,8 @@ type Tab =
   | "products"
   | "laptops"
   | "consoles"
-  | "giveaway";
+  | "giveaway"
+  | "settings";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "orders", label: "Orders" },
@@ -32,6 +34,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "laptops", label: "Laptops" },
   { id: "consoles", label: "Monitors" },
   { id: "giveaway", label: "Giveaway" },
+  { id: "settings", label: "Settings" },
 ];
 
 export default function AdminDashboard({
@@ -161,6 +164,12 @@ export default function AdminDashboard({
               label="Giveaway"
               icon={<path d="M4 8h16v9H4z M12 8v9" strokeLinecap="round" strokeLinejoin="round" />}
             />
+            <NavButton
+              active={tab === "settings"}
+              onClick={() => setTab("settings")}
+              label="Settings"
+              icon={<><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .3 1.7 1.7 0 0 0-.82 1.46V21a2 2 0 0 1-4 0v-.09a1.7 1.7 0 0 0-.67-1.31 1.7 1.7 0 0 0-1-.3 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.3-1 1.7 1.7 0 0 0-1.46-.82H3a2 2 0 0 1 0-4h.09a1.7 1.7 0 0 0 1.31-.67 1.7 1.7 0 0 0 .3-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.3 1.7 1.7 0 0 0 .82-1.46V3a2 2 0 0 1 4 0v.09a1.7 1.7 0 0 0 .67 1.31 1.7 1.7 0 0 0 1 .3 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 .3 1 1.7 1.7 0 0 0 1.46.82H21a2 2 0 0 1 0 4h-.09a1.7 1.7 0 0 0-1.31.67 1.7 1.7 0 0 0-.3 1Z" /></>}
+            />
           </nav>
           <div className="mt-auto">
             <Link
@@ -227,6 +236,7 @@ export default function AdminDashboard({
           {tab === "laptops" && <AdminCatalog kind="laptops" />}
           {tab === "consoles" && <AdminCatalog kind="consoles" />}
           {tab === "giveaway" && <AdminGiveaway />}
+          {tab === "settings" && <AdminSettings />}
         </main>
       </div>
     </div>

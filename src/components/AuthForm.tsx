@@ -335,7 +335,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
               type="tel"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
-              placeholder="supportsgenericpcs@gmail.com"
+              placeholder="you@example.com"
               autoComplete="tel"
               aria-invalid={Boolean(errors.phone)}
               aria-describedby={errors.phone ? "auth-phone-error" : undefined}

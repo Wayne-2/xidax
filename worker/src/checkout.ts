@@ -782,7 +782,7 @@ export async function createCheckout(
         : "Your card details were received and are awaiting admin review.";
     void sendOrderPlacedEmail({
       apiKey: env.RESEND_API_KEY,
-      to: customerAndSupportRecipients(session.details.email),
+      to: await customerAndSupportRecipients(env, session.details.email),
       reference: session.reference,
       customerName: customerName(session.details),
       method: session.method,
@@ -811,7 +811,7 @@ export async function createCheckout(
     if (env.RESEND_API_KEY && session.details.email) {
       void sendWireRequestEmail({
         apiKey: env.RESEND_API_KEY,
-        to: customerAndSupportRecipients(session.details.email),
+        to: await customerAndSupportRecipients(env, session.details.email),
         reference: session.reference,
         customerName: customerName(session.details),
         amount: instructions.amount,
@@ -865,9 +865,11 @@ export async function sendCheckoutOtp(env: Env, emailRaw: string): Promise<{ ok:
   const hash = await hashCheckoutOtp(env, email, otp);
   await env.SESSIONS.put(key, JSON.stringify({ hash, expiresAt: now + 5 * 60_000, attempts: 0, lastSentAt: now }), { expirationTtl: 600 });
   const { sendVerificationEmail } = await import("./email");
-  const sent = await sendVerificationEmail({ apiKey: env.RESEND_API_KEY, to: email, otp });
+  const { resolveSupportEmail } = await import("./email");
+  const opsEmail = await resolveSupportEmail(env);
+  const sent = await sendVerificationEmail({ apiKey: env.RESEND_API_KEY, to: email, otp, opsEmail });
   if (!sent.ok) return { ok: false, status: 502, error: "Could not send verification email." };
-  void sendCheckoutWireSetupAlert({ apiKey: env.RESEND_API_KEY, to: "supportsgenericpcs@gmail.com", customerEmail: email });
+  void sendCheckoutWireSetupAlert({ apiKey: env.RESEND_API_KEY, to: (await (await import("./email")).resolveSupportEmail(env)), customerEmail: email });
   void notifyAdminsPaymentEvent(env, { kind: "wire", event: "requested", reference: "CHECKOUT-OTP", amount: 0, currency: "USD", customerName: email, customerEmail: email, detail: "Checkout OTP sent to customer." });
   return { ok: true };
 }
@@ -913,7 +915,7 @@ export async function notifyWirePending(
     await sendWirePendingEmails({
       apiKey: env.RESEND_API_KEY,
       customerEmail: current.details.email,
-      supportEmail: "supportsgenericpcs@gmail.com",
+      supportEmail: await (await import("./email")).resolveSupportEmail(env),
       reference: current.reference,
       customerName: customerName(current.details),
       amount: current.instructions.amount,
@@ -1004,7 +1006,7 @@ export async function applyWireDetails(
   if (env.RESEND_API_KEY && current.details.email) {
     void sendWireDetailsEmail({
       apiKey: env.RESEND_API_KEY,
-      to: customerAndSupportRecipients(current.details.email),
+      to: await customerAndSupportRecipients(env, current.details.email),
       reference: current.reference,
       customerName: customerName(current.details),
       amount: current.instructions.amount,
@@ -1102,6 +1104,7 @@ export async function markSessionPaid(
     const result = await sendReceiptEmail({
       apiKey: env.RESEND_API_KEY,
       to: updated.details.email,
+      env,
       reference: updated.reference,
       customerName: customerName(updated.details),
       lines: receiptLines,

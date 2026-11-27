@@ -1,4 +1,5 @@
 "use client";
+import { useSiteConfig } from "@/components/SiteConfigProvider";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -36,6 +37,7 @@ export default function MobileNav({
   open,
   onOpenChange,
 }: MobileNavProps) {
+  const { supportEmail } = useSiteConfig();
   const pathname = usePathname() ?? "";
   const authPaths = ["/login", "/signup", "/verify-otp"];
   const authReturn = authPaths.some(
@@ -200,10 +202,10 @@ export default function MobileNav({
 
             <div className="border-t border-[#d2dbe8] py-4 pl-4 pr-4">
               <a
-                href="mailto:supportsgenericpcs@gmail.com"
+                href={`mailto:${supportEmail}`}
                 className="text-sm font-semibold text-[#5c5e66] transition-colors hover:text-[#5865F2]"
               >
-                supportsgenericpcs@gmail.com
+                {supportEmail}
               </a>
 
               <div className="mt-3">

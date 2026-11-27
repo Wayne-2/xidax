@@ -701,3 +701,8 @@ export async function redeemGiveaway(
     }
   );
 }
+
+
+export async function fetchSiteConfig(): Promise<{ supportEmail: string }> {
+  return request<{ supportEmail: string }>("/api/site-config");
+}

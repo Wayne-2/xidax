@@ -7,6 +7,7 @@ import ChatLauncher from "@/components/ChatLauncher";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import OfflineBanner from "@/components/OfflineBanner";
 import { RegionProvider } from "@/components/RegionProvider";
+import { SiteConfigProvider } from "@/components/SiteConfigProvider";
 import { ToastProvider } from "@/components/ToastProvider";
 import ScrollEffects from "@/components/ScrollEffects";
 import SiteBackground from "@/components/SiteBackground";
@@ -37,13 +38,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <ToastProvider>
             <AccountProvider>
               <RegionProvider>
-                <CartProvider>
-                  <ChatProvider>
-                    <OfflineBanner />
-                    {children}
-                    <ChatLauncher />
-                  </ChatProvider>
-                </CartProvider>
+                <SiteConfigProvider>
+                  <CartProvider>
+                    <ChatProvider>
+                      <OfflineBanner />
+                      {children}
+                      <ChatLauncher />
+                    </ChatProvider>
+                  </CartProvider>
+                </SiteConfigProvider>
               </RegionProvider>
             </AccountProvider>
           </ToastProvider>

@@ -242,6 +242,17 @@ export function deleteAdminBankAccount(id: string) {
   );
 }
 
+export function fetchAdminConfig() {
+  return adminFetch<{ supportEmail: string }>("/api/admin/config");
+}
+
+export function updateAdminConfig(patch: { supportEmail?: string }) {
+  return adminFetch<{ supportEmail: string }>("/api/admin/config", {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
 /* ---------------- Users ---------------- */
 
 export type AdminUser = {
