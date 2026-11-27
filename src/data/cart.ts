@@ -20,6 +20,7 @@ export type CartItem = {
   promoCode?: string | null;
   promoDiscount?: number;
   promoEnabled?: boolean;
+  gpuShipSeparately?: boolean;
 };
 
 export const freeShippingThreshold = 99;

@@ -73,6 +73,7 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
   const [promoError, setPromoError] = useState("");
   const [applyingPromo, setApplyingPromo] = useState(false);
   const [quantity, setQuantity] = useState(1);
+  const [gpuShipSeparately, setGpuShipSeparately] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -203,6 +204,7 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
         ? Math.round(cartItem.price * appliedPromo.rate)
         : cartItem.promoDiscount,
       promoEnabled: appliedPromo ? true : cartItem.promoEnabled,
+      gpuShipSeparately: kind === "prebuilds" ? gpuShipSeparately : undefined,
     });
     toast.success(
       safeQuantity > 1
@@ -234,7 +236,7 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
             </p>
           </div>
 
-          <div>
+          <div className="rounded-2xl border border-[#dce3ee] bg-white p-5 shadow-card sm:p-6">
             {product.badge && (
               <span className="inline-flex rounded-full bg-[#5865F2]/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-[#5865F2]">
                 {product.badge}
@@ -278,8 +280,8 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
             <p className={`mt-2 text-xs font-semibold ${product.stock === "in-stock" ? "text-[#15803D]" : "text-[#B45309]"}`}>
               {product.stock === "in-stock" ? "In stock — ready to ship" : "Built to order"}
             </p>
-            <p className="mt-2 text-base text-[#5c5e66]">Generic Pcs come with a keyboard and a mouse</p>
-            <p className="mt-1 text-base text-[#5c5e66]">Free shipping: Est. Delivery in 3-5 business days</p>
+            <p className="mt-3 text-base font-bold text-[#2e3338]">Generic Pcs come with a keyboard and a mouse</p>
+            <p className="mt-1 text-base font-bold text-[#2e3338]">Free shipping: Est. Delivery in 3-5 business days</p>
 
             <div className="mt-6 flex gap-2">
               <div className="inline-flex h-11 items-center rounded-xl border border-[#d2dbe8] bg-white">
@@ -345,7 +347,19 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
                   {Math.round(appliedPromo.rate * 100)}%.
                 </p>
               ) : null}
-              {kind === "prebuilds" && (
+              <label className="mt-3 flex items-start gap-3 rounded-2xl border border-[#d2dbe8] bg-[#f0f4fa] p-4 text-sm text-[#2e3338]">
+                <input
+                  type="checkbox"
+                  checked={gpuShipSeparately}
+                  onChange={(e) => setGpuShipSeparately(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-[#d2dbe8] text-[#5865F2]"
+                />
+                <span>
+                  <span className="block font-semibold">Ship my GPU separately (uninstalled)</span>
+                  <span className="mt-1 block text-[#5c5e66]">Checked by default for safer transit. We’ll include this preference in your order.</span>
+                </span>
+              </label>
+              {kind === "prebuilds" && gpuShipSeparately && (
                 <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-[#d2dbe8] bg-[#f0f4fa] p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-bold text-[#2e3338]">
@@ -378,7 +392,7 @@ export default function ProductDetail({ kind }: { kind: Kind }) {
               </section>
             )}
           </div>
-        </div>
+          </div>
 
         {product.specs.length > 0 && (
           <section className="mt-12 rounded-2xl border border-[#dce3ee] bg-white p-6 shadow-card sm:p-8">

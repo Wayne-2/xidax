@@ -52,23 +52,26 @@ export default function ImageLightbox({
       role="dialog"
       aria-modal="true"
       aria-label={`${alt} image preview`}
-      className="fixed inset-0 z-[100] flex flex-col bg-black/90"
+      className="fixed inset-0 z-[100] flex flex-col bg-black/95"
       onClick={onClose}
     >
-      <div className="flex items-center justify-between px-4 py-3 text-white sm:px-8">
+      <div className="flex shrink-0 items-center justify-between px-4 py-3 text-white sm:px-8">
         <p className="truncate text-sm font-semibold">{alt}</p>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close preview"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20 text-xl transition-colors hover:bg-white/10"
-        >
-          ✕
-        </button>
+        <div className="flex items-center gap-3">
+          <p className="text-xs text-white/60">{index + 1} / {total}</p>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close preview"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20 text-xl transition-colors hover:bg-white/10"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       <div
-        className="relative flex flex-1 items-center justify-center px-4 pb-4 sm:px-16"
+        className="relative flex min-h-0 flex-1 items-center justify-center px-3 py-2 sm:px-16"
         onClick={(event) => event.stopPropagation()}
       >
         {total > 1 && (
@@ -76,7 +79,7 @@ export default function ImageLightbox({
             type="button"
             onClick={previous}
             aria-label="Previous image"
-            className="absolute left-1 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-black/40 text-2xl text-white transition-colors hover:bg-white/20 sm:left-4"
+            className="absolute left-2 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-black/40 text-2xl text-white transition-colors hover:bg-white/20 sm:left-4"
           >
             ‹
           </button>
@@ -86,7 +89,7 @@ export default function ImageLightbox({
         <img
           src={images[index]}
           alt={`${alt} — image ${index + 1} of ${total}`}
-          className="max-h-full max-w-full rounded-xl object-contain shadow-2xl"
+          className="max-h-[calc(100dvh-11rem)] max-w-full rounded-xl object-contain shadow-2xl sm:max-h-[calc(100dvh-12rem)]"
         />
 
         {total > 1 && (
@@ -94,7 +97,7 @@ export default function ImageLightbox({
             type="button"
             onClick={next}
             aria-label="Next image"
-            className="absolute right-1 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-black/40 text-2xl text-white transition-colors hover:bg-white/20 sm:right-4"
+            className="absolute right-2 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-black/40 text-2xl text-white transition-colors hover:bg-white/20 sm:right-4"
           >
             ›
           </button>
@@ -103,7 +106,7 @@ export default function ImageLightbox({
 
       {total > 1 && (
         <div
-          className="flex items-center justify-center gap-2 px-4 pb-6"
+          className="flex shrink-0 items-center justify-center gap-2 overflow-x-auto px-4 pb-4"
           onClick={(event) => event.stopPropagation()}
         >
           {images.map((src, imageIndex) => (
@@ -113,7 +116,7 @@ export default function ImageLightbox({
               onClick={() => setIndex(imageIndex)}
               aria-label={`View image ${imageIndex + 1}`}
               aria-current={imageIndex === index}
-              className={`h-12 w-16 overflow-hidden rounded-md border-2 transition-colors ${
+              className={`h-12 w-16 shrink-0 overflow-hidden rounded-md border-2 transition-colors ${
                 imageIndex === index
                   ? "border-[#5865F2]"
                   : "border-white/20 opacity-60 hover:opacity-100"
@@ -125,10 +128,6 @@ export default function ImageLightbox({
           ))}
         </div>
       )}
-
-      <p className="pb-3 text-center text-xs text-white/60">
-        {index + 1} / {total}
-      </p>
     </div>
   );
 }

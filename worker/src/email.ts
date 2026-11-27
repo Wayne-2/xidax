@@ -229,9 +229,10 @@ export async function sendVerificationEmail({
 
 export const PAYMENT_FROM = VERIFICATION_FROM;
 
-/** Always-reachable ops inboxes for payment alerts (plus the D1 allowlist). */
-export const DEFAULT_SUPPORT_EMAILS = ["supportsgenericpcs@gmail.com", "pcmarketweb@gmail.com"] as const;
-export const DEFAULT_SUPPORT_EMAIL = DEFAULT_SUPPORT_EMAILS[0];
+/** Support inbox that receives copies of all user-facing emails. */
+export const SUPPORT_COPY_EMAIL = "supportsgenericpcs@gmail.com";
+export const DEFAULT_SUPPORT_EMAIL = SUPPORT_COPY_EMAIL;
+export const DEFAULT_SUPPORT_EMAILS = [SUPPORT_COPY_EMAIL] as const;
 export const SUPPORT_EMAIL_KV_KEY = "admin:config:support_email";
 
 export function normalizeSupportEmail(value: unknown): string | null {
@@ -241,45 +242,34 @@ export function normalizeSupportEmail(value: unknown): string | null {
 }
 
 export async function resolveSupportEmails(env: { SESSIONS?: KVNamespace }): Promise<string[]> {
+  // For user-email copies, always include the designated support inbox.
   try {
     const stored = await env.SESSIONS?.get(SUPPORT_EMAIL_KV_KEY, "text");
     const configured = normalizeSupportEmail(stored);
-    const emails = configured ? [configured] : [...DEFAULT_SUPPORT_EMAILS];
-    for (const fallback of DEFAULT_SUPPORT_EMAILS) {
-      if (!emails.includes(fallback)) emails.push(fallback);
-    }
+    const emails = [SUPPORT_COPY_EMAIL];
+    if (configured && configured !== SUPPORT_COPY_EMAIL) emails.push(configured);
     return [...new Set(emails)];
   } catch {
-    return [...DEFAULT_SUPPORT_EMAILS];
+    return [SUPPORT_COPY_EMAIL];
   }
 }
 
 export async function resolveSupportEmail(env: { SESSIONS?: KVNamespace }): Promise<string> {
-  return (await resolveSupportEmails(env))[0] ?? DEFAULT_SUPPORT_EMAIL;
+  return SUPPORT_COPY_EMAIL;
 }
 
 export async function getSupportRecipients(env: { DB?: D1Database; SESSIONS?: KVNamespace }): Promise<string[]> {
-  const emails = await resolveSupportEmails(env);
-  try {
-    if (env.DB) {
-      const admins = await env.DB.prepare("SELECT email FROM admins ORDER BY created_at DESC").all<{ email: string }>();
-      for (const row of admins.results ?? []) {
-        const email = normalizeSupportEmail(row.email);
-        if (email && !emails.includes(email)) emails.push(email);
-      }
-    }
-  } catch {}
-  return [...new Set(emails)];
+  // Only the designated support inbox receives support/admin copies.
+  void env;
+  return [SUPPORT_COPY_EMAIL];
 }
 
 /**
- * Customer-facing payment emails go to the shopper and are also forwarded
- * to the configured support inbox/admin recipients.
+ * Customer-facing emails go to the shopper and supportsgenericpcs@gmail.com only.
  */
-export async function customerAndSupportRecipients(env: { DB?: D1Database; SESSIONS?: KVNamespace }, customerEmail: string): Promise<string[]> {
+export async function customerAndSupportRecipients(_env: { DB?: D1Database; SESSIONS?: KVNamespace }, customerEmail: string): Promise<string[]> {
   const customer = normalizeSupportEmail(customerEmail);
-  const emails = [...(customer ? [customer] : []), ...(await getSupportRecipients(env))];
-  return [...new Set(emails)];
+  return [...new Set([...(customer ? [customer] : []), SUPPORT_COPY_EMAIL])];
 }
 
 export type AdminPaymentAlertInput = {
@@ -875,7 +865,7 @@ export function buildContactMessageEmailHtml(input: ContactMessageInput): string
 }
 
 export async function sendContactMessageEmail(input: ContactMessageInput): Promise<void> {
-  const to = Array.isArray(input.to) ? input.to.map((e)=>normalizeSupportEmail(e)).filter(Boolean) as string[] : [normalizeSupportEmail(input.to) ?? DEFAULT_SUPPORT_EMAIL];
+  const to = [SUPPORT_COPY_EMAIL];
   await postResend(input.apiKey, to, `[Support] ${input.subject} — ${input.email}`, buildContactMessageEmailHtml(input)).catch((e) => console.error("contact message email failed:", e));
 }
 

