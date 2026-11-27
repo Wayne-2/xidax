@@ -286,9 +286,8 @@ export async function updateAdminOrderStatus(
     if (env.RESEND_API_KEY && ["processing","shipped","delivered","cancelled","refunded","failed"].includes(status)) {
       const row = await env.DB.prepare("SELECT reference, email, name, total, currency FROM orders WHERE id = ?1").bind(id).first<{ reference: string; email: string; name: string; total: number; currency: string }>();
       if (row?.email) {
-        const { sendOrderStatusEmail, notifyAdminsPaymentEvent } = await import("./email");
-        void sendOrderStatusEmail({ apiKey: env.RESEND_API_KEY, to: row.email, reference: row.reference, customerName: row.name || "Customer", status });
-        void notifyAdminsPaymentEvent(env, { kind: "card", event: "requested", reference: row.reference, amount: Number(row.total || 0), currency: row.currency || "USD", customerName: row.name || "Customer", customerEmail: row.email, detail: `Order status changed to ${status}.` });
+        const { sendOrderStatusEmail } = await import("./email");
+        void sendOrderStatusEmail({ apiKey: env.RESEND_API_KEY, to: row.email, env, reference: row.reference, customerName: row.name || "Customer", status });
       }
     }
   }

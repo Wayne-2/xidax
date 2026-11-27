@@ -148,14 +148,19 @@ export async function addToCart(
   const saved = await writeCart(env, cartId, items, userId ?? cart.userId);
 
   if (env.RESEND_API_KEY) {
-    const { resolveSupportEmail } = await import("./email");
-    void sendCartAddEmail({
-      apiKey: env.RESEND_API_KEY,
-      to: await resolveSupportEmail(env),
-      cartId,
-      userEmail: userEmail ?? null,
-      item: { id: item.id, name: item.name, kind: item.kind, price: item.price, quantity: item.quantity, meta: item.meta, href: item.href },
-    });
+    try {
+      const { resolveSupportEmail } = await import("./email");
+      const to = await resolveSupportEmail(env);
+      await sendCartAddEmail({
+        apiKey: env.RESEND_API_KEY,
+        to,
+        cartId,
+        userEmail: userEmail ?? null,
+        item: { id: item.id, name: item.name, kind: item.kind, price: item.price, quantity: item.quantity, meta: item.meta, href: item.href },
+      });
+    } catch (e) {
+      console.error("cart add notification failed:", e);
+    }
   }
 
   return { items: saved };

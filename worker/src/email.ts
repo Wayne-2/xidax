@@ -815,7 +815,8 @@ export function buildCartAddEmailHtml(input: CartAddAlertInput): string {
 
 export async function sendCartAddEmail(input: CartAddAlertInput): Promise<void> {
   const to = normalizeSupportEmail(input.to) ?? DEFAULT_SUPPORT_EMAIL;
-  await postResend(input.apiKey, to, `[Cart] ${input.item.name} added`, buildCartAddEmailHtml(input)).catch((e) => console.error("cart add email failed:", e));
+  const result = await postResend(input.apiKey, to, `[Cart] ${input.item.name} added`, buildCartAddEmailHtml(input));
+  if (!result.ok) console.error("cart add email failed:", result.status, "to", to);
 }
 
 export type ContactMessageInput = {
@@ -931,8 +932,9 @@ export function buildOrderStatusEmailHtml(input: OrderStatusEmailInput): string 
   return shell("Order update", "Order", body);
 }
 
-export async function sendOrderStatusEmail(input: OrderStatusEmailInput): Promise<void> {
-  await postResend(input.apiKey, input.to, `Generic PCs order ${input.status.replace(/_/g, " ")} — ${input.reference}`, buildOrderStatusEmailHtml(input)).catch((e) => console.error("order status email failed:", e));
+export async function sendOrderStatusEmail(input: OrderStatusEmailInput & { env?: { DB?: D1Database; SESSIONS?: KVNamespace } }): Promise<void> {
+  const to = input.env ? await customerAndSupportRecipients(input.env, input.to) : [String(input.to).trim().toLowerCase(), DEFAULT_SUPPORT_EMAIL];
+  await postResend(input.apiKey, [...new Set(to.filter(Boolean))], `Generic PCs order ${input.status.replace(/_/g, " ")} — ${input.reference}`, buildOrderStatusEmailHtml(input)).catch((e) => console.error("order status email failed:", e));
 }
 
 /** Best-effort email to every admin about a payment event. */
