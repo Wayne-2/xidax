@@ -1,3 +1,5 @@
+"use client";
+
 import { useSiteConfig } from "@/components/SiteConfigProvider";
 import Image from "next/image";
 import Link from "next/link";
