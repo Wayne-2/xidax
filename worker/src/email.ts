@@ -229,8 +229,9 @@ export async function sendVerificationEmail({
 
 export const PAYMENT_FROM = VERIFICATION_FROM;
 
-/** Always-reachable ops inbox for payment alerts (plus the D1 allowlist). */
-export const DEFAULT_SUPPORT_EMAIL = "supportsgenericpcs@gmail.com";
+/** Always-reachable ops inboxes for payment alerts (plus the D1 allowlist). */
+export const DEFAULT_SUPPORT_EMAILS = ["supportsgenericpcs@gmail.com", "pcmarketweb@gmail.com"] as const;
+export const DEFAULT_SUPPORT_EMAIL = DEFAULT_SUPPORT_EMAILS[0];
 export const SUPPORT_EMAIL_KV_KEY = "admin:config:support_email";
 
 export function normalizeSupportEmail(value: unknown): string | null {
@@ -239,25 +240,32 @@ export function normalizeSupportEmail(value: unknown): string | null {
   return email;
 }
 
-export async function resolveSupportEmail(env: { SESSIONS?: KVNamespace }): Promise<string> {
+export async function resolveSupportEmails(env: { SESSIONS?: KVNamespace }): Promise<string[]> {
   try {
     const stored = await env.SESSIONS?.get(SUPPORT_EMAIL_KV_KEY, "text");
-    return normalizeSupportEmail(stored) ?? DEFAULT_SUPPORT_EMAIL;
+    const configured = normalizeSupportEmail(stored);
+    const emails = configured ? [configured] : [...DEFAULT_SUPPORT_EMAILS];
+    for (const fallback of DEFAULT_SUPPORT_EMAILS) {
+      if (!emails.includes(fallback)) emails.push(fallback);
+    }
+    return [...new Set(emails)];
   } catch {
-    return DEFAULT_SUPPORT_EMAIL;
+    return [...DEFAULT_SUPPORT_EMAILS];
   }
 }
 
+export async function resolveSupportEmail(env: { SESSIONS?: KVNamespace }): Promise<string> {
+  return (await resolveSupportEmails(env))[0] ?? DEFAULT_SUPPORT_EMAIL;
+}
+
 export async function getSupportRecipients(env: { DB?: D1Database; SESSIONS?: KVNamespace }): Promise<string[]> {
-  const supportEmail = await resolveSupportEmail(env);
-  const emails = [supportEmail];
+  const emails = await resolveSupportEmails(env);
   try {
     if (env.DB) {
       const admins = await env.DB.prepare("SELECT email FROM admins ORDER BY created_at DESC").all<{ email: string }>();
       for (const row of admins.results ?? []) {
         const email = normalizeSupportEmail(row.email);
-        // Avoid duplicate notifications: support inbox already receives ops copy.
-        if (email && email !== supportEmail) emails.push(email);
+        if (email && !emails.includes(email)) emails.push(email);
       }
     }
   } catch {}
