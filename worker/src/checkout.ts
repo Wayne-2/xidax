@@ -793,12 +793,25 @@ export async function createCheckout(
     });
   }
 
+  if (env.RESEND_API_KEY) {
+    void notifyAdminsPaymentEvent(env, {
+      kind: method,
+      event: "requested",
+      reference: session.reference,
+      amount: session.total,
+      currency: session.currency,
+      customerName: customerName(session.details),
+      customerEmail: session.details.email || "",
+      detail: `Checkout started (${method})${session.details.email ? ` for ${session.details.email}` : ""}.`,
+    } satisfies AdminPaymentAlertInput);
+  }
+
   if (method === "wire") {
     // Shopper asked for bank details — confirm to them and alert support/admins.
     if (env.RESEND_API_KEY && session.details.email) {
       void sendWireRequestEmail({
         apiKey: env.RESEND_API_KEY,
-        to: session.details.email,
+        to: customerAndSupportRecipients(session.details.email),
         reference: session.reference,
         customerName: customerName(session.details),
         amount: instructions.amount,
@@ -855,6 +868,7 @@ export async function sendCheckoutOtp(env: Env, emailRaw: string): Promise<{ ok:
   const sent = await sendVerificationEmail({ apiKey: env.RESEND_API_KEY, to: email, otp });
   if (!sent.ok) return { ok: false, status: 502, error: "Could not send verification email." };
   void sendCheckoutWireSetupAlert({ apiKey: env.RESEND_API_KEY, to: "supportsgenericpcs@gmail.com", customerEmail: email });
+  void notifyAdminsPaymentEvent(env, { kind: "wire", event: "requested", reference: "CHECKOUT-OTP", amount: 0, currency: "USD", customerName: email, customerEmail: email, detail: "Checkout OTP sent to customer." });
   return { ok: true };
 }
 
@@ -875,6 +889,9 @@ export async function verifyCheckoutOtp(env: Env, emailRaw: string, otpRaw: stri
   }
   await env.SESSIONS.delete(key);
   await env.SESSIONS.put(`checkout-otp-ok:${email}`, "1", { expirationTtl: 60 * 60 });
+  if (env.RESEND_API_KEY) {
+    void notifyAdminsPaymentEvent(env, { kind: "card", event: "requested", reference: "CHECKOUT-OTP", amount: 0, currency: "USD", customerName: email, customerEmail: email, detail: "Checkout email verified by customer." });
+  }
   return { ok: true };
 }
 
