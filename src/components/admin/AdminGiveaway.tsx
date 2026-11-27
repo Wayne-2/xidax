@@ -133,7 +133,9 @@ export default function AdminGiveaway() {
       setStatus(result.status);
       toast.success("Giveaway prize saved.");
     } catch (error) {
-      toast.error((error as { error?: string }).error ?? "Could not save prize.");
+      const e = error as { error?: string; message?: string; status?: number };
+      console.error("save giveaway prize failed", error);
+      toast.error(e.error || e.message || "Could not save prize.");
     } finally {
       setSavingPrize(false);
     }

@@ -14,6 +14,7 @@ import AdminCatalog from "@/components/admin/AdminCatalog";
 import AdminSettings from "@/components/admin/AdminSettings";
 import AdminUsers from "@/components/admin/AdminUsers";
 import AdminCustomBuilds from "@/components/admin/AdminCustomBuilds";
+import AdminPromos from "@/components/admin/AdminPromos";
 
 type Tab =
   | "orders"
@@ -25,6 +26,7 @@ type Tab =
   | "consoles"
   | "giveaway"
   | "custom-builds"
+  | "promos"
   | "settings";
 
 const TABS: { id: Tab; label: string }[] = [
@@ -37,6 +39,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "consoles", label: "Monitors" },
   { id: "giveaway", label: "Giveaway" },
   { id: "custom-builds", label: "Custom builds" },
+  { id: "promos", label: "Promos" },
   { id: "settings", label: "Settings" },
 ];
 
@@ -240,6 +243,7 @@ export default function AdminDashboard({
           {tab === "consoles" && <AdminCatalog kind="consoles" />}
           {tab === "giveaway" && <AdminGiveaway />}
           {tab === "custom-builds" && <AdminCustomBuilds />}
+          {tab === "promos" && <AdminPromos />}
           {tab === "settings" && <AdminSettings />}
         </main>
       </div>

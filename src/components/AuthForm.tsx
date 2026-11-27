@@ -156,8 +156,9 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
     try {
       try {
         await initFirebase();
-      } catch {
-        toast.error("Sign in is temporarily unavailable. Please try again in a moment.");
+      } catch (err) {
+        console.error("Firebase init failed:", err);
+        toast.error(err instanceof Error ? err.message : "Sign in is temporarily unavailable. Please try again in a moment.");
         return;
       }
 

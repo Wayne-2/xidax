@@ -82,7 +82,7 @@ export async function setGiveawayPrize(
   const normalized = normalizePrize(prize);
 
   if (!normalized) {
-    return { ok: false, error: "Add a prize name or at least one image." };
+    return { ok: false, error: "Add a prize name, image, or spec before saving." };
   }
 
   await env.SESSIONS.put(PRIZE_KEY, JSON.stringify(normalized));

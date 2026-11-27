@@ -591,12 +591,16 @@ export function updateAdminGiveawayPrize(prize: AdminGiveawayPrize | null) {
   );
 }
 
+export type AdminCustomBuildQuoteItem = { name: string; spec?: string; price?: number; note?: string };
 export type AdminCustomBuildRequest = {
-  id: string; name: string; email: string; contact: string | null; budget: string | null;
+  id: string; user_id?: string | null; name: string; email: string; contact: string | null; budget: string | null;
   request_text: string; status: string; admin_notes: string | null; quote_amount: number | null;
-  quote_currency: string | null; created_at: string; updated_at: string;
+  quote_currency: string | null; quote_message: string | null; quote_items: AdminCustomBuildQuoteItem[]; created_at: string; updated_at: string;
 };
 export function fetchAdminCustomBuildRequests() { return adminFetch<{ requests: AdminCustomBuildRequest[] }>("/api/admin/custom-build-requests"); }
-export function updateAdminCustomBuildRequest(id: string, patch: Partial<Pick<AdminCustomBuildRequest,"status"|"admin_notes"|"quote_amount"|"quote_currency">>) {
+export function updateAdminCustomBuildRequest(id: string, patch: Partial<Pick<AdminCustomBuildRequest,"status"|"admin_notes"|"quote_amount"|"quote_currency"|"quote_message"|"quote_items">> & { send_email?: boolean }) {
   return adminFetch<{ ok: boolean; request: AdminCustomBuildRequest }>(`/api/admin/custom-build-requests/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
 }
+
+export type AdminPromoOverview = { userPromos: Array<{ uid:string; code:string; discount:number; active:boolean; email:string; name:string; updatedAt:string }>; productPromos: Array<{ kind:string; productId:string; name:string; code:string|null; discount:number; active:boolean; published:boolean }> };
+export function fetchAdminPromos() { return adminFetch<AdminPromoOverview>("/api/admin/promos"); }

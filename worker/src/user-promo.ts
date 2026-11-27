@@ -140,3 +140,12 @@ export async function deleteUserPromo(
 
   return (result.meta?.changes ?? 0) > 0;
 }
+
+export async function listUserPromos(env: Env) {
+  const rows = await env.DB.prepare(
+    `SELECT p.uid, p.code, p.discount, p.active, p.created_at, p.updated_at, u.email, u.name
+     FROM user_promos p LEFT JOIN users u ON u.id = p.uid
+     ORDER BY p.updated_at DESC LIMIT 500`
+  ).all<Row & { email?: string; name?: string }>();
+  return (rows.results ?? []).map((r) => { const row=r as Row & {email?:string;name?:string}; return { ...rowToPromo(row), email: String(row.email ?? ""), name: String(row.name ?? "") }; });
+}

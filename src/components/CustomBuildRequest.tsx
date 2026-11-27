@@ -1,18 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CheckIcon } from "@/components/BuildIcons";
+import { useAccount } from "@/components/AccountProvider";
 import { useToast } from "@/components/ToastProvider";
-import { submitCustomBuildRequest } from "@/lib/api";
+import { fetchMyCustomBuildRequests, submitCustomBuildRequest, type CustomBuildRequest as MyRequest } from "@/lib/api";
 
 const gridMask = "linear-gradient(to right, transparent 0%, black 55%, black 100%)";
 
 export default function CustomBuildRequest() {
   const toast = useToast();
+  const { token, user } = useAccount();
   const [form, setForm] = useState({ name: "", email: "", budget: "", parts: "", contact: "" });
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
+  const [myRequests, setMyRequests] = useState<MyRequest[]>([]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- prefill from account
+  useEffect(() => { setForm((c) => ({ ...c, name: c.name || user?.name || "", email: c.email || user?.email || "" })); }, [user?.name, user?.email]);
+  const loadMine = useCallback(async () => { if (!token) { setMyRequests([]); return; } try { setMyRequests((await fetchMyCustomBuildRequests(token)).requests); } catch {} }, [token]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- initial load
+  useEffect(() => { void loadMine(); }, [loadMine]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,14 +38,15 @@ export default function CustomBuildRequest() {
     try {
       await submitCustomBuildRequest({
         name,
-        email: email || `${name.toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.|\.$/g, "") || "customer"}@no-email.local`,
+        email: email || user?.email || `${name.toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.|\.$/g, "") || "customer"}@no-email.local`,
         contact: contact || undefined,
         budget: form.budget.trim() || undefined,
         requestText: parts,
-      });
+      }, token);
       setSent(true);
-      setForm({ name: "", email: "", budget: "", parts: "", contact: "" });
+      setForm((c) => ({ ...c, budget: "", parts: "", contact: "" }));
       toast.success("Request sent. We’ll get back with a quote.");
+      void loadMine();
     } catch (err) {
       toast.error((err as { error?: string; message?: string }).error || (err as { message?: string }).message || "Could not send request.");
     } finally {
@@ -92,6 +102,7 @@ export default function CustomBuildRequest() {
 
           <form onSubmit={handleSubmit} className="rounded-2xl border border-[#dce3ee] bg-[#eaf0f8] p-5 shadow-card sm:p-7">
             <h3 className="text-lg font-bold text-[#2e3338]">Request a quote</h3>
+            <p className="mt-1 text-xs text-[#5c5e66]">Support receives your request and admin can send suggestions/quote back here and to your email.</p>
             {sent ? (
               <div className="mt-6 rounded-2xl bg-white p-6 text-center">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#15803D]/10 text-[#15803D]"><CheckIcon className="h-6 w-6" /></div>
@@ -123,6 +134,49 @@ export default function CustomBuildRequest() {
               </>
             )}
           </form>
+        </div>
+      </section>
+
+      <section className="border-t border-[#dce3ee] bg-[#f0f4fa]">
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
+          <div className="flex items-end justify-between gap-4">
+            <div><p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#5865F2]">Your requests</p><h2 className="mt-2 text-2xl font-extrabold tracking-tight text-[#2e3338]">Quotes & suggestions</h2></div>
+            {token && <button onClick={() => void loadMine()} className="h-10 rounded-xl border border-[#d2dbe8] bg-white px-4 text-sm font-semibold text-[#5c5e66]">Refresh</button>}
+          </div>
+          {!token ? (
+            <div className="mt-6 rounded-2xl border border-[#dce3ee] bg-white p-6 text-sm text-[#5c5e66]">Sign in to see your custom build requests, admin suggestions, and quotes here. <Link href="/login?next=%2Fcustom-builds" className="font-semibold text-[#5865F2] hover:underline">Sign in</Link></div>
+          ) : myRequests.length === 0 ? (
+            <div className="mt-6 rounded-2xl border border-dashed border-[#c7d2e0] bg-white p-6 text-sm text-[#80848e]">No requests yet. Submit one above and it will appear here.</div>
+          ) : (
+            <div className="mt-6 grid gap-4">
+              {myRequests.map((r) => (
+                <article key={r.id} className="rounded-2xl border border-[#dce3ee] bg-white p-5 shadow-card">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div><p className="font-semibold text-[#2e3338]">Request #{r.id.slice(0,8)}</p><p className="text-xs text-[#80848e]">{new Date(r.created_at).toLocaleString()} {r.budget ? `· Budget ${r.budget}` : ""}</p></div>
+                    <span className="rounded-full bg-[#5865F2]/10 px-3 py-1 text-xs font-semibold text-[#5865F2]">{r.status}</span>
+                  </div>
+                  <p className="mt-3 whitespace-pre-wrap text-sm text-[#5c5e66]">{r.request_text}</p>
+                  {(r.quote_message || r.quote_amount != null || (r.quote_items?.length ?? 0) > 0) && (
+                    <div className="mt-4 rounded-xl border border-[#dce3ee] bg-[#f8fafe] p-4">
+                      <p className="text-sm font-bold text-[#2e3338]">Admin suggestion / quote</p>
+                      {r.quote_amount != null && <p className="mt-1 text-sm text-[#2e3338]">Quote: <span className="font-semibold">${Number(r.quote_amount).toFixed(2)} {r.quote_currency || "USD"}</span></p>}
+                      {r.quote_message && <p className="mt-2 whitespace-pre-wrap text-sm text-[#5c5e66]">{r.quote_message}</p>}
+                      {(r.quote_items?.length ?? 0) > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {r.quote_items.map((it, i) => (
+                            <div key={i} className="flex items-start justify-between gap-3 rounded-lg bg-white px-3 py-2 border border-[#e4e9f0]">
+                              <div><p className="text-sm font-semibold text-[#2e3338]">{it.name}</p>{it.spec && <p className="text-xs text-[#5c5e66]">{it.spec}</p>}{it.note && <p className="text-xs text-[#80848e]">{it.note}</p>}</div>
+                              {it.price != null && <p className="text-sm font-semibold text-[#2e3338]">${Number(it.price).toFixed(2)}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
         </div>
       </section>
     </>

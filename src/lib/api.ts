@@ -338,17 +338,25 @@ export async function sendMessage(payload: {
   });
 }
 
+export type CustomBuildQuoteItem = { name: string; spec?: string; price?: number; note?: string };
+export type CustomBuildRequest = { id:string; user_id?:string|null; name:string; email:string; contact:string|null; budget:string|null; request_text:string; status:string; admin_notes:string|null; quote_amount:number|null; quote_currency:string|null; quote_message:string|null; quote_items:CustomBuildQuoteItem[]; created_at:string; updated_at:string; };
+
 export async function submitCustomBuildRequest(payload: {
   name: string;
   email: string;
   contact?: string;
   budget?: string;
   requestText: string;
-}) {
-  return request<{ ok: boolean; id: string }>("/api/custom-build-requests", {
+}, token?: string | null) {
+  return accountRequest<{ ok: boolean; id: string }>("/api/custom-build-requests", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: payload,
+    token,
   });
+}
+
+export async function fetchMyCustomBuildRequests(token: string) {
+  return accountRequest<{ requests: CustomBuildRequest[] }>("/api/me/custom-build-requests", { token });
 }
 
 export async function createAccountProduct(

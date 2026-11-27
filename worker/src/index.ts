@@ -98,6 +98,7 @@ import {
   deleteUserPromo,
   generateUserPromoCode,
   getUserPromo,
+  listUserPromos,
   setUserPromoActive,
 } from "./user-promo";
 import { clientIp, rateLimit } from "./rate-limit";
@@ -110,7 +111,7 @@ import {
   type CatalogKind,
 } from "./catalog";
 import { sendContactMessageEmail, sendVerificationEmail } from "./email";
-import { createCustomBuildRequest, listCustomBuildRequests, updateCustomBuildRequest } from "./custom-builds";
+import { createCustomBuildRequest, listCustomBuildRequests, listMyCustomBuildRequests, updateCustomBuildRequest } from "./custom-builds";
 import {
   checkOTPStatus,
   ensureInitialized,
@@ -1400,6 +1401,21 @@ const worker = {
           return jsonWithCors({ code: generateUserPromoCode() }, request, env);
         }
 
+        if (request.method === "GET" && path === "/api/admin/promos") {
+          const [userPromos, prebuilds, laptops, consoles] = await Promise.all([
+            listUserPromos(env),
+            listAllProducts(env),
+            listCatalogItems(env, "laptops", false),
+            listCatalogItems(env, "consoles", false),
+          ]);
+          const productPromos = [
+            ...prebuilds.filter((p) => p.promoEnabled || p.promoCode).map((p) => ({ kind: "prebuild", productId: p.id, name: p.name, code: p.promoCode, discount: p.promoDiscount, active: p.promoEnabled, published: p.published })),
+            ...laptops.filter((p) => Boolean((p.data as Record<string, unknown>).promoEnabled || (p.data as Record<string, unknown>).promoCode)).map((p) => { const d=p.data as Record<string, unknown>; return { kind: "laptops", productId: p.id, name: String(d.name ?? p.id), code: typeof d.promoCode==="string"?d.promoCode:null, discount: Number(d.promoDiscount ?? 0), active: Boolean(d.promoEnabled), published: p.published }; }),
+            ...consoles.filter((p) => Boolean((p.data as Record<string, unknown>).promoEnabled || (p.data as Record<string, unknown>).promoCode)).map((p) => { const d=p.data as Record<string, unknown>; return { kind: "consoles", productId: p.id, name: String(d.name ?? p.id), code: typeof d.promoCode==="string"?d.promoCode:null, discount: Number(d.promoDiscount ?? 0), active: Boolean(d.promoEnabled), published: p.published }; }),
+          ];
+          return jsonWithCors({ userPromos, productPromos }, request, env);
+        }
+
         if (request.method === "GET" && path === "/api/admin/products") {
           const products = await listAllProducts(env);
           return jsonWithCors({ products }, request, env);
@@ -1868,9 +1884,12 @@ const worker = {
       if (request.method === "POST" && path === "/api/custom-build-requests") {
         const body = await readJson(request);
         if (!body) return json({ error: "Invalid request." }, 400);
+        const sessionToken = readToken(request);
+        const authed = sessionToken ? await findUserByToken(env, sessionToken) : null;
         const result = await createCustomBuildRequest(env, {
-          name: String(body.name ?? ""),
-          email: String(body.email ?? ""),
+          userId: authed?.id ?? null,
+          name: String(body.name ?? authed?.name ?? ""),
+          email: String(body.email ?? authed?.email ?? ""),
           contact: typeof body.contact === "string" ? body.contact : undefined,
           budget: typeof body.budget === "string" ? body.budget : undefined,
           requestText: String(body.requestText ?? body.message ?? ""),
@@ -1878,9 +1897,17 @@ const worker = {
         if (!result.ok) return json({ error: result.error }, result.status);
         if (env.RESEND_API_KEY) {
           const supportEmail = await getSupportEmail(env);
-          void sendContactMessageEmail({ apiKey: env.RESEND_API_KEY, to: supportEmail, name: String(body.name ?? "").slice(0,120), email: String(body.email ?? "").slice(0,200), subject: `Custom build request${body.budget ? ` — ${String(body.budget).slice(0,60)}` : ""}`, message: String(body.requestText ?? body.message ?? "").slice(0,5000), country: String(body.contact ?? "") || null });
+          const detail = `Name: ${String(body.name ?? authed?.name ?? "")}\nEmail: ${String(body.email ?? authed?.email ?? "")}\nContact: ${String(body.contact ?? "")}\nBudget: ${String(body.budget ?? "")}\n\nRequest:\n${String(body.requestText ?? body.message ?? "")}`;
+          void sendContactMessageEmail({ apiKey: env.RESEND_API_KEY, to: supportEmail, name: String(body.name ?? authed?.name ?? "").slice(0,120), email: String(body.email ?? authed?.email ?? "").slice(0,200), subject: `[Custom Build Request] ${String(body.name ?? "Customer").slice(0,60)}`, message: detail.slice(0,5000), country: String(body.contact ?? "") || null });
         }
         return json({ ok: true, id: result.id }, 201);
+      }
+
+      if (request.method === "GET" && path === "/api/me/custom-build-requests") {
+        const token = readToken(request);
+        const user = token ? await findUserByToken(env, token) : null;
+        if (!user) return json({ error: "Not signed in." }, 401);
+        return json(await listMyCustomBuildRequests(env, user.id, user.email));
       }
 
       if (request.method === "POST" && path === "/api/messages") {

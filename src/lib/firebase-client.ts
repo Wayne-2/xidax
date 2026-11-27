@@ -46,7 +46,7 @@ async function loadFirebaseConfig(): Promise<Record<string, string>> {
       let runtime: Record<string, string> = {};
 
       try {
-        const response = await fetch(`${API_BASE}/api/config`);
+        const response = await fetch(`${API_BASE}/api/config`, { cache: "no-store" });
         if (response.ok) {
           const payload = (await response.json()) as {
             firebase?: Record<string, string>;
@@ -71,7 +71,10 @@ async function loadFirebaseConfig(): Promise<Record<string, string>> {
       }
 
       return merged;
-    })();
+    })().catch((err) => {
+      configPromise = null; // allow retry after transient failure
+      throw err;
+    });
   }
 
   return configPromise;
