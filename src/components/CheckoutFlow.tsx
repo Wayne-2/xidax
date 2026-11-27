@@ -436,8 +436,13 @@ export default function CheckoutFlow() {
     }
   }, { silent: true, fallback: "Could not prepare checkout. Try again." });
 
+  const [cardFailureVisible, setCardFailureVisible] = useState(false);
+
   const { run: submitCard, pending: submittingCard, error: cardError } = useAsyncAction(async (sessionId: string) => {
+    setCardFailureVisible(false);
+    await new Promise((resolve) => setTimeout(resolve, 900));
     setSession((current) => (current && current.id === sessionId ? { ...current, status: "failed" } : current));
+    setCardFailureVisible(true);
   }, { silent: true, fallback: "Could not process card payment." });
 
   const { run: submitProof, pending: submittingProof, error: proofError } = useAsyncAction(async (sessionId: string) => {
@@ -886,13 +891,13 @@ export default function CheckoutFlow() {
         {otpStep ? otpVerificationStep : step === 1 ? detailsStep : step === 2 ? paymentStep : instructionsStep}
       </div>
 
-      {session && session.status === "failed" && session.method === "card" && (
+      {session && session.status === "failed" && session.method === "card" && cardFailureVisible && (
         <PaymentFailedModal
           amount={money(session.total)}
-          onClose={cancelCheckout}
-          onUpdateCard={() => setSession((c) => c ? { ...c, status: "awaiting_payment" } : c)}
-          onPayWithCrypto={() => changeMethod("crypto")}
-          onPayWithWire={() => changeMethod("wire")}
+          onClose={() => { setCardFailureVisible(false); cancelCheckout(); }}
+          onUpdateCard={() => { setCardFailureVisible(false); setSession((c) => c ? { ...c, status: "awaiting_payment" } : c); }}
+          onPayWithCrypto={() => { setCardFailureVisible(false); changeMethod("crypto"); }}
+          onPayWithWire={() => { setCardFailureVisible(false); changeMethod("wire"); }}
         />
       )}
     </div>
