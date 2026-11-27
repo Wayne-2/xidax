@@ -71,6 +71,7 @@ export type CheckoutDetails = {
   country: string;
   phone: string;
   deliveryMethod: DeliveryMethod;
+  gpuShipSeparately?: boolean;
   /** Legacy compatibility for older sessions/orders. */
   name?: string;
   postalCode?: string;

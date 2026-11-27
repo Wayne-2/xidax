@@ -562,6 +562,7 @@ export type AdminGiveawayPrize = {
   name: string;
   description: string;
   images: string[];
+  specs?: { label: string; value: string }[];
 };
 
 export type AdminGiveawayStatus = {

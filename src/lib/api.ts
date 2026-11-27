@@ -535,6 +535,7 @@ export type GiveawayPrize = {
   name: string;
   description: string;
   images: string[];
+  specs?: { label: string; value: string }[];
 };
 
 export type GiveawayStatus = {
@@ -573,7 +574,7 @@ export async function fetchGiveawayStatus(token?: string | null) {
 }
 
 export async function redeemGiveaway(
-  input: { email: string; name: string },
+  input: { email: string; name: string; reason: string },
   token?: string | null
 ) {
   return accountRequest<{ ok: boolean; status: GiveawayStatus }>(

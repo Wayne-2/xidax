@@ -8,6 +8,7 @@ export type GiveawayPrize = {
   name: string;
   description: string;
   images: string[];
+  specs: { label: string; value: string }[];
 };
 
 export type GiveawayStatus = {
@@ -45,16 +46,22 @@ async function getClosingAt(env: Env): Promise<string> {
 
 function normalizePrize(raw: unknown): GiveawayPrize | null {
   if (!raw || typeof raw !== "object") return null;
-  const value = raw as { name?: unknown; description?: unknown; images?: unknown };
+  const value = raw as { name?: unknown; description?: unknown; images?: unknown; specs?: unknown };
   const name = typeof value.name === "string" ? value.name.trim().slice(0, 200) : "";
   const description = typeof value.description === "string" ? value.description.trim().slice(0, 1000) : "";
   const images = Array.isArray(value.images)
     ? value.images.filter((img): img is string => typeof img === "string" && img.trim().length > 0).slice(0, 12)
     : [];
+  const specs = Array.isArray(value.specs)
+    ? value.specs.map((s) => {
+        const o = s && typeof s === "object" ? s as { label?: unknown; value?: unknown } : {};
+        return { label: typeof o.label === "string" ? o.label.trim().slice(0, 80) : "", value: typeof o.value === "string" ? o.value.trim().slice(0, 160) : "" };
+      }).filter((s) => s.label && s.value).slice(0, 12)
+    : [];
 
-  if (!name && !description && images.length === 0) return null;
+  if (!name && !description && images.length === 0 && specs.length === 0) return null;
 
-  return { name, description, images };
+  return { name, description, images, specs };
 }
 
 async function getPrize(env: Env): Promise<GiveawayPrize | null> {
@@ -150,7 +157,7 @@ export async function setGiveawayClosing(
 export async function redeemGiveaway(
   env: Env,
   identity: { userId: string | null; guestId: string | null },
-  details: { email: string; name: string }
+  details: { email: string; name: string; reason: string }
 ): Promise<
   | { ok: true; status: GiveawayStatus }
   | { error: string; status: number; statusCode: GiveawayStatus }
@@ -193,9 +200,18 @@ export async function redeemGiveaway(
     };
   }
 
+  const reason = details.reason.trim().slice(0, 1200);
+  if (reason.length < 10) {
+    return {
+      error: "Tell us why you need a PC (at least 10 characters).",
+      status: 400,
+      statusCode: current,
+    };
+  }
+
   await env.DB.prepare(
-    `INSERT INTO giveaway_entries (id, user_id, guest_id, email, name, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+    `INSERT INTO giveaway_entries (id, user_id, guest_id, email, name, reason, created_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`
   )
     .bind(
       crypto.randomUUID(),
@@ -203,6 +219,7 @@ export async function redeemGiveaway(
       identity.guestId,
       email,
       name,
+      reason,
       new Date().toISOString()
     )
     .run();

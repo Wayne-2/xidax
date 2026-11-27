@@ -636,6 +636,7 @@ const worker = {
           const result = await redeemGiveaway(env, identity, {
             email: typeof body.email === "string" ? body.email : "",
             name: typeof body.name === "string" ? body.name : "",
+            reason: typeof body.reason === "string" ? body.reason : "",
           });
 
           if ("error" in result) {

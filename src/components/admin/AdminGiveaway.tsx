@@ -19,6 +19,7 @@ export default function AdminGiveaway() {
   const [prizeName, setPrizeName] = useState("");
   const [prizeDescription, setPrizeDescription] = useState("");
   const [prizeImages, setPrizeImages] = useState<string[]>([]);
+  const [prizeSpecs, setPrizeSpecs] = useState<{ label: string; value: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [savingPrize, setSavingPrize] = useState(false);
 
@@ -32,6 +33,7 @@ export default function AdminGiveaway() {
       setPrizeName(result.prize?.name ?? "");
       setPrizeDescription(result.prize?.description ?? "");
       setPrizeImages(result.prize?.images ?? []);
+      setPrizeSpecs(result.prize?.specs ?? []);
     } catch {
       // Keep the panel neutral when the status cannot be loaded.
     } finally {
@@ -112,14 +114,16 @@ export default function AdminGiveaway() {
     event.preventDefault();
     if (savingPrize || loading) return;
 
+    const specs = prizeSpecs.map((s) => ({ label: s.label.trim().slice(0,80), value: s.value.trim().slice(0,160) })).filter((s) => s.label && s.value).slice(0,12);
     const payload = {
       name: prizeName.trim().slice(0, 200),
       description: prizeDescription.trim().slice(0, 1000),
       images: prizeImages,
+      specs,
     };
 
-    if (!payload.name && !payload.description && payload.images.length === 0) {
-      toast.error("Add a prize name or image before saving.");
+    if (!payload.name && !payload.description && payload.images.length === 0 && payload.specs.length === 0) {
+      toast.error("Add a prize name, image, or spec before saving.");
       return;
     }
 
@@ -144,6 +148,7 @@ export default function AdminGiveaway() {
       setPrizeName("");
       setPrizeDescription("");
       setPrizeImages([]);
+      setPrizeSpecs([]);
       toast.success("Giveaway prize cleared.");
     } catch (error) {
       toast.error((error as { error?: string }).error ?? "Could not clear prize.");
@@ -249,6 +254,22 @@ export default function AdminGiveaway() {
             <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">Description</span>
             <textarea value={prizeDescription} onChange={(e) => setPrizeDescription(e.target.value)} disabled={savingPrize || loading} rows={3} className="w-full rounded-xl border border-[#d2dbe8] bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[#5865F2] disabled:opacity-60" placeholder="Describe the prize..." />
           </label>
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">Specs</span>
+              <button type="button" onClick={() => setPrizeSpecs((p) => [...p, { label: "", value: "" }].slice(0,12))} className="text-xs font-semibold text-[#5865F2] hover:underline">+ Add spec</button>
+            </div>
+            <div className="space-y-2">
+              {prizeSpecs.map((spec, idx) => (
+                <div key={idx} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                  <input value={spec.label} onChange={(e) => setPrizeSpecs((p) => p.map((s,i)=> i===idx ? {...s, label: e.target.value} : s))} placeholder="Label (e.g. GPU)" className="h-10 rounded-xl border border-[#d2dbe8] bg-white px-3 text-sm outline-none focus:border-[#5865F2]" />
+                  <input value={spec.value} onChange={(e) => setPrizeSpecs((p) => p.map((s,i)=> i===idx ? {...s, value: e.target.value} : s))} placeholder="Value (e.g. RTX 4070)" className="h-10 rounded-xl border border-[#d2dbe8] bg-white px-3 text-sm outline-none focus:border-[#5865F2]" />
+                  <button type="button" onClick={() => setPrizeSpecs((p) => p.filter((_,i)=>i!==idx))} className="h-10 rounded-xl border border-[#d2dbe8] px-3 text-xs font-semibold text-[#B91C1C]">Remove</button>
+                </div>
+              ))}
+              {prizeSpecs.length === 0 && <p className="text-xs text-[#80848e]">No specs added yet.</p>}
+            </div>
+          </div>
           <label className="block">
             <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">Prize images</span>
             <input type="file" accept="image/*" multiple onChange={handlePrizeImages} disabled={uploading || savingPrize || loading} className="block w-full text-sm text-[#5c5e66] file:mr-3 file:rounded-lg file:border-0 file:bg-[#5865F2]/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-[#5865F2]" />

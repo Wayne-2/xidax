@@ -47,6 +47,7 @@ export default function GiveawayView() {
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const prize = status?.prize ?? null;
   const prizeImages = resolveImageUrls(prize?.images ?? []);
@@ -79,11 +80,12 @@ export default function GiveawayView() {
     setSubmitting(true);
 
     try {
-      const result = await redeemGiveaway({ name, email }, token);
+      const result = await redeemGiveaway({ name, email, reason }, token);
       setStatus(result.status);
       toast.success("You're entered! Good luck.");
       setName("");
       setEmail("");
+      setReason("");
     } catch (error) {
       const payload = error as { error?: string; status?: GiveawayStatus };
 
@@ -266,6 +268,21 @@ export default function GiveawayView() {
                 />
               </label>
 
+              <label className="mt-4 block">
+                <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">
+                  Why do you need a PC?
+                </span>
+                <textarea
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Tell us how a PC would help you..."
+                  rows={4}
+                  maxLength={1200}
+                  className="w-full rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-3.5 py-3 text-sm outline-none focus:border-[#5865F2]"
+                  required
+                />
+              </label>
+
               <button
                 type="submit"
                 disabled={
@@ -312,30 +329,47 @@ export default function GiveawayView() {
           </div>
 
           <div className="mt-10">
-            {prizeImages.length > 0 ? (
-              <div className="grid gap-4 sm:grid-cols-3">
-                {prizeImages.slice(0, 3).map((src, index) => (
-                  <div
-                    key={src}
-                    className="relative aspect-square overflow-hidden rounded-2xl border border-[#dce3ee] bg-white shadow-card"
-                  >
-                    <Image
-                      src={src}
-                      alt={`Giveaway gaming PC ${index + 1}`}
-                      fill
-                      sizes="(min-width: 640px) 33vw, 100vw"
-                      className="object-contain"
-                    />
-                  </div>
-                ))}
+            {prize ? (
+              <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-12">
+                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-[#dce3ee] bg-white shadow-panel">
+                  {prizeImages[0] ? (
+                    <Image src={prizeImages[0]} alt={prize.name || "Giveaway prize"} fill sizes="(min-width: 1024px) 45vw, 100vw" className="object-contain" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-sm text-[#80848e]">Prize image coming soon</div>
+                  )}
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#5865F2]">Prize specs</p>
+                  <h3 className="mt-3 text-3xl font-extrabold tracking-tight text-[#2e3338]">{prize.name || "Giveaway PC"}</h3>
+                  {prize.description && <p className="mt-3 text-sm leading-relaxed text-[#5c5e66]">{prize.description}</p>}
+                  {Array.isArray(prize.specs) && prize.specs.length > 0 ? (
+                    <dl className="mt-6 grid gap-3 sm:grid-cols-2">
+                      {prize.specs.map((spec, i) => (
+                        <div key={`${spec.label}-${i}`} className="rounded-xl border border-[#dce3ee] bg-white px-4 py-3">
+                          <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#80848e]">{spec.label}</dt>
+                          <dd className="mt-1 text-sm font-semibold text-[#2e3338]">{spec.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : (
+                    <p className="mt-6 text-sm text-[#80848e]">Specs will be posted by admin.</p>
+                  )}
+                  {prizeImages.length > 1 && (
+                    <div className="mt-6 grid grid-cols-3 gap-3">
+                      {prizeImages.slice(1, 4).map((src, index) => (
+                        <div key={`${src}-${index}`} className="relative aspect-square overflow-hidden rounded-xl border border-[#dce3ee] bg-white">
+                          <Image src={src} alt={`${prize.name || "Prize"} image ${index + 2}`} fill sizes="120px" className="object-contain" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-[#c7d2e0] bg-[#f8fafe] px-6 py-12 text-center shadow-card">
                 <InfoIcon className="mx-auto h-10 w-10 text-[#80848e]" />
                 <p className="mt-3 text-sm font-semibold text-[#2e3338]">No giveaway prize yet</p>
-                <p className="mt-1 text-xs text-[#80848e]">
-                  The prize will appear here once an admin posts a giveaway product.
-                </p>
+                <p className="mt-1 text-xs text-[#80848e]">The prize will appear here once an admin posts a giveaway product.</p>
               </div>
             )}
           </div>
