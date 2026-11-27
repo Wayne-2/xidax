@@ -25,12 +25,12 @@ export default function CartView() {
     clearPromo,
   } = useCart();
 
-  useEffect(() => { if (accountReady && !token) router.replace("/login?next=%2Fcart"); }, [accountReady, token, router]);
-  if (!accountReady || !token) return null;
-
   const { formatMoney } = useRegion();
   const toast = useToast();
   const [promoInput, setPromoInput] = useState("");
+
+  useEffect(() => { if (accountReady && !token) router.replace("/login?next=%2Fcart"); }, [accountReady, token, router]);
+  if (!accountReady || !token) return null;
 
   const productDiscount = items.reduce((sum, item) => {
     if (!item.promoEnabled || !item.promoCode) return sum;
@@ -208,8 +208,8 @@ export default function CartView() {
               />
               <button
                 type="button"
-                onClick={() => {
-                  const error = applyPromo(promoInput);
+                onClick={async () => {
+                  const error = await applyPromo(promoInput);
                   if (error) {
                     toast.error(error);
                     return;

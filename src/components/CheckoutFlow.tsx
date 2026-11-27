@@ -21,6 +21,7 @@ import {
   submitCardDetails,
   submitPaymentProof,
   updateCheckoutWallet,
+  validateProductPromo,
   verifyCheckoutOtp,
 } from "@/lib/api";
 import {
@@ -351,10 +352,11 @@ export default function CheckoutFlow() {
     }
   }
 
-  function applyDiscountCode() {
+  async function applyDiscountCode() {
     const code = discountInput.trim().toUpperCase();
     if (!code) { setErrors((c) => ({ ...c, discount: "Enter a discount or gift card code." })); return; }
     if (appliedDiscount?.code === code) { setErrors((c) => ({ ...c, discount: "This code is already applied." })); return; }
+
     if (promo && promo.code.toUpperCase() === code) {
       const amount = Math.round(subtotal * promo.rate * 100) / 100;
       setAppliedDiscount({ code, amount });
@@ -363,6 +365,26 @@ export default function CheckoutFlow() {
       toast.success("Discount applied.");
       return;
     }
+
+    for (const item of items) {
+      if (!item.productId) continue;
+      const lineId = `${item.kind}-${item.productId}`;
+      try {
+        const result = await validateProductPromo(code, lineId);
+        const p = result.promo;
+        if (p?.code) {
+          const amount = Math.round(subtotal * (p.discount / 100) * 100) / 100;
+          setAppliedDiscount({ code: p.code, amount });
+          setDraft((c) => ({ ...c, discountCode: p.code }));
+          setErrors((c) => { const n = { ...c }; delete n.discount; return n; });
+          toast.success("Discount applied.");
+          return;
+        }
+      } catch {
+        // try next line
+      }
+    }
+
     setErrors((c) => ({ ...c, discount: "This code is invalid or not available." }));
   }
 

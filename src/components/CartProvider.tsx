@@ -13,10 +13,11 @@ import {
   addToCartRemote,
   clearCartRemote,
   fetchCart,
+  fetchMyPromo,
   removeFromCartRemote,
   updateCartItemRemote,
+  validateProductPromo,
 } from "@/lib/api";
-import { fetchMyPromo } from "@/lib/api";
 import { useAccount } from "@/components/AccountProvider";
 
 const PROMO_KEY = "genericpcs.promo";
@@ -30,7 +31,7 @@ type CartContextValue = {
   subtotal: number;
   promo: AppliedPromo | null;
   ready: boolean;
-  applyPromo: (code: string) => string | null;
+  applyPromo: (code: string) => Promise<string | null>;
   clearPromo: () => void;
   add: (item: CartItem) => void;
   remove: (id: string) => void;
@@ -52,6 +53,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (!accountReady) return;
 
     if (!token) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear cart when user signs out
       setItems([]);
       window.localStorage.removeItem(CACHE_KEY);
       setReady(true);
@@ -117,19 +119,36 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [accountReady, token]);
 
   const applyPromo = useCallback(
-    (rawCode: string): string | null => {
+    async (rawCode: string): Promise<string | null> => {
       const code = rawCode.trim().toUpperCase();
-
       if (!code) return "Enter a promo code.";
-      if (!promo) return "Sign in to use a promo code.";
-      if (promo.code.toUpperCase() !== code) {
-        return "That code is not assigned to your account.";
+
+      // Account-assigned promo (admin issued to user)
+      if (promo && promo.code.toUpperCase() === code) {
+        window.localStorage.setItem(PROMO_KEY, JSON.stringify(promo));
+        return null;
       }
 
-      window.localStorage.setItem(PROMO_KEY, JSON.stringify(promo));
-      return null;
+      // Product/catalog promo codes - validate against cart items.
+      for (const item of items) {
+        if (!item.productId) continue;
+        const lineId = `${item.kind}-${item.productId}`;
+        try {
+          const result = await validateProductPromo(code, lineId);
+          if (result.promo?.code) {
+            const next = { code: result.promo.code, rate: result.promo.discount / 100 };
+            setPromo(next);
+            window.localStorage.setItem(PROMO_KEY, JSON.stringify(next));
+            return null;
+          }
+        } catch {
+          // try next line
+        }
+      }
+
+      return "That promo code is not valid for your cart.";
     },
-    [promo]
+    [promo, items]
   );
 
   const clearPromo = useCallback(() => {
