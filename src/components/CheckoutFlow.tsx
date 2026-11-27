@@ -175,6 +175,7 @@ export default function CheckoutFlow() {
   const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number } | null>(null);
   const [billingSameAsShipping, setBillingSameAsShipping] = useState(false);
   const [billing, setBilling] = useState({ firstName: "", lastName: "", address: "", apartment: "", city: "", state: "", zipCode: "", country: "" });
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -196,44 +197,9 @@ export default function CheckoutFlow() {
   }, [ready, items.length, session, restoring, router]);
 
   useEffect(() => {
-    let cancelled = false;
-    async function restore() {
-      const storedId = readRememberedCheckoutSession();
-      if (!storedId) { if (!cancelled) setRestoring(false); return; }
-      try {
-        const fresh = await getCheckoutSession(storedId);
-        if (cancelled) return;
-        if (!fresh || fresh.status === "expired") { clearRememberedCheckoutSession(); setRestoring(false); return; }
-        if (fresh.status === "paid") clearRememberedCheckoutSession();
-        setSession(fresh);
-        setStep(3);
-        setOtpStep(false);
-        setCheckoutOtpVerified(true);
-        setNow(Date.now());
-        const d = fresh.details;
-        setDraft((current) => ({
-          ...current,
-          email: d.email || current.email,
-          marketingOptIn: Boolean(d.marketingOptIn),
-          firstName: d.firstName || current.firstName,
-          lastName: d.lastName || current.lastName,
-          address: d.address || current.address,
-          apartment: d.apartment || current.apartment || "",
-          city: d.city || current.city,
-          state: d.state || current.state,
-          zipCode: d.zipCode || d.postalCode || current.zipCode,
-          country: d.country || current.country,
-          phone: d.phone || current.phone,
-          deliveryMethod: d.deliveryMethod || current.deliveryMethod,
-          paymentMethod: fresh.method,
-          discountCode: fresh.discountCode || fresh.promoCode || current.discountCode,
-        }));
-        if (fresh.walletId) setWalletId(fresh.walletId);
-        if (fresh.discountCode || fresh.promoCode) setAppliedDiscount({ code: fresh.discountCode || fresh.promoCode || "", amount: fresh.discount });
-      } catch {} finally { if (!cancelled) setRestoring(false); }
-    }
-    void restore();
-    return () => { cancelled = true; };
+    // Fresh checkout by default; stale remembered sessions should not hijack new checkouts.
+    clearRememberedCheckoutSession();
+    setRestoring(false);
   }, []);
 
   useEffect(() => {
@@ -274,15 +240,31 @@ export default function CheckoutFlow() {
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [session, toast]);
 
-  const discountFromPromo = promo ? Math.round(subtotal * promo.rate * 100) / 100 : 0;
+  useEffect(() => {
+    setSelectedItemIds((current) => {
+      const available = new Set(items.map((item) => item.id));
+      const kept = current.filter((id) => available.has(id));
+      if (kept.length > 0) return kept;
+      return items.map((item) => item.id);
+    });
+  }, [items]);
+
+  const selectedItems = useMemo(() => {
+    const selected = new Set(selectedItemIds);
+    const filtered = items.filter((item) => selected.has(item.id));
+    return filtered.length > 0 ? filtered : items;
+  }, [items, selectedItemIds]);
+
+  const subtotalSelected = useMemo(() => selectedItems.reduce((sum, item) => sum + item.price * item.quantity, 0), [selectedItems]);
+  const discountFromPromo = promo ? Math.round(subtotalSelected * promo.rate * 100) / 100 : 0;
   const discount = appliedDiscount?.amount ?? discountFromPromo;
   const discountCode = appliedDiscount?.code ?? promo?.code;
-  const discountedSubtotal = Math.max(0, Math.round((subtotal - discount) * 100) / 100);
+  const discountedSubtotal = Math.max(0, Math.round((subtotalSelected - discount) * 100) / 100);
   const shipping = draft.deliveryMethod === "express" ? 18 : 0;
   const tax = Math.round(discountedSubtotal * 0.08 * 100) / 100;
   const total = Math.round((discountedSubtotal + shipping + tax) * 100) / 100;
 
-  const lines = useMemo(() => items.map((item) => ({ id: item.id, name: item.name, kind: item.kind, price: item.price, quantity: item.quantity })), [items]);
+  const lines = useMemo(() => selectedItems.map((item) => ({ id: item.id, name: item.name, kind: item.kind, price: item.price, quantity: item.quantity })), [selectedItems]);
   const selectedWallet = wallets.find((entry) => entry.id === walletId) ?? wallets[0];
   const remaining = session ? Math.max(0, new Date(session.expiresAt).getTime() - now) : 0;
   const countdown = formatCountdown(remaining);
@@ -295,6 +277,7 @@ export default function CheckoutFlow() {
 
   function validateDetails() {
     const next: Record<string, string> = {};
+    if (selectedItems.length === 0) next.items = "Select at least one item to check out.";
     if (!draft.email.trim()) next.email = "Email is required.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) next.email = "Enter a valid email address.";
     if (!draft.firstName.trim()) next.firstName = "First name is required.";
@@ -389,6 +372,7 @@ export default function CheckoutFlow() {
   }
 
   const { run: startPayment, pending: startingPayment, error: paymentError } = useAsyncAction(async () => {
+    if (selectedItems.length === 0) throw new AppError("Select at least one item to check out.");
     if (draft.paymentMethod === "crypto" && !selectedWallet) throw new AppError("No crypto wallet is available.");
     const payload = {
       lines,
@@ -475,22 +459,37 @@ export default function CheckoutFlow() {
     <aside className="h-fit rounded-2xl border border-[#DCE1ED] bg-white p-5 shadow-sm lg:sticky lg:top-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-[#20212B]">Order summary</h2>
-        <span className="text-sm text-[#737D94]">{items.length} item{items.length === 1 ? "" : "s"}</span>
+        <span className="text-sm text-[#737D94]">{selectedItems.length}/{items.length} selected</span>
       </div>
-      <div className="mt-4 space-y-4">
-        {items.map((item) => (
-          <div key={item.id} className="flex gap-3">
-            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-[#F0F2F8]">
-              {item.image ? <img src={item.image} alt={item.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-[10px] font-bold text-[#737D94]">{item.kind}</div>}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-[#20212B]">{item.name}</p>
-              <p className="truncate text-xs text-[#737D94]">{item.meta}</p>
-              <p className="mt-1 text-xs text-[#737D94]">Qty {item.quantity}</p>
-            </div>
-            <p className="text-sm font-medium text-[#20212B]">{money(item.price * item.quantity)}</p>
-          </div>
-        ))}
+      <div className="mt-4 space-y-3">
+        {items.map((item) => {
+          const checked = selectedItemIds.includes(item.id);
+          return (
+            <label key={item.id} className={`flex gap-3 rounded-xl border p-3 ${checked ? "border-[#5965F5] bg-[#F8FAFF]" : "border-[#DCE1ED] bg-white"}`}>
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => {
+                  setSelectedItemIds((current) => {
+                    const has = current.includes(item.id);
+                    if (has && current.length === 1) return current; // keep at least one
+                    return has ? current.filter((id) => id !== item.id) : [...current, item.id];
+                  });
+                }}
+                className="mt-1 h-4 w-4 rounded border-[#DCE1ED] text-[#5965F5]"
+              />
+              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-[#F0F2F8]">
+                {item.image ? <img src={item.image} alt={item.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-[10px] font-bold text-[#737D94]">{item.kind}</div>}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-[#20212B]">{item.name}</p>
+                <p className="truncate text-xs text-[#737D94]">{item.meta}</p>
+                <p className="mt-1 text-xs text-[#737D94]">Qty {item.quantity}</p>
+              </div>
+              <p className="text-sm font-medium text-[#20212B]">{money(item.price * item.quantity)}</p>
+            </label>
+          );
+        })}
       </div>
 
       <div className="mt-5 border-t border-[#DCE1ED] pt-4">
@@ -522,6 +521,12 @@ export default function CheckoutFlow() {
   const detailsStep = (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
       <div className="space-y-6">
+        <section className="rounded-2xl border border-[#DCE1ED] bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-[#20212B]">Items to check out</h2>
+          <p className="mt-1 text-sm text-[#737D94]">Select which cart items to include in this checkout.</p>
+          {errors.items && <p className="mt-2 text-sm text-red-600">{errors.items}</p>}
+        </section>
+
         <section className="rounded-2xl border border-[#DCE1ED] bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-[#20212B]">Contact</h2>
           <p className="mt-1 text-sm text-[#737D94]">We&apos;ll send your receipt and shipping updates here.</p>

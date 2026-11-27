@@ -1,12 +1,8 @@
 import {
-  METHOD_TTL_MS,
-  cryptoNetworks,
-  networkConfig,
   type CardDetailsInput,
   type CheckoutRequest,
   type CheckoutSession,
   type CryptoWallet,
-  type PaymentInstructions,
   type RegisteredProductPayload,
 } from "@/lib/payments";
 import { AppError, isOffline } from "@/lib/errors";
@@ -22,16 +18,7 @@ export function remotePaymentsEnabled() {
   return Boolean(API_BASE);
 }
 
-function randomCode(length: number) {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
 
-  for (let index = 0; index < length; index += 1) {
-    code += alphabet[Math.floor(Math.random() * alphabet.length)];
-  }
-
-  return code;
-}
 
 
 
