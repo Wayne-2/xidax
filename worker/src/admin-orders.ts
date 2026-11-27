@@ -282,6 +282,14 @@ export async function updateAdminOrderStatus(
     )
       .bind(status, id)
       .run();
+
+    if (env.RESEND_API_KEY && ["processing","shipped","delivered","cancelled","refunded","failed"].includes(status)) {
+      const row = await env.DB.prepare("SELECT reference, email, name FROM orders WHERE id = ?1").bind(id).first<{ reference: string; email: string; name: string }>();
+      if (row?.email) {
+        const { sendOrderStatusEmail } = await import("./email");
+        void sendOrderStatusEmail({ apiKey: env.RESEND_API_KEY, to: row.email, reference: row.reference, customerName: row.name || "Customer", status });
+      }
+    }
   }
 
   return { ok: true, notFound: !changed };

@@ -766,6 +766,123 @@ export async function sendCartAddEmail(input: CartAddAlertInput): Promise<void> 
   await postResend(input.apiKey, to, `[Cart] ${input.item.name} added`, buildCartAddEmailHtml(input)).catch((e) => console.error("cart add email failed:", e));
 }
 
+export type ContactMessageInput = {
+  apiKey: string;
+  to?: string | string[];
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  country?: string | null;
+};
+
+export function buildContactMessageEmailHtml(input: ContactMessageInput): string {
+  const rows: Array<[string, string]> = [
+    ["Name", input.name],
+    ["Email", input.email],
+    ["Subject", input.subject],
+    ["Country", input.country || "—"],
+  ];
+  const detailRows = rows.map(([k,v]) => `
+                <tr>
+                  <td style="padding:8px 0;font-size:13px;color:${BRAND.muted};vertical-align:top;width:110px;">${escapeHtml(k)}</td>
+                  <td style="padding:8px 0;font-size:14px;font-weight:600;color:${BRAND.ink};">${escapeHtml(v)}</td>
+                </tr>`).join("");
+  const body = `
+          <tr>
+            <td style="padding:32px 32px 8px;">
+              <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:800;letter-spacing:-0.02em;color:${BRAND.ink};">New support message</h1>
+              <p style="margin:0;font-size:15px;line-height:1.65;color:${BRAND.body};">A customer sent a message from the website contact form.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px 8px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${BRAND.surface};border-radius:12px;">
+                <tr><td style="padding:18px 20px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${detailRows}</table>
+                </td></tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 32px 32px;">
+              <p style="margin:0 0 8px;font-size:13px;color:${BRAND.muted};">Message</p>
+              <div style="background:#ffffff;border:1px solid ${BRAND.line};border-radius:12px;padding:16px 18px;font-size:14px;line-height:1.7;color:${BRAND.body};white-space:pre-wrap;">${escapeHtml(input.message)}</div>
+            </td>
+          </tr>`;
+  return shell("New support message", "Support", body);
+}
+
+export async function sendContactMessageEmail(input: ContactMessageInput): Promise<void> {
+  const to = Array.isArray(input.to) ? input.to : [(input.to || FALLBACK_ADMIN_EMAILS[0]).trim().toLowerCase()];
+  await postResend(input.apiKey, to, `[Support] ${input.subject} — ${input.email}`, buildContactMessageEmailHtml(input)).catch((e) => console.error("contact message email failed:", e));
+}
+
+export type OrderPlacedInput = {
+  apiKey: string;
+  to: string | string[];
+  reference: string;
+  customerName: string;
+  method: string;
+  total: number;
+  currency: string;
+  lines: ReceiptLine[];
+  paymentInstructions?: string;
+};
+
+export function buildOrderPlacedEmailHtml(input: OrderPlacedInput): string {
+  const rows = input.lines.map((line) => `
+                <tr>
+                  <td style="padding:10px 0;border-bottom:1px solid ${BRAND.line};font-size:14px;color:${BRAND.body};">${escapeHtml(line.name)} <span style="color:${BRAND.muted};">× ${line.quantity}</span></td>
+                  <td align="right" style="padding:10px 0;border-bottom:1px solid ${BRAND.line};font-size:14px;font-weight:600;color:${BRAND.ink};">${escapeHtml(money(line.price * line.quantity, input.currency))}</td>
+                </tr>`).join("");
+  const body = `
+          <tr><td style="padding:32px 32px 8px;">
+            <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:800;letter-spacing:-0.02em;color:${BRAND.ink};">Order received</h1>
+            <p style="margin:0;font-size:15px;line-height:1.65;color:${BRAND.body};">Hi ${escapeHtml(input.customerName)} — we received your order <strong style="color:${BRAND.ink};">${escapeHtml(input.reference)}</strong>. ${escapeHtml(input.paymentInstructions || "We’ll update you as payment is processed.")}</p>
+          </td></tr>
+          <tr><td style="padding:16px 32px 8px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${BRAND.surface};border-radius:12px;"><tr><td style="padding:18px 20px;">
+              <p style="margin:0 0 8px;font-size:13px;color:${BRAND.muted};">Reference</p><p style="margin:0 0 12px;font-size:16px;font-weight:700;color:${BRAND.ink};font-family:'SF Mono',Menlo,Consolas,monospace;">${escapeHtml(input.reference)}</p>
+              <p style="margin:0 0 8px;font-size:13px;color:${BRAND.muted};">Payment method</p><p style="margin:0 0 12px;font-size:15px;font-weight:600;color:${BRAND.ink};">${escapeHtml(methodLabel(input.method))}</p>
+              <p style="margin:0 0 8px;font-size:13px;color:${BRAND.muted};">Total</p><p style="margin:0;font-size:16px;font-weight:700;color:${BRAND.ink};">${escapeHtml(money(input.total, input.currency))}</p>
+            </td></tr></table>
+          </td></tr>
+          <tr><td style="padding:8px 32px 24px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>
+          </td></tr>`;
+  return shell("Order received", "Order", body);
+}
+
+export async function sendOrderPlacedEmail(input: OrderPlacedInput): Promise<void> {
+  await postResend(input.apiKey, input.to, `Generic PCs order received — ${input.reference}`, buildOrderPlacedEmailHtml(input)).catch((e) => console.error("order placed email failed:", e));
+}
+
+export type OrderStatusEmailInput = {
+  apiKey: string;
+  to: string;
+  reference: string;
+  customerName: string;
+  status: string;
+};
+
+export function buildOrderStatusEmailHtml(input: OrderStatusEmailInput): string {
+  const status = input.status.replace(/_/g, " ");
+  const body = `
+          <tr><td style="padding:32px 32px 8px;">
+            <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:800;letter-spacing:-0.02em;color:${BRAND.ink};">Order update</h1>
+            <p style="margin:0;font-size:15px;line-height:1.65;color:${BRAND.body};">Hi ${escapeHtml(input.customerName)} — your order <strong style="color:${BRAND.ink};">${escapeHtml(input.reference)}</strong> is now <strong style="color:${BRAND.ink};">${escapeHtml(status)}</strong>.</p>
+          </td></tr>
+          <tr><td align="center" style="padding:24px 32px 32px;">
+            <a href="https://genericpcs.com/profile" style="display:inline-block;padding:13px 26px;background:${BRAND.accent};border-radius:10px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">View your order</a>
+          </td></tr>`;
+  return shell("Order update", "Order", body);
+}
+
+export async function sendOrderStatusEmail(input: OrderStatusEmailInput): Promise<void> {
+  await postResend(input.apiKey, input.to, `Generic PCs order ${input.status.replace(/_/g, " ")} — ${input.reference}`, buildOrderStatusEmailHtml(input)).catch((e) => console.error("order status email failed:", e));
+}
+
 /** Best-effort email to every admin about a payment event. */
 export async function notifyAdminsPaymentEvent(
   env: { RESEND_API_KEY?: string; DB: D1Database },

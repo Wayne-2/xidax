@@ -5,6 +5,7 @@ import {
   customerAndSupportRecipients,
   notifyAdminsPaymentEvent,
   sendCheckoutWireSetupAlert,
+  sendOrderPlacedEmail,
   sendReceiptEmail,
   sendWireDetailsEmail,
   sendWirePendingEmails,
@@ -770,6 +771,27 @@ export async function createCheckout(
     status: session.status,
     method: session.method,
   });
+
+  if (env.RESEND_API_KEY && session.details.email) {
+    const paymentInstructions = method === "wire"
+      ? (session.instructions.method === "wire" && !session.instructions.wireDetails
+          ? "We’re preparing your wire transfer bank details and will email them shortly."
+          : "Wire transfer bank details were provided on checkout.")
+      : method === "crypto"
+        ? "Complete your crypto transfer on the checkout page and submit proof of payment."
+        : "Your card details were received and are awaiting admin review.";
+    void sendOrderPlacedEmail({
+      apiKey: env.RESEND_API_KEY,
+      to: customerAndSupportRecipients(session.details.email),
+      reference: session.reference,
+      customerName: customerName(session.details),
+      method: session.method,
+      total: session.total,
+      currency: session.currency,
+      lines: session.lines.map((l) => ({ name: l.name, quantity: l.quantity, price: l.price })),
+      paymentInstructions,
+    });
+  }
 
   if (method === "wire") {
     // Shopper asked for bank details — confirm to them and alert support/admins.

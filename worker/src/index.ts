@@ -108,7 +108,7 @@ import {
   setCatalogPublished,
   type CatalogKind,
 } from "./catalog";
-import { sendVerificationEmail } from "./email";
+import { sendContactMessageEmail, sendVerificationEmail } from "./email";
 import {
   checkOTPStatus,
   ensureInitialized,
@@ -566,6 +566,9 @@ const worker = {
         { match: /^\/api\/auth\/(login|register)$/, method: "POST", limit: 15, window: 300 },
         { match: /^\/api\/auth\/send-otp$/, method: "POST", limit: 10, window: 300 },
         { match: /^\/api\/checkout$/, method: "POST", limit: 10, window: 60 },
+        { match: /^\/api\/checkout\/send-otp$/, method: "POST", limit: 10, window: 300 },
+        { match: /^\/api\/checkout\/verify-otp$/, method: "POST", limit: 20, window: 300 },
+        { match: /^\/api\/messages$/, method: "POST", limit: 8, window: 300 },
         { match: /^\/api\/registrations$/, method: "POST", limit: 10, window: 300 },
       ];
 
@@ -1817,8 +1820,32 @@ const worker = {
         return await handleRegistration(env, request);
       }
 
+      if (request.method === "POST" && path === "/api/messages") {
+        const body = await readJson(request);
+        if (!body) return json({ error: "Invalid request." }, 400);
+        const name = String(body.name ?? "").trim();
+        const email = String(body.email ?? "").trim().toLowerCase();
+        const subject = String(body.subject ?? "").trim();
+        const message = String(body.message ?? "").trim();
+        const country = String(body.country ?? "").trim();
+        if (!name || !email || !subject || !message) return json({ error: "Missing required fields." }, 400);
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "Enter a valid email address." }, 400);
+        if (message.length < 10 || message.length > 5000) return json({ error: "Message must be 10-5000 characters." }, 400);
+        const id = crypto.randomUUID();
+        await env.DB.prepare(
+          `INSERT INTO messages (id, name, email, subject, message, country, created_at) VALUES (?1,?2,?3,?4,?5,?6,?7)`
+        ).bind(id, name.slice(0,120), email.slice(0,200), subject.slice(0,200), message.slice(0,5000), country.slice(0,80) || null, new Date().toISOString()).run();
+        if (env.RESEND_API_KEY) {
+          void sendContactMessageEmail({ apiKey: env.RESEND_API_KEY, name: name.slice(0,120), email: email.slice(0,200), subject: subject.slice(0,200), message: message.slice(0,5000), country: country.slice(0,80) || null });
+        }
+        return json({ ok: true, id }, 201);
+      }
+
       if (request.method === "GET" && path === "/api/orders") {
-        return await handleOrders(env, url);
+        const token = readToken(request);
+        const user = token ? await findUserByToken(env, token) : null;
+        if (!user) return json({ error: "Not signed in." }, 401);
+        return await handleOrders(env, new URL(`${url.origin}${url.pathname}?email=${encodeURIComponent(user.email)}`));
       }
       if (request.method === "POST" && path === "/api/auth/send-otp") {
         return await handleSendOTP(request, env);

@@ -214,8 +214,12 @@ export default function PrebuildsBrowser({
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const paged = sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-
-  useEffect(() => { setPage(1); }, [platform, priceFilters, stockFilters, sort]);
+  const filterKey = `${platform}|${priceFilters.join(",")}|${stockFilters.join(",")}|${sort}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (prevFilterKey !== filterKey) {
+    setPrevFilterKey(filterKey);
+    setPage(1);
+  }
 
   const chips: { key: string; label: string; onRemove: () => void }[] = [];
 

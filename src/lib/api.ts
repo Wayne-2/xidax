@@ -212,11 +212,6 @@ export async function createCheckoutSession(
   payload: CheckoutRequest,
   token?: string | null
 ): Promise<CheckoutSession> {
-  if (!API_BASE) {
-    await new Promise((resolve) => setTimeout(resolve, 650));
-    return mockSession(payload);
-  }
-
   return accountRequest<CheckoutSession>("/api/checkout", {
     method: "POST",
     body: payload,
@@ -227,8 +222,6 @@ export async function createCheckoutSession(
 export async function getCheckoutSession(
   id: string
 ): Promise<CheckoutSession | null> {
-  if (!API_BASE) return null;
-
   try {
     return await request<CheckoutSession>(`/api/checkout/${encodeURIComponent(id)}`);
   } catch (error) {
@@ -239,11 +232,6 @@ export async function getCheckoutSession(
 
 /** Public list of active crypto wallets shown at checkout. */
 export async function fetchWallets(): Promise<{ wallets: CryptoWallet[] }> {
-  if (!API_BASE) {
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    return { wallets: mockWallets().filter((wallet) => wallet.active) };
-  }
-
   return request<{ wallets: CryptoWallet[] }>("/api/wallets");
 }
 
@@ -255,39 +243,6 @@ export async function submitCardDetails(
   id: string,
   card: CardDetailsInput
 ): Promise<{ status: string; session: CheckoutSession }> {
-  if (!API_BASE) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const session = mockSession({
-      lines: [],
-      details: {
-        email: "",
-        marketingOptIn: false,
-        firstName: "",
-        lastName: "",
-        address: "",
-        apartment: "",
-        city: "",
-        state: "",
-        zipCode: "",
-        country: "",
-        phone: "",
-        deliveryMethod: "standard",
-      },
-      method: "card",
-      subtotal: 0,
-      shipping: 0,
-      tax: 0,
-      discount: 0,
-      total: 0,
-      currency: "USD",
-    });
-    throw new AppError(CARD_PAYMENT_UNAVAILABLE, {
-      status: 402,
-      code: "card_unavailable",
-      payload: { session: { ...session, status: "failed" as const } },
-    });
-  }
-
   return request<{ status: string; session: CheckoutSession }>(
     `/api/checkout/${encodeURIComponent(id)}/card`,
     { method: "POST", body: JSON.stringify(card) }
@@ -298,21 +253,6 @@ export async function submitCardDetails(
 export async function confirmPayment(
   id: string
 ): Promise<{ status: string; session: CheckoutSession }> {
-  if (!API_BASE) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    return { status: "submitted", session: mockSession({
-      lines: [],
-      details: { email: "", marketingOptIn: false, firstName: "", lastName: "", address: "", apartment: "", city: "", state: "", zipCode: "", country: "", phone: "", deliveryMethod: "standard" },
-      method: "crypto",
-      subtotal: 0,
-      shipping: 0,
-      tax: 0,
-      discount: 0,
-      total: 0,
-      currency: "USD",
-    }) };
-  }
-
   return request<{ status: string; session: CheckoutSession }>(
     `/api/checkout/${encodeURIComponent(id)}/confirm`,
     { method: "POST" }
@@ -320,17 +260,14 @@ export async function confirmPayment(
 }
 
 export async function notifyWirePending(id: string): Promise<{ ok: boolean }> {
-  if (!API_BASE) return { ok: true };
   return request<{ ok: boolean }>(`/api/checkout/${encodeURIComponent(id)}/wire-notify`, { method: "POST" });
 }
 
 export async function sendCheckoutOtp(email: string): Promise<{ ok: boolean }> {
-  if (!API_BASE) return { ok: true };
   return request<{ ok: boolean }>("/api/checkout/send-otp", { method: "POST", body: JSON.stringify({ email }) });
 }
 
 export async function verifyCheckoutOtp(email: string, otp: string): Promise<{ ok: boolean }> {
-  if (!API_BASE) return { ok: true };
   return request<{ ok: boolean }>("/api/checkout/verify-otp", { method: "POST", body: JSON.stringify({ email, otp }) });
 }
 
@@ -338,7 +275,6 @@ export async function updateCheckoutWallet(
   id: string,
   walletId: string
 ): Promise<{ status: string; session: CheckoutSession }> {
-  if (!API_BASE) return { status: "awaiting_payment", session: mockSession({ lines: [], details: { email: "", marketingOptIn: false, firstName: "", lastName: "", address: "", apartment: "", city: "", state: "", zipCode: "", country: "", phone: "", deliveryMethod: "standard" }, method: "crypto", walletId, subtotal: 0, shipping: 0, tax: 0, discount: 0, total: 0, currency: "USD" }) };
   return request<{ status: string; session: CheckoutSession }>(`/api/checkout/${encodeURIComponent(id)}/wallet`, { method: "POST", body: JSON.stringify({ walletId }) });
 }
 
@@ -347,32 +283,6 @@ export async function submitPaymentProof(
   id: string,
   payload: { txHash: string; note?: string }
 ): Promise<{ status: string; session: CheckoutSession }> {
-  if (!API_BASE) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    return {
-      status: "submitted",
-      session: {
-        ...mockSession({
-          lines: [],
-          details: { email: "", marketingOptIn: false, firstName: "", lastName: "", address: "", apartment: "", city: "", state: "", zipCode: "", country: "", phone: "", deliveryMethod: "standard" },
-          method: "crypto",
-          subtotal: 0,
-          shipping: 0,
-          tax: 0,
-          discount: 0,
-          total: 0,
-          currency: "USD",
-        }),
-        status: "submitted",
-        paymentProof: {
-          txHash: payload.txHash,
-          note: payload.note,
-          submittedAt: new Date().toISOString(),
-        },
-      },
-    };
-  }
-
   return request<{ status: string; session: CheckoutSession }>(
     `/api/checkout/${encodeURIComponent(id)}/proof`,
     { method: "POST", body: JSON.stringify(payload) }
