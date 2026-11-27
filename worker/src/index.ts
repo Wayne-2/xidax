@@ -110,6 +110,7 @@ import {
   type CatalogKind,
 } from "./catalog";
 import { sendContactMessageEmail, sendVerificationEmail } from "./email";
+import { createCustomBuildRequest, listCustomBuildRequests, updateCustomBuildRequest } from "./custom-builds";
 import {
   checkOTPStatus,
   ensureInitialized,
@@ -957,6 +958,18 @@ const worker = {
 
           const status = await getGiveawayStatus(env, { userId: null, guestId: null });
           return jsonWithCors({ ok: true, status }, request, env);
+        }
+
+        if (request.method === "GET" && path === "/api/admin/custom-build-requests") {
+          return jsonWithCors(await listCustomBuildRequests(env), request, env);
+        }
+        const customBuildMatch = path.match(/^\/api\/admin\/custom-build-requests\/([^/]+)$/);
+        if (request.method === "PATCH" && customBuildMatch) {
+          const body = await readJson(request);
+          if (!body) return jsonWithCors({ error: "Invalid request." }, request, env, 400);
+          const result = await updateCustomBuildRequest(env, customBuildMatch[1], body);
+          if (!result.ok) return jsonWithCors({ error: result.error }, request, env, result.status);
+          return jsonWithCors(result, request, env);
         }
 
         // GET /api/admin/orders
@@ -1850,6 +1863,24 @@ const worker = {
 
       if (request.method === "POST" && path === "/api/registrations") {
         return await handleRegistration(env, request);
+      }
+
+      if (request.method === "POST" && path === "/api/custom-build-requests") {
+        const body = await readJson(request);
+        if (!body) return json({ error: "Invalid request." }, 400);
+        const result = await createCustomBuildRequest(env, {
+          name: String(body.name ?? ""),
+          email: String(body.email ?? ""),
+          contact: typeof body.contact === "string" ? body.contact : undefined,
+          budget: typeof body.budget === "string" ? body.budget : undefined,
+          requestText: String(body.requestText ?? body.message ?? ""),
+        });
+        if (!result.ok) return json({ error: result.error }, result.status);
+        if (env.RESEND_API_KEY) {
+          const supportEmail = await getSupportEmail(env);
+          void sendContactMessageEmail({ apiKey: env.RESEND_API_KEY, to: supportEmail, name: String(body.name ?? "").slice(0,120), email: String(body.email ?? "").slice(0,200), subject: `Custom build request${body.budget ? ` — ${String(body.budget).slice(0,60)}` : ""}`, message: String(body.requestText ?? body.message ?? "").slice(0,5000), country: String(body.contact ?? "") || null });
+        }
+        return json({ ok: true, id: result.id }, 201);
       }
 
       if (request.method === "POST" && path === "/api/messages") {

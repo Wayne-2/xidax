@@ -590,3 +590,13 @@ export function updateAdminGiveawayPrize(prize: AdminGiveawayPrize | null) {
     { method: "PUT", body: JSON.stringify({ prize }) }
   );
 }
+
+export type AdminCustomBuildRequest = {
+  id: string; name: string; email: string; contact: string | null; budget: string | null;
+  request_text: string; status: string; admin_notes: string | null; quote_amount: number | null;
+  quote_currency: string | null; created_at: string; updated_at: string;
+};
+export function fetchAdminCustomBuildRequests() { return adminFetch<{ requests: AdminCustomBuildRequest[] }>("/api/admin/custom-build-requests"); }
+export function updateAdminCustomBuildRequest(id: string, patch: Partial<Pick<AdminCustomBuildRequest,"status"|"admin_notes"|"quote_amount"|"quote_currency">>) {
+  return adminFetch<{ ok: boolean; request: AdminCustomBuildRequest }>(`/api/admin/custom-build-requests/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+}

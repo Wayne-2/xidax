@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import CustomBuilder from "@/components/CustomBuilder";
+import CustomBuildRequest from "@/components/CustomBuildRequest";
 import RevealObserver from "@/components/RevealObserver";
 
 export const metadata: Metadata = {
@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function CustomBuildsPage() {
   return (
     <main className="relative flex-1">
-      <CustomBuilder />
+      <CustomBuildRequest />
       <RevealObserver />
     </main>
   );

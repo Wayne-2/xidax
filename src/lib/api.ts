@@ -338,6 +338,19 @@ export async function sendMessage(payload: {
   });
 }
 
+export async function submitCustomBuildRequest(payload: {
+  name: string;
+  email: string;
+  contact?: string;
+  budget?: string;
+  requestText: string;
+}) {
+  return request<{ ok: boolean; id: string }>("/api/custom-build-requests", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function createAccountProduct(
   token: string,
   payload: {
