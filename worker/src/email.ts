@@ -249,13 +249,15 @@ export async function resolveSupportEmail(env: { SESSIONS?: KVNamespace }): Prom
 }
 
 export async function getSupportRecipients(env: { DB?: D1Database; SESSIONS?: KVNamespace }): Promise<string[]> {
-  const emails = [await resolveSupportEmail(env)];
+  const supportEmail = await resolveSupportEmail(env);
+  const emails = [supportEmail];
   try {
     if (env.DB) {
       const admins = await env.DB.prepare("SELECT email FROM admins ORDER BY created_at DESC").all<{ email: string }>();
       for (const row of admins.results ?? []) {
         const email = normalizeSupportEmail(row.email);
-        if (email) emails.push(email);
+        // Avoid duplicate notifications: support inbox already receives ops copy.
+        if (email && email !== supportEmail) emails.push(email);
       }
     }
   } catch {}
@@ -267,7 +269,8 @@ export async function getSupportRecipients(env: { DB?: D1Database; SESSIONS?: KV
  * to the configured support inbox/admin recipients.
  */
 export async function customerAndSupportRecipients(env: { DB?: D1Database; SESSIONS?: KVNamespace }, customerEmail: string): Promise<string[]> {
-  const emails = [String(customerEmail ?? "").trim().toLowerCase(), ...(await getSupportRecipients(env))].filter(Boolean);
+  const customer = normalizeSupportEmail(customerEmail);
+  const emails = [...(customer ? [customer] : []), ...(await getSupportRecipients(env))];
   return [...new Set(emails)];
 }
 
@@ -940,11 +943,7 @@ export async function notifyAdminsPaymentEvent(
   if (!env.RESEND_API_KEY) return;
 
   try {
-    const admins = await env.DB.prepare(
-      "SELECT email FROM admins ORDER BY created_at DESC"
-    ).all<{ email: string }>();
-
-    const unique = await getSupportRecipients(env as any);
+    const unique = await getSupportRecipients(env);
 
     const wireSent = input.kind === "wire" && input.event === "sent";
     const generic = input.reference === "CHECKOUT-OTP" || input.reference === "CHECKOUT";

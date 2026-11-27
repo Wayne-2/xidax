@@ -85,7 +85,7 @@ describe("wire details email", () => {
   });
 
   it("forwards customer emails to the shopper and the ops inbox", async () => {
-    const recipients = await customerAndSupportRecipients({ SESSIONS: { get: async () => null } as any, DB: { prepare: () => ({ all: async () => ({ results: [] }) }) } as any }, "Customer@Example.com");
+    const recipients = await customerAndSupportRecipients({ SESSIONS: { get: async () => null } as unknown as KVNamespace, DB: { prepare: () => ({ all: async () => ({ results: [] }) }) } as unknown as D1Database }, "Customer@Example.com");
     expect(recipients).toContain("customer@example.com");
     expect(recipients).toContain("supportsgenericpcs@gmail.com");
     expect(new Set(recipients).size).toBe(recipients.length);
