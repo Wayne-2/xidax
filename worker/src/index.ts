@@ -1845,23 +1845,34 @@ const worker = {
         return json({ ok: true });
       }
 
-      const proofMatch = path.match(/^\/api\/checkout\/([^/]+)\/proof$/);
+            const proofMatch = path.match(/^\/api\/checkout\/([^/]+)\/proof$/);
 
       if (request.method === "POST" && proofMatch) {
-        const body = (await request.json().catch(() => null)) as
-          | Record<string, unknown>
-          | null;
-
-        if (!body) {
-          return json({ error: "Invalid request." }, 400);
+        const contentType = request.headers.get("content-type") ?? "";
+        let body: Record<string, unknown> | null = null;
+        if (contentType.toLowerCase().includes("multipart/form-data")) {
+          const fd = await request.formData().catch(() => null);
+          if (!fd) return json({ error: "Invalid request." }, 400);
+          const file = fd.get("file");
+          let fileUrl = String(fd.get("fileUrl") ?? "").trim();
+          let fileName = String(fd.get("fileName") ?? "").trim();
+          if (file instanceof File && file.size > 0) {
+            const max = 5 * 1024 * 1024;
+            const allowed = ["image/png", "image/jpeg", "image/jpg"];
+            if (!allowed.includes(file.type)) return json({ error: "Receipt must be PNG, JPG, or JPEG." }, 400);
+            if (file.size > max) return json({ error: "Receipt must be 5 MB or smaller." }, 400);
+            const uploaded = await uploadImage(env, file);
+            if (!uploaded.ok) return json({ error: uploaded.error }, uploaded.status);
+            fileUrl = uploaded.url;
+            fileName = file.name;
+          }
+          body = { txHash: String(fd.get("txHash") ?? ""), note: String(fd.get("note") ?? ""), fileUrl, fileName };
+        } else {
+          body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
         }
-
+        if (!body) return json({ error: "Invalid request." }, 400);
         const result = await submitPaymentProof(env, proofMatch[1], body);
-
-        if (!result.ok) {
-          return json({ error: result.error }, result.status);
-        }
-
+        if (!result.ok) return json({ error: result.error }, result.status);
         return json({ status: result.session.status, session: result.session });
       }
 

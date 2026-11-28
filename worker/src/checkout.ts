@@ -495,7 +495,7 @@ export async function confirmPaymentSent(
 export async function submitPaymentProof(
   env: Env,
   id: string,
-  payload: { txHash?: unknown; note?: unknown }
+  payload: { txHash?: unknown; note?: unknown; fileUrl?: unknown; fileName?: unknown }
 ): Promise<ConfirmResult> {
   const current = await getLiveSession(env, id);
 
@@ -550,22 +550,28 @@ export async function submitPaymentProof(
 
   const txHash = String(payload.txHash ?? "").trim();
   const noteRaw = String(payload.note ?? "").trim();
+  const fileUrl = String(payload.fileUrl ?? "").trim();
+  const fileName = String(payload.fileName ?? "").trim();
 
-  if (!txHash || txHash.length > 200) {
-    return {
-      ok: false,
-      status: 400,
-      error: "Enter the transaction hash or transfer reference (max 200 characters).",
-    };
+  if (current.method === "wire") {
+    if (!fileUrl) return { ok: false, status: 400, error: "Upload proof of payment receipt." };
+    if (!fileUrl.startsWith("/api/images/")) return { ok: false, status: 400, error: "Invalid proof of payment file." };
+  } else {
+    if (!txHash || txHash.length > 200) {
+      return { ok: false, status: 400, error: "Enter the transaction hash or transfer reference (max 200 characters)." };
+    }
   }
+  if (txHash.length > 200) return { ok: false, status: 400, error: "Reference is too long (max 200 characters)." };
 
   if (noteRaw.length > 500) {
     return { ok: false, status: 400, error: "Note is too long (max 500 characters)." };
   }
 
   const paymentProof = {
-    txHash,
+    txHash: txHash || "WIRE-RECEIPT",
     ...(noteRaw ? { note: noteRaw } : {}),
+    ...(fileUrl ? { fileUrl } : {}),
+    ...(fileName ? { fileName: fileName.slice(0, 180) } : {}),
     submittedAt: new Date().toISOString(),
   };
 
@@ -592,7 +598,7 @@ export async function submitPaymentProof(
     detail:
       updated.method === "crypto"
         ? `Proof submitted for ${walletLabel ?? "wallet"} (tx ${txHash}) — awaiting approval`
-        : `Proof of bank transfer submitted (ref ${txHash}) — awaiting approval`,
+        : `Proof of bank transfer submitted${txHash ? ` (ref ${txHash})` : ""}${fileUrl ? ` with receipt ${fileUrl}` : ""} — awaiting approval`,
   } satisfies AdminPaymentAlertInput);
 
   return { ok: true, session: updated };

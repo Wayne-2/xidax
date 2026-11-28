@@ -59,6 +59,8 @@ export type WireDetails = {
 export type PaymentProof = {
   txHash: string;
   note?: string;
+  fileUrl?: string;
+  fileName?: string;
   submittedAt: string;
 };
 

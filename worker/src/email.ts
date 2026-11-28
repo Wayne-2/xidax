@@ -617,6 +617,11 @@ export function buildWireDetailsEmailHtml(input: SendWireDetailsInput): string {
             </td>
           </tr>
           <tr>
+            <td style="padding:8px 32px 0;">
+              <p style="margin:0;font-size:13px;line-height:1.6;color:${BRAND.muted};">Include the payment reference in your transfer memo so we can match it quickly.</p>
+            </td>
+          </tr>
+          <tr>
             <td align="center" style="padding:24px 32px 32px;">
               <a href="https://genericpcs.com/checkout" style="display:inline-block;padding:13px 26px;background:${BRAND.accent};border-radius:10px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">
                 Open checkout

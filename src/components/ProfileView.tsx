@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ArrowIcon, CheckIcon } from "@/components/BuildIcons";
 import { useAccount } from "@/components/AccountProvider";
-import { deleteAccount } from "@/lib/firebase-client";
 import { useToast } from "@/components/ToastProvider";
 import { useRegion } from "@/components/RegionProvider";
 import ProductRegistration from "@/components/ProductRegistration";
@@ -15,7 +14,6 @@ import {
 } from "@/data/account";
 import { currencyLabel } from "@/lib/regions";
 import { statusLabel } from "@/lib/payments";
-import { countries } from "@/data/account";
 
 const statusTone: Record<AccountOrderStatus, string> = {
   Delivered: "bg-[#16A34A]/10 text-[#15803D]",
@@ -154,6 +152,7 @@ export default function ProfileView() {
     saveSettings,
     resetSettings,
     orders,
+    deleteAccount,
   } = useAccount();
   const { region, formatMoney, formatDateTime, clock } = useRegion();
   const [saved, setSaved] = useState(false);
@@ -195,18 +194,7 @@ export default function ProfileView() {
     };
   }, []);
 
-  function queueProfileSave(patch: Partial<typeof profileDraft>) {
-    const next = { ...profileDraft, ...patch };
-    setProfileDraft(next);
-
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-
-    saveTimer.current = setTimeout(() => {
-      updateProfile(next)
-        .then(markSaved)
-        .catch(() => toast.error("Could not save your changes. Please retry."));
-    }, 600);
-  }
+  // Personal account details are read-only in profile.
 
   useEffect(() => {
     if (ready && !user) {
@@ -548,8 +536,8 @@ export default function ProfileView() {
                 <input
                   id="settings-name"
                   value={profileDraft.name}
-                  onChange={(event) => queueProfileSave({ name: event.target.value })}
-                  className={fieldClass}
+                  readOnly
+                  className={`${fieldClass} cursor-not-allowed bg-[#edf2f8] text-[#5c5e66]`}
                 />
               </div>
 
@@ -564,8 +552,8 @@ export default function ProfileView() {
                   id="settings-email"
                   type="email"
                   value={profileDraft.email}
-                  onChange={(event) => queueProfileSave({ email: event.target.value })}
-                  className={fieldClass}
+                  readOnly
+                  className={`${fieldClass} cursor-not-allowed bg-[#edf2f8] text-[#5c5e66]`}
                 />
               </div>
 
@@ -579,8 +567,8 @@ export default function ProfileView() {
                 <input
                   id="settings-phone"
                   value={profileDraft.phone}
-                  onChange={(event) => queueProfileSave({ phone: event.target.value })}
-                  className={fieldClass}
+                  readOnly
+                  className={`${fieldClass} cursor-not-allowed bg-[#edf2f8] text-[#5c5e66]`}
                 />
               </div>
             </div>
@@ -592,13 +580,10 @@ export default function ProfileView() {
             </h3>
 
             <div className="mt-4 space-y-4">
-              <SelectField
-                id="settings-country"
-                label="Country"
-                value={profileDraft.country}
-                options={countries.filter((option) => option !== "Other")}
-                onChange={(next) => queueProfileSave({ country: next })}
-              />
+              <div>
+                <label htmlFor="settings-country" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#80848e]">Country</label>
+                <input id="settings-country" value={profileDraft.country} readOnly className={`${fieldClass} cursor-not-allowed bg-[#edf2f8] text-[#5c5e66]`} />
+              </div>
               <div>
                 <label
                   htmlFor="settings-postal"
@@ -609,8 +594,8 @@ export default function ProfileView() {
                 <input
                   id="settings-postal"
                   value={profileDraft.postalCode}
-                  onChange={(event) => queueProfileSave({ postalCode: event.target.value })}
-                  className={fieldClass}
+                  readOnly
+                  className={`${fieldClass} cursor-not-allowed bg-[#edf2f8] text-[#5c5e66]`}
                 />
               </div>
             </div>
@@ -728,7 +713,6 @@ export default function ProfileView() {
           try {
             await deleteAccount();
             toast.success("Your account has been deleted.");
-            await signOut();
             router.push("/");
           } catch (error) {
             toast.error((error as { error?: string }).error ?? "Could not delete your account.");

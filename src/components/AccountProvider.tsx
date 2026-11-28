@@ -13,6 +13,7 @@ import { friendlyError } from "@/lib/errors";
 import {
   createAccountProduct,
   deleteAccountProduct,
+  deleteAccount as apiDeleteAccount,
   fetchAccount,
   fetchAccountOrders,
   fetchAccountProducts,
@@ -58,6 +59,7 @@ type AccountContextValue = {
     purchasedOn: string;
   }) => Promise<AccountProductPayload | string>;
   removeProduct: (id: string) => Promise<void>;
+  deleteAccount: () => Promise<void>;
   refresh: () => Promise<void>;
 };
 
@@ -306,6 +308,19 @@ export function AccountProvider({
     [token, readToken]
   );
 
+  const deleteAccount = useCallback(async () => {
+    const active = token ?? readToken();
+    if (!active) throw new Error("You need to sign in first.");
+    await apiDeleteAccount(active);
+    try { await signOut().catch(() => undefined); } catch {}
+    window.localStorage.removeItem(TOKEN_KEY);
+    setToken(null);
+    setUser(null);
+    setOrders([]);
+    setProducts([]);
+    setSettings(defaultSettings);
+  }, [token, readToken, signOut]);
+
   const resetSettings = useCallback(async () => {
     const active = token ?? readToken();
 
@@ -355,6 +370,7 @@ export function AccountProvider({
       resetSettings,
       addProduct,
       removeProduct,
+      deleteAccount,
       refresh,
     }),
     [
@@ -374,6 +390,7 @@ export function AccountProvider({
       resetSettings,
       addProduct,
       removeProduct,
+      deleteAccount,
       refresh,
     ]
   );

@@ -163,11 +163,21 @@ export async function updateCheckoutWallet(
   return request<{ status: string; session: CheckoutSession }>(`/api/checkout/${encodeURIComponent(id)}/wallet`, { method: "POST", body: JSON.stringify({ walletId }) });
 }
 
-/** Crypto/wire: customer submits tx hash / transfer reference as proof. */
+/** Crypto/wire: customer submits tx hash / transfer reference or receipt file as proof. */
 export async function submitPaymentProof(
   id: string,
-  payload: { txHash: string; note?: string }
+  payload: { txHash?: string; note?: string; file?: File | null; fileName?: string }
 ): Promise<{ status: string; session: CheckoutSession }> {
+  if (payload.file) {
+    const fd = new FormData();
+    fd.set("txHash", payload.txHash ?? "");
+    fd.set("note", payload.note ?? "");
+    fd.set("file", payload.file);
+    return request<{ status: string; session: CheckoutSession }>(
+      `/api/checkout/${encodeURIComponent(id)}/proof`,
+      { method: "POST", body: fd }
+    );
+  }
   return request<{ status: string; session: CheckoutSession }>(
     `/api/checkout/${encodeURIComponent(id)}/proof`,
     { method: "POST", body: JSON.stringify(payload) }
@@ -389,6 +399,13 @@ export async function updateAccountSettings(
     "/api/me/settings",
     { method: "PATCH", body: patch, token }
   );
+}
+
+export async function deleteAccount(token: string) {
+  return accountRequest<{ deleted: boolean }>("/api/auth/account", {
+    method: "DELETE",
+    token,
+  });
 }
 
 export { cryptoNetworks };
