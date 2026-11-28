@@ -103,7 +103,7 @@ export type SavedItem = {
 
 export const demoUser: AccountUser = {
   id: "acct-20418",
-  name: "Wayne Adebayo",
+  name: "John Doe",
   email: "wayne@example.com",
   phone: "supportsgenericpcs@gmail.com",
   country: "United States",

@@ -248,7 +248,7 @@ export default function GiveawayView() {
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Wayne Adebayo"
+                  placeholder="John Doe"
                   className="h-11 w-full rounded-xl border border-[#d2dbe8] bg-[#f8fafe] px-3.5 text-sm outline-none focus:border-[#5865F2]"
                   required
                 />

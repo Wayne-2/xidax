@@ -279,7 +279,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
             id="auth-name"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Wayne Adebayo"
+            placeholder="John Doe"
             autoComplete="name"
             aria-invalid={Boolean(errors.name)}
             aria-describedby={errors.name ? "auth-name-error" : undefined}
@@ -336,7 +336,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
               type="tel"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
-              placeholder="you@example.com"
+              placeholder="+1 555 000 0000"
               autoComplete="tel"
               aria-invalid={Boolean(errors.phone)}
               aria-describedby={errors.phone ? "auth-phone-error" : undefined}
